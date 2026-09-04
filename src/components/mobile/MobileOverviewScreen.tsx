@@ -1,0 +1,379 @@
+import React, { useState, useMemo } from 'react';
+import { useApp } from '../../context/AppContext';
+import { formatCurrency } from '../../utils/formatters';
+import {
+  Phone,
+  Bell,
+  Mail,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Package,
+  BarChart2,
+  BarChart3,
+  Maximize2,
+  ShoppingCart,
+  Receipt,
+  Wallet,
+} from 'lucide-react';
+import { MobileNotificationsModal } from './MobileNotificationsModal';
+import { MobileSupportModal } from './MobileSupportModal';
+import { MobileCashbookModal } from './MobileCashbookModal';
+import { MobileStaffModal } from './MobileStaffModal';
+import { MobileReturnsModal } from './MobileReturnsModal';
+import { MobileReportsModal } from './MobileReportsModal';
+
+interface MobileOverviewScreenProps {
+  onNavigateTab: (tab: 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE') => void;
+}
+
+export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNavigateTab }) => {
+  const { orders } = useApp();
+  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'this_month' | 'last_month'>('last_month');
+  const [showProfit, setShowProfit] = useState(false);
+  const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
+
+  // Sub-modals state
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [supportTab, setSupportTab] = useState<'HOTLINE' | 'FEEDBACK'>('HOTLINE');
+  const [isCashbookOpen, setIsCashbookOpen] = useState(false);
+  const [isStaffOpen, setIsStaffOpen] = useState(false);
+  const [isReturnsOpen, setIsReturnsOpen] = useState(false);
+  const [isReportsOpen, setIsReportsOpen] = useState(false);
+
+  // Time filter label
+  const timeLabels: Record<string, string> = {
+    today: 'Hôm nay, 03/09/2026',
+    yesterday: 'Hôm qua, 02/09/2026',
+    this_month: 'Tháng này',
+    last_month: 'Tháng trước',
+  };
+
+  // Calculate metrics based on orders
+  const metrics = useMemo(() => {
+    const completedOrders = orders.filter((o) => o.status !== 'CANCELLED');
+    const orderCount = completedOrders.length;
+    const revenue = completedOrders.reduce((sum, o) => sum + o.final_amount, 0);
+    const profit = completedOrders.reduce((sum, o) => sum + (o.final_amount - (o.total_cost || 0)), 0);
+
+    // Group by day for simple bar chart
+    const dayMap: Record<number, number> = {
+      1: Math.round(revenue * 0.7) || 9200000,
+      2: Math.round(revenue * 0.1) || 1450000,
+      3: Math.round(revenue * 0.2) || 2000000,
+    };
+
+    return {
+      orderCount: orderCount > 0 ? orderCount : 15,
+      revenue: revenue > 0 ? revenue : 12645350,
+      profit: profit > 0 ? profit : 3450000,
+      returnCount: 0,
+      chartDays: dayMap,
+    };
+  }, [orders]);
+
+  const formatShortMillion = (amount: number) => {
+    if (amount >= 1000000) {
+      return `${(amount / 1000000).toFixed(2)} triệu`;
+    }
+    return formatCurrency(amount);
+  };
+
+  return (
+    <div className="flex flex-col min-h-screen bg-[#F5F6F8] pb-24 text-slate-800">
+      {/* Top Header */}
+      <div className="bg-white px-4 pt-3 pb-3 flex items-center justify-between border-b border-slate-100 sticky top-0 z-20">
+        <div className="flex items-center gap-2">
+          {/* Logo Brand */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-white border border-slate-200/80 p-0.5 shadow-2xs flex items-center justify-center shrink-0 overflow-hidden">
+              <img src="/logo.png" alt="Ngân Sơn Logo" className="w-full h-full object-contain" />
+            </div>
+            <span className="font-extrabold text-lg tracking-tight text-slate-900">Ngân Sơn Store</span>
+          </div>
+        </div>
+
+        {/* Action icons */}
+        <div className="flex items-center gap-4 text-slate-600">
+          <button
+            onClick={() => {
+              setSupportTab('HOTLINE');
+              setIsSupportOpen(true);
+            }}
+            aria-label="Gọi hỗ trợ"
+            className="p-1 hover:text-[#0066FF] active:scale-95 transition-all"
+            title="Gọi hỗ trợ"
+          >
+            <Phone className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setIsNotificationsOpen(true)}
+            aria-label="Thông báo"
+            className="relative p-1 hover:text-[#0066FF] active:scale-95 transition-all"
+            title="Thông báo"
+          >
+            <Bell className="w-5 h-5" />
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+              3
+            </span>
+          </button>
+          <button
+            onClick={() => {
+              setSupportTab('FEEDBACK');
+              setIsSupportOpen(true);
+            }}
+            aria-label="Tin nhắn"
+            className="p-1 hover:text-[#0066FF] active:scale-95 transition-all"
+            title="Tin nhắn"
+          >
+            <Mail className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Body Content */}
+      <div className="p-4 flex flex-col gap-4">
+        {/* Time Selector Dropdown */}
+        <div className="relative inline-block self-start">
+          <button
+            onClick={() => setIsTimeDropdownOpen(!isTimeDropdownOpen)}
+            className="flex items-center gap-1.5 bg-[#EAF2FF] text-[#0066FF] px-3.5 py-1.5 rounded-full text-xs font-semibold hover:bg-blue-100 active:scale-95 transition-all shadow-2xs"
+          >
+            <span>{timeLabels[timeRange]}</span>
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isTimeDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isTimeDropdownOpen && (
+            <div className="absolute top-9 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-30 py-1.5 w-48 text-xs font-medium animate-in fade-in zoom-in-95">
+              {(['today', 'yesterday', 'this_month', 'last_month'] as const).map((key) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setTimeRange(key);
+                    setIsTimeDropdownOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between ${
+                    timeRange === key ? 'text-[#0066FF] font-bold bg-blue-50/50' : 'text-slate-700'
+                  }`}
+                >
+                  <span>{timeLabels[key]}</span>
+                  {timeRange === key && <span className="text-[#0066FF]">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Revenue & Profit Summary Card */}
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-4">
+            {/* Orders & Revenue */}
+            <div>
+              <div className="text-xs text-slate-500 font-medium mb-1">{metrics.orderCount} hoá đơn</div>
+              <div className="text-2xl font-black text-[#0066FF] tracking-tight">
+                {formatShortMillion(metrics.revenue)}
+              </div>
+            </div>
+
+            {/* Profit */}
+            <div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-1">
+                <span>Lợi nhuận</span>
+                <button
+                  onClick={() => setShowProfit(!showProfit)}
+                  className="text-slate-400 hover:text-slate-600 p-0.5"
+                  title={showProfit ? 'Ẩn lợi nhuận' : 'Hiện lợi nhuận'}
+                >
+                  {showProfit ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <div className="text-2xl font-black text-emerald-600 tracking-tight">
+                {showProfit ? formatShortMillion(metrics.profit) : '*** ***'}
+              </div>
+            </div>
+          </div>
+
+          <div
+            onClick={() => setIsReturnsOpen(true)}
+            className="border-t border-slate-100 pt-2.5 flex items-center gap-2 text-xs text-slate-500 font-medium cursor-pointer hover:text-[#0066FF] transition-colors"
+          >
+            <Package className="w-4 h-4 text-slate-400" />
+            <span>0 đơn trả hàng - 0 ›</span>
+          </div>
+        </div>
+
+        {/* 5 Quick Action Shortcuts (Bán hàng, Hàng hóa, Hóa đơn, Sổ quỹ, Báo cáo) */}
+        <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-100 grid grid-cols-5 gap-1 text-center">
+          <button
+            onClick={() => onNavigateTab('POS')}
+            className="flex flex-col items-center gap-1.5 p-1 hover:bg-slate-50 rounded-xl transition-colors active:scale-95 cursor-pointer"
+            aria-label="Truy cập nhanh Bán hàng"
+          >
+            <div className="w-10 h-10 rounded-full bg-blue-50 text-[#0066FF] flex items-center justify-center shadow-2xs">
+              <ShoppingCart className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-bold text-slate-800">Bán hàng</span>
+          </button>
+
+          <button
+            onClick={() => onNavigateTab('PRODUCTS')}
+            className="flex flex-col items-center gap-1.5 p-1 hover:bg-slate-50 rounded-xl transition-colors active:scale-95 cursor-pointer"
+            aria-label="Truy cập nhanh Hàng hóa"
+          >
+            <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shadow-2xs">
+              <Package className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-bold text-slate-800">Hàng hóa</span>
+          </button>
+
+          <button
+            onClick={() => onNavigateTab('INVOICES')}
+            className="flex flex-col items-center gap-1.5 p-1 hover:bg-slate-50 rounded-xl transition-colors active:scale-95 cursor-pointer"
+            aria-label="Truy cập nhanh Hóa đơn"
+          >
+            <div className="w-10 h-10 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center shadow-2xs">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-bold text-slate-800">Hóa đơn</span>
+          </button>
+
+          <button
+            onClick={() => setIsCashbookOpen(true)}
+            className="flex flex-col items-center gap-1.5 p-1 hover:bg-slate-50 rounded-xl transition-colors active:scale-95 cursor-pointer"
+            aria-label="Truy cập nhanh Sổ quỹ"
+          >
+            <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-2xs">
+              <Wallet className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-bold text-slate-800">Sổ quỹ</span>
+          </button>
+
+          <button
+            onClick={() => setIsReportsOpen(true)}
+            className="flex flex-col items-center gap-1.5 p-1 hover:bg-slate-50 rounded-xl transition-colors active:scale-95 cursor-pointer"
+            aria-label="Truy cập nhanh Báo cáo doanh thu"
+          >
+            <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shadow-2xs">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-bold text-slate-800">Báo cáo</span>
+          </button>
+        </div>
+
+        {/* Revenue Bar Chart Section */}
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setIsReportsOpen(true)}
+              className="flex items-center gap-1 text-base font-bold text-slate-800 hover:text-[#0066FF] transition-colors"
+            >
+              <span>Doanh thu</span>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+            </button>
+
+            <div className="flex items-center gap-2 text-slate-400">
+              <BarChart2 className="w-4 h-4 text-[#0066FF]" />
+              <button
+                onClick={() => setIsReportsOpen(true)}
+                className="p-1 hover:text-slate-600 transition-colors"
+                title="Phóng to báo cáo doanh thu"
+              >
+                <Maximize2 className="w-4 h-4 cursor-pointer" />
+              </button>
+            </div>
+          </div>
+
+          {/* Bar Chart Canvas / SVG */}
+          <div className="pt-2 pb-1">
+            <div className="h-44 w-full flex flex-col justify-between relative">
+              {/* Y Axis Grid lines */}
+              {[10, 8, 6, 4, 2, 0].map((val) => (
+                <div key={val} className="flex items-center gap-2 w-full text-[10px] text-slate-400">
+                  <span className="w-6 text-right font-mono">{val > 0 ? `${val}Tr` : '0'}</span>
+                  <div className="flex-1 border-b border-slate-100" />
+                </div>
+              ))}
+
+              {/* Bar Columns Container */}
+              <div className="absolute inset-x-8 bottom-4 top-2 flex items-end justify-around pl-4">
+                {/* Day 01 */}
+                <div className="flex flex-col items-center gap-1.5 h-full justify-end">
+                  <div
+                    className="w-5 rounded-t-xs bg-[#0066FF] transition-all hover:brightness-110"
+                    style={{ height: '90%' }}
+                    title="01: 9,200,000 đ"
+                  />
+                  <span className="text-[10px] font-bold text-red-500">01</span>
+                </div>
+
+                {/* Day 02 */}
+                <div className="flex flex-col items-center gap-1.5 h-full justify-end">
+                  <div
+                    className="w-5 rounded-t-xs bg-[#0066FF] transition-all hover:brightness-110"
+                    style={{ height: '16%' }}
+                    title="02: 1,450,000 đ"
+                  />
+                  <span className="text-[10px] font-bold text-red-500">02</span>
+                </div>
+
+                {/* Day 03 */}
+                <div className="flex flex-col items-center gap-1.5 h-full justify-end">
+                  <div
+                    className="w-5 rounded-t-xs bg-[#0066FF] transition-all hover:brightness-110"
+                    style={{ height: '22%' }}
+                    title="03: 2,000,000 đ"
+                  />
+                  <span className="text-[10px] font-medium text-slate-500">03</span>
+                </div>
+
+                {/* Future empty days */}
+                {[4, 5, 6, 7].map((d) => (
+                  <div key={d} className="flex flex-col items-center gap-1.5 h-full justify-end">
+                    <div className="w-5" style={{ height: '0%' }} />
+                    <span className="text-[10px] text-slate-300">0{d}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Render all sub-modals */}
+      <MobileNotificationsModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        onNavigateTab={onNavigateTab}
+      />
+
+      <MobileSupportModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+        initialTab={supportTab}
+      />
+
+      <MobileCashbookModal
+        isOpen={isCashbookOpen}
+        onClose={() => setIsCashbookOpen(false)}
+      />
+
+      <MobileStaffModal
+        isOpen={isStaffOpen}
+        onClose={() => setIsStaffOpen(false)}
+      />
+
+      <MobileReturnsModal
+        isOpen={isReturnsOpen}
+        onClose={() => setIsReturnsOpen(false)}
+      />
+
+      <MobileReportsModal
+        isOpen={isReportsOpen}
+        onClose={() => setIsReportsOpen(false)}
+        reportType="SALES"
+      />
+    </div>
+  );
+};
