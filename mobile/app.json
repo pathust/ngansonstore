@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Ngân Sơn Store",
+    "slug": "ngan-son-store-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "vn.nganson.store",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Cần camera để quét mã vạch sản phẩm",
+        "NSMicrophoneUsageDescription": "Cần micro để sử dụng trợ lý giọng nói AI"
+      }
+    },
+    "android": {
+      "package": "vn.nganson.store",
+      "permissions": [
+        "CAMERA",
+        "INTERNET"
+      ]
+    }
+  }
+}
