@@ -398,16 +398,16 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
       {/* Cashbook Entries Table */}
       <div className="bg-white border border-slate-200 rounded-md overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[850px]">
             <thead className="table-header border-b border-slate-200 uppercase tracking-wider text-[10px]">
               <tr>
-                <th className="py-2 px-3">Mã Phiếu</th>
-                <th className="py-2 px-2.5">Thời gian</th>
-                <th className="py-2 px-2.5">Loại</th>
-                <th className="py-2 px-2.5">Hạng mục</th>
-                <th className="py-2 px-2.5">Nội dung / Ghi chú</th>
-                <th className="py-2 px-2.5">Chứng từ gốc</th>
-                <th className="py-2 px-3 text-right">Số tiền (VNĐ)</th>
+                <th className="py-2 px-3 whitespace-nowrap">Mã Phiếu</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Thời gian</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Loại</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Hạng mục</th>
+                <th className="py-2 px-2.5 min-w-[200px]">Nội dung / Ghi chú</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">Chứng từ gốc</th>
+                <th className="py-2 px-3 text-right whitespace-nowrap">Số tiền (VNĐ)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -422,20 +422,20 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
                   const isIncome = item.type === 'IN';
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2 px-3 font-mono font-bold text-slate-900">{item.code}</td>
+                      <td className="py-2 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">{item.code}</td>
                       <td className="py-2 px-2.5 text-slate-500 whitespace-nowrap">{formatDateTime(item.created_at)}</td>
-                      <td className="py-2 px-2.5">
+                      <td className="py-2 px-2.5 whitespace-nowrap">
                         <span
-                          className={`badge-${isIncome ? 'green' : 'red'}`}
+                          className={`badge-${isIncome ? 'green' : 'red'} whitespace-nowrap shrink-0`}
                         >
                           {isIncome ? 'Thu tiền' : 'Chi tiền'}
                         </span>
                       </td>
-                      <td className="py-2 px-2.5 font-semibold text-slate-800">{item.category}</td>
+                      <td className="py-2 px-2.5 font-semibold text-slate-800 whitespace-nowrap">{item.category}</td>
                       <td className="py-2 px-2.5 text-slate-600 max-w-[240px] truncate">{item.note}</td>
-                      <td className="py-2 px-2.5 font-mono text-[#0B63E5]">{item.ref_code || '-'}</td>
+                      <td className="py-2 px-2.5 font-mono text-[#0B63E5] whitespace-nowrap">{item.ref_code || '-'}</td>
                       <td
-                        className={`py-2 px-3 text-right font-bold ${
+                        className={`py-2 px-3 text-right font-bold whitespace-nowrap ${
                           isIncome ? 'text-emerald-600' : 'text-rose-600'
                         }`}
                       >

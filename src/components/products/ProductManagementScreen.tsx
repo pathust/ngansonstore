@@ -639,17 +639,17 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
       {/* Product Data Table */}
       <div className="bg-white border border-slate-200 rounded-md overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="table-header border-b border-slate-200 uppercase tracking-wider text-[10px]">
-              <tr>
-                <th className="py-2 px-3">Ảnh & Sản phẩm</th>
-                <th className="py-2 px-3">Mã SKU / Barcode</th>
-                <th className="py-2 px-2.5">ĐVT</th>
-                <th className="py-2 px-3 text-right">Giá vốn (VNĐ)</th>
-                <th className="py-2 px-3 text-right">Giá bán lẻ (VNĐ)</th>
-                <th className="py-2 px-3 text-center">Tồn kho</th>
-                <th className="py-2 px-2.5 text-center">Trạng thái</th>
-                <th className="py-2 px-3 text-center">Thao tác</th>
+          <table className="w-full text-left text-xs border-collapse min-w-[880px]">
+            <thead>
+              <tr className="table-header border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                <th className="py-2 px-3 min-w-[180px]">Ảnh & Sản phẩm</th>
+                <th className="py-2 px-3 whitespace-nowrap">Mã SKU / Barcode</th>
+                <th className="py-2 px-2.5 whitespace-nowrap">ĐVT</th>
+                <th className="py-2 px-3 text-right whitespace-nowrap">Giá vốn (VNĐ)</th>
+                <th className="py-2 px-3 text-right whitespace-nowrap">Giá bán lẻ (VNĐ)</th>
+                <th className="py-2 px-3 text-center whitespace-nowrap">Tồn kho</th>
+                <th className="py-2 px-2.5 text-center whitespace-nowrap">Trạng thái</th>
+                <th className="py-2 px-3 text-center whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -695,36 +695,36 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                       </td>
 
                       {/* SKU & Barcode */}
-                      <td className="py-2 px-3 font-mono">
+                      <td className="py-2 px-3 font-mono whitespace-nowrap">
                         <div className="text-slate-900 font-semibold">{p.sku}</div>
                         <div className="text-[10px] text-slate-400">{p.barcode}</div>
                       </td>
 
                       {/* Unit */}
-                      <td className="py-2 px-2.5 text-slate-700 font-medium">{p.unit}</td>
+                      <td className="py-2 px-2.5 text-slate-700 font-medium whitespace-nowrap">{p.unit}</td>
 
                       {/* Cost Price */}
-                      <td className="py-2 px-3 text-right font-medium text-slate-600">
+                      <td className="py-2 px-3 text-right font-medium text-slate-600 whitespace-nowrap">
                         <div>{formatCurrency(p.cost_price)}</div>
                         {!isConfirmed && anomaly?.type === 'INVERTED_HIGH' && (
                           <div
-                            className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 mt-0.5"
+                            className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 mt-0.5 whitespace-nowrap shrink-0"
                             title={anomaly.description}
                           >
                             Vốn &gt; 3x Bán ({anomaly.ratio}x)
                           </div>
                         )}
                         {anomaly?.type === 'ZERO_COST' && (
-                          <div className="text-[9px] text-slate-400 mt-0.5">Chưa có vốn</div>
+                          <div className="text-[9px] text-slate-400 mt-0.5 whitespace-nowrap">Chưa có vốn</div>
                         )}
                       </td>
 
                       {/* Selling Price */}
-                      <td className="py-2 px-3 text-right font-bold text-[#0B63E5]">
+                      <td className="py-2 px-3 text-right font-bold text-[#0B63E5] whitespace-nowrap">
                         <div>{formatCurrency(p.selling_price)}</div>
                         {isConfirmed ? (
                           <div
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-0.5"
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-0.5 whitespace-nowrap shrink-0"
                             title="Mức giá này đã được người dùng xác nhận duyệt OK"
                           >
                             <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
@@ -734,7 +734,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                           <>
                             {anomaly?.type === 'LOSS' && (
                               <div
-                                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700 border border-rose-200 mt-0.5"
+                                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700 border border-rose-200 mt-0.5 whitespace-nowrap shrink-0"
                                 title={anomaly.description}
                               >
                                 <TrendingDown className="w-2.5 h-2.5" />
@@ -743,7 +743,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                             )}
                             {anomaly?.type === 'HIGH_MARGIN' && (
                               <div
-                                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 mt-0.5"
+                                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 mt-0.5 whitespace-nowrap shrink-0"
                                 title={anomaly.description}
                               >
                                 <TrendingUp className="w-2.5 h-2.5" />
@@ -755,19 +755,19 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                       </td>
 
                       {/* Stock Badge */}
-                      <td className="py-2 px-3 text-center">
+                      <td className="py-2 px-3 text-center whitespace-nowrap">
                         {isOutOfStock ? (
-                          <span className="badge-red">
+                          <span className="badge-red whitespace-nowrap">
                             <XCircle className="w-2.5 h-2.5 mr-1 inline" />
                             0 (Hết)
                           </span>
                         ) : isLowStock ? (
-                          <span className="badge-orange">
+                          <span className="badge-orange whitespace-nowrap">
                             <AlertTriangle className="w-2.5 h-2.5 mr-1 inline" />
                             {p.stock} (Sắp hết)
                           </span>
                         ) : (
-                          <span className="badge-green">
+                          <span className="badge-green whitespace-nowrap">
                             <CheckCircle2 className="w-2.5 h-2.5 mr-1 inline" />
                             {p.stock}
                           </span>
@@ -775,20 +775,21 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                       </td>
 
                       {/* Status */}
-                      <td className="py-2 px-2.5 text-center">
+                      <td className="py-2 px-2.5 text-center whitespace-nowrap">
                         <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          className={`inline-flex items-center justify-center whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
                             p.status === 'ACTIVE'
-                              ? 'bg-blue-50 text-[#0B63E5]'
+                              ? 'bg-blue-50 text-[#0B63E5] border border-blue-200'
                               : 'bg-slate-100 text-slate-500'
                           }`}
                         >
+                          <span className={`w-1.5 h-1.5 rounded-full mr-1 shrink-0 ${p.status === 'ACTIVE' ? 'bg-[#0B63E5]' : 'bg-slate-400'}`}></span>
                           {p.status === 'ACTIVE' ? 'Đang bán' : 'Ngừng bán'}
                         </span>
                       </td>
 
                       {/* Actions */}
-                      <td className="py-2 px-3 text-center">
+                      <td className="py-2 px-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleOpenStockIn(p)}

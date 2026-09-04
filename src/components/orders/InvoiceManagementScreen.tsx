@@ -952,18 +952,18 @@ export const InvoiceManagementScreen: React.FC = () => {
       {/* Orders Data Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs min-w-[950px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4">Mã Hóa Đơn</th>
-                <th className="py-3 px-4">Thời Gian</th>
-                <th className="py-3 px-4">Khách Hàng</th>
-                <th className="py-3 px-4">Mặt Hàng Mua</th>
-                <th className="py-3 px-4 text-right">Khách Đã Trả</th>
-                <th className="py-3 px-4 text-right">Lợi Nhuận</th>
-                <th className="py-3 px-4 text-center">Thanh Toán</th>
-                <th className="py-3 px-4 text-center">Trạng Thái</th>
-                <th className="py-3 px-4 text-right">Thao Tác</th>
+                <th className="py-3 px-4 whitespace-nowrap">Mã Hóa Đơn</th>
+                <th className="py-3 px-4 whitespace-nowrap">Thời Gian</th>
+                <th className="py-3 px-4 min-w-[150px]">Khách Hàng</th>
+                <th className="py-3 px-4 min-w-[160px]">Mặt Hàng Mua</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Khách Đã Trả</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Lợi Nhuận</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Thanh Toán</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Trạng Thái</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1066,17 +1066,17 @@ export const InvoiceManagementScreen: React.FC = () => {
                       {/* Payment Method */}
                       <td className="py-3 px-4 text-center whitespace-nowrap">
                         {order.payment_method === 'CASH' && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-medium text-[11px]">
+                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-medium text-[11px]">
                             <Banknote className="w-3 h-3" /> Tiền mặt
                           </span>
                         )}
                         {order.payment_method === 'TRANSFER' && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#0B63E5] font-medium text-[11px]">
+                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#0B63E5] font-medium text-[11px]">
                             <QrCode className="w-3 h-3" /> Chuyển khoản
                           </span>
                         )}
                         {order.payment_method === 'CARD' && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-medium text-[11px]">
+                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-medium text-[11px]">
                             <CreditCard className="w-3 h-3" /> Quẹt thẻ
                           </span>
                         )}
@@ -1085,11 +1085,11 @@ export const InvoiceManagementScreen: React.FC = () => {
                       {/* Status */}
                       <td className="py-3 px-4 text-center whitespace-nowrap">
                         {isCompleted ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
+                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
                             <CheckCircle2 className="w-3 h-3" /> Hoàn thành
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-semibold text-[10px]">
+                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-semibold text-[10px]">
                             <XCircle className="w-3 h-3" /> Đã hủy
                           </span>
                         )}

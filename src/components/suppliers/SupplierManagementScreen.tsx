@@ -648,19 +648,19 @@ export const SupplierManagementScreen: React.FC = () => {
       {/* Suppliers Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs min-w-[950px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[11px] tracking-wider">
-                <th className="py-3 px-3.5 w-12 text-center">STT</th>
-                <th className="py-3 px-3.5">Mã NCC</th>
-                <th className="py-3 px-3.5">Tên Nhà Cung Cấp / Công Ty</th>
-                <th className="py-3 px-3.5">Liên hệ</th>
-                <th className="py-3 px-3.5">Khu vực / Địa chỉ</th>
-                <th className="py-3 px-3.5 text-right">Nợ Cần Trả</th>
-                <th className="py-3 px-3.5 text-right">Tổng Mua</th>
-                <th className="py-3 px-3.5">Nhóm NCC</th>
-                <th className="py-3 px-3.5 text-center">Trạng thái</th>
-                <th className="py-3 px-3.5 text-center">Thao tác</th>
+                <th className="py-3 px-3.5 w-12 text-center whitespace-nowrap">STT</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Mã NCC</th>
+                <th className="py-3 px-3.5 min-w-[160px]">Tên Nhà Cung Cấp / Công Ty</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Liên hệ</th>
+                <th className="py-3 px-3.5 min-w-[160px]">Khu vực / Địa chỉ</th>
+                <th className="py-3 px-3.5 text-right whitespace-nowrap">Nợ Cần Trả</th>
+                <th className="py-3 px-3.5 text-right whitespace-nowrap">Tổng Mua</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Nhóm NCC</th>
+                <th className="py-3 px-3.5 text-center whitespace-nowrap">Trạng thái</th>
+                <th className="py-3 px-3.5 text-center whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -675,12 +675,12 @@ export const SupplierManagementScreen: React.FC = () => {
               ) : (
                 paginatedSuppliers.map((s, idx) => (
                   <tr key={s.id} className="hover:bg-blue-50/40 transition-colors group">
-                    <td className="py-2.5 px-3.5 text-center text-slate-400 font-medium">
+                    <td className="py-2.5 px-3.5 text-center text-slate-400 font-medium whitespace-nowrap">
                       {(currentPage - 1) * pageSize + idx + 1}
                     </td>
 
                     {/* Mã NCC */}
-                    <td className="py-2.5 px-3.5">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
                           {s.code}
@@ -709,7 +709,7 @@ export const SupplierManagementScreen: React.FC = () => {
                     </td>
 
                     {/* Liên hệ */}
-                    <td className="py-2.5 px-3.5">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
                       <div className="space-y-0.5">
                         {s.phone ? (
                           <div className="flex items-center gap-1 text-slate-800 font-medium">
@@ -743,7 +743,7 @@ export const SupplierManagementScreen: React.FC = () => {
                     </td>
 
                     {/* Nợ Cần Trả */}
-                    <td className="py-2.5 px-3.5 text-right">
+                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
                       {s.debt > 0 ? (
                         <div>
                           <span className="font-bold text-rose-600 font-mono text-xs">
@@ -768,34 +768,34 @@ export const SupplierManagementScreen: React.FC = () => {
                     </td>
 
                     {/* Tổng Mua */}
-                    <td className="py-2.5 px-3.5 text-right font-medium text-slate-800 font-mono">
+                    <td className="py-2.5 px-3.5 text-right font-medium text-slate-800 font-mono whitespace-nowrap">
                       {formatCurrency(s.total_purchased || 0)}
                     </td>
 
                     {/* Nhóm NCC */}
-                    <td className="py-2.5 px-3.5">
-                      <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-medium">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                      <span className="inline-flex items-center whitespace-nowrap bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-medium shrink-0">
                         {s.group || 'Chung'}
                       </span>
                     </td>
 
                     {/* Trạng thái */}
-                    <td className="py-2.5 px-3.5 text-center">
+                    <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
                       {s.status === 'ACTIVE' ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                           Giao dịch
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
                           Tạm ngừng
                         </span>
                       )}
                     </td>
 
                     {/* Thao tác */}
-                    <td className="py-2.5 px-3.5 text-center">
+                    <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5">
                         {s.debt > 0 && (
                           <button

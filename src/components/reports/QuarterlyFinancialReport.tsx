@@ -1584,31 +1584,31 @@ export const QuarterlyFinancialReport: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-left text-xs border-collapse min-w-[850px]">
             <thead>
               <tr className="bg-slate-100/90 text-slate-600 font-semibold border-b border-slate-200">
-                <th className="py-2.5 px-3">Thời gian / Kỳ</th>
-                <th className="py-2.5 px-3 text-right">Số hóa đơn thực</th>
-                <th className="py-2.5 px-3 text-right">Doanh thu thuần (đ)</th>
-                <th className="py-2.5 px-3 text-right">Giá vốn (COGS) (đ)</th>
-                <th className="py-2.5 px-3 text-right">Lợi nhuận gộp (đ)</th>
-                <th className="py-2.5 px-3 text-right">Tỷ suất LN (%)</th>
-                <th className="py-2.5 px-3 text-right">Doanh thu TB / Đơn</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Thời gian / Kỳ</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Số hóa đơn thực</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Doanh thu thuần (đ)</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Giá vốn (COGS) (đ)</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Lợi nhuận gộp (đ)</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Tỷ suất LN (%)</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Doanh thu TB / Đơn</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {viewMode === 'WEEK' &&
                 weeklyReportData.days.map((row) => (
                   <tr key={row.day} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2.5 px-3 font-bold text-slate-800">{row.day}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-700">{row.orders.toLocaleString('vi-VN')} đơn</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-[#0B63E5]">{formatCurrency(row.revenue)}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-600">{formatCurrency(row.cogs)}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{formatCurrency(row.profit)}</td>
-                    <td className="py-2.5 px-3 text-right">
-                      <span className="badge-blue text-[10px]">{row.margin}%</span>
+                    <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{row.day}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{row.orders.toLocaleString('vi-VN')} đơn</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-[#0B63E5] whitespace-nowrap">{formatCurrency(row.revenue)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-600 whitespace-nowrap">{formatCurrency(row.cogs)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{formatCurrency(row.profit)}</td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <span className="badge-blue text-[10px] whitespace-nowrap">{row.margin}%</span>
                     </td>
-                    <td className="py-2.5 px-3 text-right text-slate-700 font-semibold">{formatCurrency(row.aov)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 font-semibold whitespace-nowrap">{formatCurrency(row.aov)}</td>
                   </tr>
                 ))}
 
@@ -1616,15 +1616,15 @@ export const QuarterlyFinancialReport: React.FC = () => {
                 monthlySubView === 'ALL_MONTHS' &&
                 monthlyReportData.allMonths.map((row) => (
                   <tr key={row.month} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2.5 px-3 font-bold text-slate-800">{row.month}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-700">{row.orders.toLocaleString('vi-VN')} đơn</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-[#0B63E5]">{formatCurrency(row.revenue)}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-600">{formatCurrency(row.cogs)}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{formatCurrency(row.profit)}</td>
-                    <td className="py-2.5 px-3 text-right">
-                      <span className="badge-blue text-[10px]">{row.margin}%</span>
+                    <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{row.month}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{row.orders.toLocaleString('vi-VN')} đơn</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-[#0B63E5] whitespace-nowrap">{formatCurrency(row.revenue)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-600 whitespace-nowrap">{formatCurrency(row.cogs)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{formatCurrency(row.profit)}</td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <span className="badge-blue text-[10px] whitespace-nowrap">{row.margin}%</span>
                     </td>
-                    <td className="py-2.5 px-3 text-right text-slate-700 font-semibold">{formatCurrency(row.aov)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 font-semibold whitespace-nowrap">{formatCurrency(row.aov)}</td>
                   </tr>
                 ))}
 
@@ -1632,44 +1632,44 @@ export const QuarterlyFinancialReport: React.FC = () => {
                 monthlySubView === 'SELECTED_MONTH' &&
                 monthlyReportData.monthWeeks.map((row) => (
                   <tr key={row.week} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2.5 px-3 font-bold text-slate-800">{row.week}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-700">{row.orders.toLocaleString('vi-VN')} đơn</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-[#0B63E5]">{formatCurrency(row.revenue)}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-600">{formatCurrency(row.cogs)}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{formatCurrency(row.profit)}</td>
-                    <td className="py-2.5 px-3 text-right">
-                      <span className="badge-blue text-[10px]">{row.margin}%</span>
+                    <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{row.week}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{row.orders.toLocaleString('vi-VN')} đơn</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-[#0B63E5] whitespace-nowrap">{formatCurrency(row.revenue)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-600 whitespace-nowrap">{formatCurrency(row.cogs)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{formatCurrency(row.profit)}</td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <span className="badge-blue text-[10px] whitespace-nowrap">{row.margin}%</span>
                     </td>
-                    <td className="py-2.5 px-3 text-right text-slate-700 font-semibold">{formatCurrency(row.aov)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 font-semibold whitespace-nowrap">{formatCurrency(row.aov)}</td>
                   </tr>
                 ))}
 
               {viewMode === 'QUARTER' &&
                 quarterlyReportData.months.map((row) => (
                   <tr key={row.month} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2.5 px-3 font-bold text-slate-800">{row.month}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-700">{row.orders.toLocaleString('vi-VN')} đơn</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-[#0B63E5]">{formatCurrency(row.revenue)}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-600">{formatCurrency(row.cogs)}</td>
-                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{formatCurrency(row.profit)}</td>
-                    <td className="py-2.5 px-3 text-right">
-                      <span className="badge-blue text-[10px]">{row.margin}%</span>
+                    <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{row.month}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{row.orders.toLocaleString('vi-VN')} đơn</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-[#0B63E5] whitespace-nowrap">{formatCurrency(row.revenue)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-600 whitespace-nowrap">{formatCurrency(row.cogs)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600 whitespace-nowrap">{formatCurrency(row.profit)}</td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <span className="badge-blue text-[10px] whitespace-nowrap">{row.margin}%</span>
                     </td>
-                    <td className="py-2.5 px-3 text-right text-slate-700 font-semibold">{formatCurrency(row.aov)}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-700 font-semibold whitespace-nowrap">{formatCurrency(row.aov)}</td>
                   </tr>
                 ))}
             </tbody>
             <tfoot>
               <tr className="bg-blue-50/70 border-t-2 border-blue-200 font-bold text-slate-900">
-                <td className="py-3 px-3 uppercase tracking-wide">TỔNG CỘNG</td>
-                <td className="py-3 px-3 text-right">{activeOrdersCount.toLocaleString('vi-VN')} đơn</td>
-                <td className="py-3 px-3 text-right text-[#0B63E5] font-extrabold text-sm">{formatCurrency(activeRevenue)}</td>
-                <td className="py-3 px-3 text-right text-slate-700">{formatCurrency(activeCogs)}</td>
-                <td className="py-3 px-3 text-right text-emerald-700 font-extrabold text-sm">{formatCurrency(activeProfit)}</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="badge-blue text-[10px]">{activeMargin}%</span>
+                <td className="py-3 px-3 uppercase tracking-wide whitespace-nowrap">TỔNG CỘNG</td>
+                <td className="py-3 px-3 text-right whitespace-nowrap">{activeOrdersCount.toLocaleString('vi-VN')} đơn</td>
+                <td className="py-3 px-3 text-right text-[#0B63E5] font-extrabold text-sm whitespace-nowrap">{formatCurrency(activeRevenue)}</td>
+                <td className="py-3 px-3 text-right text-slate-700 whitespace-nowrap">{formatCurrency(activeCogs)}</td>
+                <td className="py-3 px-3 text-right text-emerald-700 font-extrabold text-sm whitespace-nowrap">{formatCurrency(activeProfit)}</td>
+                <td className="py-3 px-3 text-right whitespace-nowrap">
+                  <span className="badge-blue text-[10px] whitespace-nowrap">{activeMargin}%</span>
                 </td>
-                <td className="py-3 px-3 text-right">{formatCurrency(activeAov)}</td>
+                <td className="py-3 px-3 text-right whitespace-nowrap">{formatCurrency(activeAov)}</td>
               </tr>
             </tfoot>
           </table>

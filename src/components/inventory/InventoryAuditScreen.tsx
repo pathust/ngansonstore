@@ -205,7 +205,7 @@ export const InventoryAuditScreen: React.FC<InventoryAuditScreenProps> = ({
                     <div className="flex justify-between items-start mb-0.5">
                       <span className="font-mono text-xs font-bold text-[#0B63E5]">{audit.code}</span>
                       <span
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                        className={`inline-flex items-center whitespace-nowrap text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                           isBalanced
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-amber-50 text-amber-800 border border-amber-200'
@@ -252,7 +252,7 @@ export const InventoryAuditScreen: React.FC<InventoryAuditScreenProps> = ({
                       Phiếu kiểm kê {selectedAuditDetail.code}
                     </h3>
                     <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      className={`inline-flex items-center whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
                         selectedAuditDetail.status === 'BALANCED'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-amber-50 text-amber-800 border border-amber-200'
