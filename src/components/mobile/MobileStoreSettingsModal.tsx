@@ -74,12 +74,12 @@ export const MobileStoreSettingsModal: React.FC<MobileStoreSettingsModalProps> =
     customQrImage: formData.customQrImage,
   });
 
-  // Sync state whenever modal opens or settings change
+  // Sync state whenever modal opens
   useEffect(() => {
     if (isOpen) {
       setFormData({ ...storeSettings });
     }
-  }, [isOpen, storeSettings]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

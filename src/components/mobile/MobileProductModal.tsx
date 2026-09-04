@@ -67,7 +67,7 @@ export const MobileProductModal: React.FC<MobileProductModalProps> = ({
         description: '',
       });
     }
-  }, [product, categories, isOpen]);
+  }, [product, isOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

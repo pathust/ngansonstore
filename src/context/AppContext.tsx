@@ -204,7 +204,7 @@ interface AppContextType {
   syncState: 'IDLE' | 'SYNCING' | 'ERROR' | 'OFFLINE';
   isLoading: boolean;
   loadingMessage?: string;
-  syncWithServer: () => Promise<void>;
+  syncWithServer: (silent?: boolean) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -488,10 +488,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('nganson_pending_sync', JSON.stringify(pendingChangesRef.current));
   };
 
-  // Initial Sync from Backend on App Mount & Differential Pull
-  const syncWithServer = async () => {
+  function isDataEqual<T>(prev: T, next: T): boolean {
+    if (prev === next) return true;
+    if (!prev || !next) return false;
+    if (Array.isArray(prev) && Array.isArray(next)) {
+      if (prev.length !== next.length) return false;
+      if (prev.length === 0 && next.length === 0) return true;
+    }
     try {
-      setSyncState('SYNCING');
+      return JSON.stringify(prev) === JSON.stringify(next);
+    } catch {
+      return false;
+    }
+  }
+
+  const lastSyncTimeRef = React.useRef<number>(0);
+
+  // Initial Sync from Backend on App Mount & Differential Pull
+  const syncWithServer = async (silent: boolean = false) => {
+    try {
+      if (!silent) {
+        setSyncState('SYNCING');
+      }
       
       // Push pending changes first
       const pending = pendingChangesRef.current;
@@ -522,55 +540,91 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const payload = await apiClient.pullSync(0);
       if (payload) {
         if (payload.settings) {
-          setStoreSettings((prev) => ({ ...prev, ...payload.settings }));
-          safeStorageSet(LOCAL_STORAGE_PREFIX + 'store_settings', payload.settings);
+          setStoreSettings((prev) => {
+            const merged = { ...prev, ...payload.settings };
+            if (isDataEqual(prev, merged)) return prev;
+            safeStorageSet(LOCAL_STORAGE_PREFIX + 'store_settings', merged);
+            return merged;
+          });
         }
         if (payload.branches && payload.branches.length > 0) {
-          setBranches(payload.branches);
-          safeStorageSet(LOCAL_STORAGE_PREFIX + 'branches', payload.branches);
+          setBranches((prev) => {
+            if (isDataEqual(prev, payload.branches)) return prev;
+            safeStorageSet(LOCAL_STORAGE_PREFIX + 'branches', payload.branches);
+            return payload.branches!;
+          });
           setCurrentBranch((prev) => {
             const found = payload.branches!.find((b) => b.id === prev?.id);
-            return found || payload.branches!.find((b) => b.is_default) || payload.branches![0];
+            const target = found || payload.branches!.find((b) => b.is_default) || payload.branches![0];
+            if (prev && target && prev.id === target.id && isDataEqual(prev, target)) return prev;
+            return target;
           });
         }
         if (payload.users && payload.users.length > 0) {
-          setUsers(payload.users);
-          safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', payload.users);
+          setUsers((prev) => {
+            if (isDataEqual(prev, payload.users)) return prev;
+            safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', payload.users);
+            return payload.users!;
+          });
           setCurrentUser((prev) => {
             const found = payload.users!.find((u) => u.id === prev?.id);
-            return found || payload.users![0];
+            const target = found || payload.users![0];
+            if (prev && target && prev.id === target.id && isDataEqual(prev, target)) return prev;
+            return target;
           });
         }
         if (payload.categories && payload.categories.length > 0) {
-          setCategories(payload.categories);
-          safeStorageSet(LOCAL_STORAGE_PREFIX + 'categories', payload.categories);
+          setCategories((prev) => {
+            if (isDataEqual(prev, payload.categories)) return prev;
+            safeStorageSet(LOCAL_STORAGE_PREFIX + 'categories', payload.categories);
+            return payload.categories!;
+          });
         }
         if (payload.products && payload.products.length > 0) {
-          setProducts(payload.products);
-          cacheManager.set('products', payload.products);
+          setProducts((prev) => {
+            if (isDataEqual(prev, payload.products)) return prev;
+            cacheManager.set('products', payload.products);
+            return payload.products!;
+          });
         }
         if (payload.orders) {
-          setOrders(payload.orders);
-          cacheManager.set('orders', payload.orders);
+          setOrders((prev) => {
+            if (isDataEqual(prev, payload.orders)) return prev;
+            cacheManager.set('orders', payload.orders);
+            return payload.orders!;
+          });
         }
         if (payload.suppliers) {
-          setSuppliers(payload.suppliers);
-          cacheManager.set('suppliers', payload.suppliers);
+          setSuppliers((prev) => {
+            if (isDataEqual(prev, payload.suppliers)) return prev;
+            cacheManager.set('suppliers', payload.suppliers);
+            return payload.suppliers!;
+          });
         }
         if (payload.customers) {
-          setCustomers(payload.customers);
-          cacheManager.set('customers', payload.customers);
+          setCustomers((prev) => {
+            if (isDataEqual(prev, payload.customers)) return prev;
+            cacheManager.set('customers', payload.customers);
+            return payload.customers!;
+          });
         }
         if (payload.inventory_audits) {
-          setInventoryAudits(payload.inventory_audits);
-          cacheManager.set('audits', payload.inventory_audits);
+          setInventoryAudits((prev) => {
+            if (isDataEqual(prev, payload.inventory_audits)) return prev;
+            cacheManager.set('audits', payload.inventory_audits);
+            return payload.inventory_audits!;
+          });
         }
         if (payload.cashbook) {
-          setCashbookEntries(payload.cashbook);
-          cacheManager.set('cashbook', payload.cashbook);
+          setCashbookEntries((prev) => {
+            if (isDataEqual(prev, payload.cashbook)) return prev;
+            cacheManager.set('cashbook', payload.cashbook);
+            return payload.cashbook!;
+          });
         }
       }
       setSyncState('IDLE');
+      lastSyncTimeRef.current = Date.now();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       console.warn('[Sync] Server sync warning:', message);
@@ -580,35 +634,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   useEffect(() => {
-    // Initial fetch from backend
-    syncWithServer();
+    // Initial fetch from backend (visual loading state)
+    syncWithServer(false);
 
-    // Periodic sync every 12 seconds to keep Mobile and Web live-synchronized
+    // Periodic sync every 60 seconds (silent background fallback)
     const periodicInterval = setInterval(() => {
       if (navigator.onLine) {
-        syncWithServer();
+        syncWithServer(true);
       }
-    }, 12000);
+    }, 60000);
 
-    // Realtime Supabase live-listener for instant updates with 600ms debounce
+    // Realtime Supabase live-listener for instant updates with 600ms debounce (silent)
     let realtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const unsubscribeRealtime = supabaseService.subscribeRealtime((table, eventType) => {
       console.log(`[Supabase Realtime] Event: ${eventType} on table: ${table}`);
       if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer);
       realtimeDebounceTimer = setTimeout(() => {
-        syncWithServer();
+        syncWithServer(true);
       }, 600);
     });
 
     // Online / Offline listeners & Window Focus
     const handleOnline = () => {
       setSyncState('IDLE');
-      syncWithServer();
+      syncWithServer(true);
     };
     const handleOffline = () => setSyncState('OFFLINE');
     const handleFocus = () => {
-      if (navigator.onLine) {
-        syncWithServer();
+      // Throttle window focus sync to at most once every 45 seconds to avoid wiping forms on alt-tab
+      if (navigator.onLine && Date.now() - lastSyncTimeRef.current > 45000) {
+        syncWithServer(true);
       }
     };
 

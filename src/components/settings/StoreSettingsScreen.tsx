@@ -30,8 +30,11 @@ import {
 export const StoreSettingsScreen: React.FC = () => {
   const { storeSettings, updateStoreSettings, resetStoreSettings, showToast, currentBranch } = useApp();
 
-  // Local form state
+  // Local form state & dirty tracking
   const [formData, setFormData] = useState<StoreSettings>(storeSettings);
+  const [isDirty, setIsDirty] = useState(false);
+  const isDirtyRef = React.useRef(false);
+
   const [activeTab, setActiveTab] = useState<'STORE_INFO' | 'VIETQR' | 'PRINT_SETTINGS'>('STORE_INFO');
   const [bankSearch, setBankSearch] = useState('');
   const [isStandeeModalOpen, setIsStandeeModalOpen] = useState(false);
@@ -64,12 +67,16 @@ export const StoreSettingsScreen: React.FC = () => {
     customQrImage: formData.customQrImage,
   });
 
-  // Sync formData when storeSettings changes externally
+  // Sync formData when storeSettings changes externally ONLY if user has not edited the form
   React.useEffect(() => {
-    setFormData(storeSettings);
+    if (!isDirtyRef.current) {
+      setFormData(storeSettings);
+    }
   }, [storeSettings]);
 
   const handleInputChange = <K extends keyof StoreSettings>(field: K, value: StoreSettings[K]) => {
+    isDirtyRef.current = true;
+    setIsDirty(true);
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -77,6 +84,8 @@ export const StoreSettingsScreen: React.FC = () => {
   };
 
   const handleBankSelect = (bankCode: string) => {
+    isDirtyRef.current = true;
+    setIsDirty(true);
     const selectedBank = VIETNAMESE_BANKS.find((b) => b.code === bankCode);
     setFormData((prev) => ({
       ...prev,
@@ -95,6 +104,8 @@ export const StoreSettingsScreen: React.FC = () => {
       const reader = new FileReader();
       reader.onload = () => {
         const base64 = reader.result as string;
+        isDirtyRef.current = true;
+        setIsDirty(true);
         setFormData((prev) => ({
           ...prev,
           customQrImage: base64,
@@ -108,11 +119,15 @@ export const StoreSettingsScreen: React.FC = () => {
 
   const handleSave = () => {
     updateStoreSettings(formData);
+    isDirtyRef.current = false;
+    setIsDirty(false);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (window.confirm('Bạn có chắc chắn muốn khôi phục toàn bộ thông tin cửa hàng và mã QR về mặc định ban đầu?')) {
-      resetStoreSettings();
+      await resetStoreSettings();
+      isDirtyRef.current = false;
+      setIsDirty(false);
     }
   };
 
