@@ -9,6 +9,11 @@ import {
   CreditCard,
   Wallet,
   ShoppingBag,
+  Sparkles,
+  Activity,
+  Lightbulb,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { parseDateToTimestamp } from '../../utils/formatters';
@@ -79,6 +84,45 @@ export const MobileReportsModal: React.FC<MobileReportsModalProps> = ({
   const topProducts = Array.from(productSalesMap.values())
     .sort((a, b) => b.qty - a.qty)
     .slice(0, 5);
+
+  // Business Evaluation & Situational Commentary
+  const marginPercent = totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 100) : 0;
+  const nonCashPercent = totalRevenue > 0 ? Math.round((transferAmount / totalRevenue) * 100) : 0;
+
+  const hourlyCounts = new Array(24).fill(0);
+  filteredOrders.forEach((o) => {
+    const ts = parseDateToTimestamp(o.created_at);
+    const h = new Date(ts).getHours();
+    hourlyCounts[h] = (hourlyCounts[h] || 0) + 1;
+  });
+  let peakHour = 17;
+  let maxOrders = 0;
+  hourlyCounts.forEach((cnt, h) => {
+    if (cnt > maxOrders) {
+      maxOrders = cnt;
+      peakHour = h;
+    }
+  });
+
+  const healthScore = Math.min(
+    100,
+    Math.max(
+      50,
+      Math.round(
+        (marginPercent >= 20 ? 30 : (marginPercent / 20) * 30) +
+          (totalOrdersCount > 0 ? 35 : 10) +
+          (nonCashPercent >= 40 ? 25 : (nonCashPercent / 40) * 25) +
+          10
+      )
+    )
+  );
+
+  const healthRating =
+    healthScore >= 85
+      ? { label: 'Rất Tốt', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+      : healthScore >= 70
+      ? { label: 'Ổn Định', color: 'bg-blue-100 text-blue-800 border-blue-200' }
+      : { label: 'Cần Lưu Ý', color: 'bg-amber-100 text-amber-800 border-amber-200' };
 
   return (
     <div className="fixed inset-0 z-50 bg-[#F5F6F8] flex flex-col overflow-hidden select-none animate-in fade-in duration-200">
@@ -153,17 +197,95 @@ export const MobileReportsModal: React.FC<MobileReportsModalProps> = ({
           </div>
         </div>
 
+        {/* Đánh Giá & Nhận Xét Tình Hình Kinh Doanh (Mobile) */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+              <h4 className="font-extrabold text-xs text-slate-900 uppercase">
+                Đánh Giá Tình Hình Kinh Doanh
+              </h4>
+            </div>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${healthRating.color}`}>
+              {healthScore}/100 • {healthRating.label}
+            </span>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <Activity className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-slate-800">Biên lợi nhuận gộp: {marginPercent}%</span>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {marginPercent >= 20
+                    ? 'Rất tốt! Cửa hàng đang tối ưu giá vốn và lợi nhuận bán lẻ hiệu quả.'
+                    : 'Biên lợi nhuận ổn định. Nên tập trung đẩy thêm các sản phẩm có biên lãi cao.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <Clock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-slate-800">Khung giờ vàng: {peakHour}h - {peakHour + 1}h</span>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Thời điểm đón nhiều lượt khách mua sắm nhất. Cần chú ý quầy thu ngân và bổ sung hàng lên kệ.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100">
+              <Lightbulb className="w-4 h-4 text-[#0066FF] shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-[#0066FF]">Khuyến nghị vận hành</span>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  {nonCashPercent > 40
+                    ? `Thanh toán VietQR đạt ${nonCashPercent}%. Tiếp tục duy trì QR tại quầy để đẩy nhanh tốc độ phục vụ.`
+                    : 'Tỷ lệ tiền mặt còn cao. Khuyến khích khách quét mã VietQR để rút ngắn thời gian thối tiền.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Phương thức thanh toán */}
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex flex-col gap-3">
-          <h4 className="font-extrabold text-xs text-slate-900 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-[#0066FF]" />
-            <span>Phương thức thanh toán</span>
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="font-extrabold text-xs text-slate-900 flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-[#0066FF]" />
+              <span>Phương thức thanh toán</span>
+            </h4>
+            <span className="text-[10px] font-bold text-[#0066FF] bg-blue-50 px-2 py-0.5 rounded-md">
+              {nonCashPercent}% số hóa
+            </span>
+          </div>
 
-          <div className="flex flex-col gap-2">
+          {/* Visual progress bar */}
+          {totalRevenue > 0 && (
+            <div className="space-y-1">
+              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
+                <div
+                  className="h-full bg-amber-500 transition-all"
+                  style={{ width: `${Math.round((cashAmount / totalRevenue) * 100)}%` }}
+                />
+                <div
+                  className="h-full bg-[#0066FF] transition-all"
+                  style={{ width: `${Math.round((transferAmount / totalRevenue) * 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Tiền mặt: {Math.round((cashAmount / totalRevenue) * 100)}%</span>
+                <span>VietQR: {Math.round((transferAmount / totalRevenue) * 100)}%</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 pt-1 border-t border-slate-50">
             <div className="flex items-center justify-between text-xs py-1 border-b border-slate-50">
               <span className="flex items-center gap-2 text-slate-700">
-                <Wallet className="w-4 h-4 text-emerald-600" />
+                <Wallet className="w-4 h-4 text-amber-500" />
                 <span>Tiền mặt</span>
               </span>
               <span className="font-black text-slate-900">

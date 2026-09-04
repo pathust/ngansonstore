@@ -19,10 +19,25 @@ import {
   Clock,
   CheckCircle2,
   Receipt,
+  Award,
+  AlertTriangle,
+  Lightbulb,
+  QrCode,
+  CreditCard,
+  Banknote,
+  Flame,
+  Activity,
+  Compass,
+  ArrowUpRight,
+  ArrowDownRight,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
+  BarChart,
   Bar,
   Line,
   XAxis,
@@ -53,6 +68,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
   const [selectedWeekType, setSelectedWeekType] = useState<'THIS_WEEK' | 'LAST_WEEK' | 'LAST_7_DAYS'>('THIS_WEEK');
   const [selectedQuarter, setSelectedQuarter] = useState<'Q1' | 'Q2' | 'Q3' | 'Q4'>(currentQuarter);
   const [monthlySubView, setMonthlySubView] = useState<'ALL_MONTHS' | 'SELECTED_MONTH'>('ALL_MONTHS');
+  const [isAnalysisExpanded, setIsAnalysisExpanded] = useState<boolean>(true);
 
   // Category palette
   const CATEGORY_COLORS = ['#0B63E5', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
@@ -70,6 +86,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
           month: parsed.month,
           year: parsed.year,
           dayOfWeek: parsed.dayOfWeek, // 0 = Sun, 1 = Mon ... 6 = Sat
+          hour: parsed.date.getHours(),
           timestamp: parsed.timestamp,
           formattedDate: parsed.formattedDisplay,
         };
@@ -508,6 +525,227 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
   const xDataKey = viewMode === 'WEEK' ? 'day' : viewMode === 'MONTH' ? (monthlySubView === 'ALL_MONTHS' ? 'month' : 'week') : 'month';
 
+  // --- 6. PEAK SALES HOURS DISTRIBUTION (FROM ACTUAL ORDERS) ---
+  const hourlySalesData = useMemo(() => {
+    const timeSlots = [
+      { key: '06-09', label: '06h - 09h', fullLabel: '06h - 09h (Sáng sớm)', start: 6, end: 9, revenue: 0, orders: 0 },
+      { key: '09-12', label: '09h - 12h', fullLabel: '09h - 12h (Buổi sáng)', start: 9, end: 12, revenue: 0, orders: 0 },
+      { key: '12-14', label: '12h - 14h', fullLabel: '12h - 14h (Buổi trưa)', start: 12, end: 14, revenue: 0, orders: 0 },
+      { key: '14-17', label: '14h - 17h', fullLabel: '14h - 17h (Buổi chiều)', start: 14, end: 17, revenue: 0, orders: 0 },
+      { key: '17-20', label: '17h - 20h', fullLabel: '17h - 20h (Giờ vàng)', start: 17, end: 20, revenue: 0, orders: 0 },
+      { key: '20-23', label: '20h - 23h', fullLabel: '20h - 23h (Tối muộn)', start: 20, end: 23, revenue: 0, orders: 0 },
+    ];
+
+    currentViewOrders.forEach((order) => {
+      const parsed = parseOrderDate(order.created_at);
+      const h = parsed.date.getHours();
+      const slot = timeSlots.find((s) => h >= s.start && h < s.end);
+      if (slot) {
+        slot.revenue += order.final_amount || 0;
+        slot.orders += 1;
+      } else {
+        if (h < 6) {
+          timeSlots[0].revenue += order.final_amount || 0;
+          timeSlots[0].orders += 1;
+        } else {
+          timeSlots[5].revenue += order.final_amount || 0;
+          timeSlots[5].orders += 1;
+        }
+      }
+    });
+
+    const maxSlotRev = Math.max(...timeSlots.map((s) => s.revenue), 1);
+    const peakSlot = [...timeSlots].sort((a, b) => b.revenue - a.revenue)[0];
+
+    return {
+      slots: timeSlots,
+      maxSlotRev,
+      peakSlot,
+    };
+  }, [currentViewOrders]);
+
+  // --- 7. PAYMENT METHOD ANALYSIS ---
+  const paymentMethodData = useMemo(() => {
+    let cashRev = 0;
+    let transferRev = 0;
+    let cardRev = 0;
+    let cashCount = 0;
+    let transferCount = 0;
+    let cardCount = 0;
+
+    currentViewOrders.forEach((order) => {
+      const amount = order.final_amount || 0;
+      if (order.payment_method === 'CASH') {
+        cashRev += amount;
+        cashCount += 1;
+      } else if (order.payment_method === 'TRANSFER') {
+        transferRev += amount;
+        transferCount += 1;
+      } else if (order.payment_method === 'CARD') {
+        cardRev += amount;
+        cardCount += 1;
+      }
+    });
+
+    const totalRev = cashRev + transferRev + cardRev;
+    const totalCount = cashCount + transferCount + cardCount;
+
+    const breakdown = [
+      {
+        name: 'Tiền mặt',
+        code: 'CASH',
+        amount: cashRev,
+        count: cashCount,
+        percent: totalRev > 0 ? Number(((cashRev / totalRev) * 100).toFixed(1)) : 0,
+        color: '#10B981', // Emerald
+      },
+      {
+        name: 'Chuyển khoản VietQR',
+        code: 'TRANSFER',
+        amount: transferRev,
+        count: transferCount,
+        percent: totalRev > 0 ? Number(((transferRev / totalRev) * 100).toFixed(1)) : 0,
+        color: '#0B63E5', // Blue
+      },
+      {
+        name: 'Quẹt thẻ ATM/Visa',
+        code: 'CARD',
+        amount: cardRev,
+        count: cardCount,
+        percent: totalRev > 0 ? Number(((cardRev / totalRev) * 100).toFixed(1)) : 0,
+        color: '#8B5CF6', // Purple
+      },
+    ].filter((item) => item.count > 0 || totalCount === 0);
+
+    const nonCashPercent = totalRev > 0 ? Number((((transferRev + cardRev) / totalRev) * 100).toFixed(1)) : 0;
+
+    return {
+      breakdown: breakdown.length > 0 ? breakdown : [{ name: 'Tiền mặt', code: 'CASH', amount: 0, count: 0, percent: 100, color: '#10B981' }],
+      cashRev,
+      transferRev,
+      cardRev,
+      nonCashPercent,
+      totalCount,
+    };
+  }, [currentViewOrders]);
+
+  // --- 8. AUTOMATED BUSINESS EVALUATION & STRATEGIC INSIGHTS ---
+  const businessEvaluation = useMemo(() => {
+    // 1. Health Score calculation (0 to 100)
+    const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length;
+    const totalOrdersAll = orders.length;
+    const completionRate = totalOrdersAll > 0 ? ((totalOrdersAll - cancelledCount) / totalOrdersAll) * 100 : 100;
+
+    let marginScore = Math.min(35, Math.round((activeMargin / 22) * 35));
+    let completionScore = Math.min(25, Math.round((completionRate / 98) * 25));
+    let digitalScore = Math.min(20, Math.round((paymentMethodData.nonCashPercent / 50) * 20));
+    let aovScore = Math.min(20, Math.round((activeAov / 150000) * 20));
+
+    const totalScore = Math.min(100, Math.max(25, marginScore + completionScore + digitalScore + aovScore));
+
+    let rating = {
+      label: 'Rất Tốt (Tăng Trưởng Vững Chắc)',
+      color: 'text-emerald-600',
+      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    };
+    if (totalScore < 60) {
+      rating = {
+        label: 'Cần Lưu Ý & Cải Thiện',
+        color: 'text-rose-600',
+        badge: 'bg-rose-50 text-rose-700 border-rose-200',
+      };
+    } else if (totalScore < 80) {
+      rating = {
+        label: 'Tăng Trưởng Ổn Định',
+        color: 'text-[#0B63E5]',
+        badge: 'bg-blue-50 text-[#0B63E5] border-blue-200',
+      };
+    }
+
+    // 2. Revenue & Trend commentary
+    let revenueInsight = '';
+    if (viewMode === 'WEEK') {
+      const sortedDays = [...weeklyReportData.days].sort((a, b) => b.revenue - a.revenue);
+      const topDay = sortedDays[0];
+      const lowDay = sortedDays[sortedDays.length - 1];
+      revenueInsight = `Doanh số tuần đạt đỉnh vào ${topDay?.day || 'Thứ 7'} (${formatCurrency(topDay?.revenue || 0)}), thấp nhất vào ${lowDay?.day || 'Đầu tuần'}. Nhịp độ mua sắm tăng vọt vào ngày cuối tuần.`;
+    } else if (viewMode === 'MONTH') {
+      if (monthlySubView === 'ALL_MONTHS') {
+        const sortedMonths = [...monthlyReportData.allMonths].sort((a, b) => b.revenue - a.revenue);
+        const topM = sortedMonths[0];
+        revenueInsight = `Tháng có doanh thu cao nhất năm ${selectedYear} là ${topM?.month} với ${formatCurrency(topM?.revenue || 0)} (${topM?.orders} đơn). Tốc độ bán hàng duy trì ổn định trung bình ${formatCurrency(Math.round(activeRevenue / 12))}/tháng.`;
+      } else {
+        revenueInsight = `Tháng ${selectedMonth}/${selectedYear} đạt tổng doanh số ${formatCurrency(activeRevenue)} với ${activeOrdersCount} hóa đơn. Giá trị giỏ hàng trung bình mỗi khách chi tiêu đạt ${formatCurrency(activeAov)}.`;
+      }
+    } else {
+      revenueInsight = `${selectedQuarter}/${selectedYear} ghi nhận tổng ${formatCurrency(activeRevenue)} doanh thu thuần. Cửa hàng duy trì giao dịch ổn định với ${activeOrdersCount} lượt mua hàng.`;
+    }
+
+    // 3. Margin & Cost commentary
+    let marginInsight = '';
+    if (activeMargin >= 22) {
+      marginInsight = `Tỷ suất lợi nhuận gộp rất tốt (${activeMargin}%), vượt trên mức chuẩn 18-20% của ngành bán lẻ. Tỷ lệ giá vốn (COGS) được kiểm soát an toàn ở mức ${(100 - activeMargin).toFixed(1)}% doanh thu.`;
+    } else if (activeMargin >= 15) {
+      marginInsight = `Tỷ suất lợi nhuận gộp đạt mức ổn định (${activeMargin}%). Giá vốn hàng bán chiếm ${(100 - activeMargin).toFixed(1)}% doanh số. Có thể tối ưu thêm bằng cách ghép combo sản phẩm hoặc thương lượng chiết khấu nguồn hàng.`;
+    } else {
+      marginInsight = `Biên lợi nhuận gộp hiện tại khá mỏng (${activeMargin}%). Giá vốn chiếm ${(100 - activeMargin).toFixed(1)}% doanh số. Cửa hàng nên rà soát lại giá bán và hạn chế giảm giá quá sâu.`;
+    }
+
+    // 4. Category & Concentration Risk commentary
+    let categoryInsight = '';
+    const topCat = categoryData[0];
+    if (topCat && topCat.value > 50) {
+      categoryInsight = `Cơ cấu doanh thu phụ thuộc lớn vào ngành hàng "${topCat.name}" (chiếm ${topCat.value}% doanh số). Nên đẩy mạnh tiếp thị thêm các nhóm hàng khác để phân tán rủi ro.`;
+    } else if (topCat) {
+      categoryInsight = `Cơ cấu ngành hàng phân bổ hài hòa. Nhóm hàng dẫn đầu là "${topCat.name}" đóng góp ${topCat.value}% (${formatCurrency(topCat.amount)}), giữ nhịp doanh thu chủ lực cho cửa hàng.`;
+    } else {
+      categoryInsight = `Danh mục hàng hóa đa dạng và đồng đều giữa các nhóm sản phẩm tiêu dùng và thực phẩm.`;
+    }
+
+    // 5. Strategic Action Recommendations
+    const topProd = topProducts[0];
+    const peakHour = hourlySalesData.peakSlot?.fullLabel || '17h - 20h (Giờ vàng)';
+
+    const recommendations = [
+      {
+        title: 'Tồn kho & Nguồn hàng',
+        desc: topProd
+          ? `Mặt hàng "${topProd.name}" đang bán chạy nhất (${topProd.qty} món, +${formatCurrency(topProd.profit)} lãi). Cần dự phòng tồn kho an toàn tối thiểu 10-15 ngày bán.`
+          : 'Duy trì kiểm đếm định kỳ các mặt hàng chủ lực để hạn chế thiếu hàng vào ngày cuối tuần.',
+        badge: 'Ưu tiên số 1',
+        badgeColor: 'bg-amber-100 text-amber-800 border border-amber-200',
+      },
+      {
+        title: 'Khung giờ cao điểm & Nhân sự',
+        desc: `Cao điểm mua sắm tập trung nhiều nhất vào khung giờ ${peakHour}. Cần bố trí đủ 2 nhân viên quầy và thu ngân để phục vụ nhanh chóng.`,
+        badge: 'Vận hành',
+        badgeColor: 'bg-blue-100 text-blue-800 border border-blue-200',
+      },
+      {
+        title: 'Chính sách giá & Combo kích cầu',
+        desc: `Với AOV hiện tại đạt ${formatCurrency(activeAov)}, nên triển khai chương trình "Hóa đơn trên ${formatCurrency(Math.round(activeAov * 1.3 / 10000) * 10000)} tặng quà nhỏ" để tăng thêm 20-30% giá trị giỏ hàng.`,
+        badge: 'Tăng trưởng',
+        badgeColor: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+      },
+      {
+        title: 'Dòng tiền & Đối soát sổ quỹ',
+        desc: `Thanh toán VietQR & thẻ chiếm ${paymentMethodData.nonCashPercent}%. Dòng tiền vào tài khoản tốt, cần đối soát sao kê định kỳ với sổ quỹ để kiểm soát thất thoát.`,
+        badge: 'Dòng tiền',
+        badgeColor: 'bg-purple-100 text-purple-800 border border-purple-200',
+      },
+    ];
+
+    return {
+      healthScore: totalScore,
+      rating,
+      revenueInsight,
+      marginInsight,
+      categoryInsight,
+      recommendations,
+      completionRate: Number(completionRate.toFixed(1)),
+    };
+  }, [activeMargin, activeRevenue, activeAov, activeOrdersCount, viewMode, selectedYear, selectedMonth, selectedQuarter, weeklyReportData, monthlyReportData, categoryData, paymentMethodData, hourlySalesData, topProducts, orders]);
+
   return (
     <div className="space-y-4 animate-in fade-in duration-150 pb-8">
       {/* 100% Real Invoices Reconciliation Banner */}
@@ -821,6 +1059,151 @@ export const QuarterlyFinancialReport: React.FC = () => {
         </div>
       </div>
 
+      {/* TRUNG TÂM PHÂN TÍCH & NHẬN XÉT TÌNH HÌNH KINH DOANH (TỰ ĐỘNG) */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden transition-all">
+        {/* Header with Health Score & Toggle */}
+        <div 
+          onClick={() => setIsAnalysisExpanded(!isAnalysisExpanded)}
+          className="p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white cursor-pointer select-none flex flex-col md:flex-row md:items-center justify-between gap-3 hover:opacity-95 transition-opacity"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-amber-300 shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-sm tracking-tight text-white uppercase">
+                  Trung Tâm Đánh Giá & Nhận Xét Tình Hình Kinh Doanh
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-900">
+                  AI Tự Động
+                </span>
+              </div>
+              <p className="text-xs text-blue-200/80 mt-0.5">
+                Tổng hợp phân tích chuyên sâu về tăng trưởng doanh số, biên lợi nhuận, cấu trúc ngành hàng và hiệu suất bán lẻ
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Health Score Pill */}
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-xs border border-white/15 px-3 py-1.5 rounded-lg">
+              <Activity className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="text-right">
+                <div className="text-[10px] text-blue-200 uppercase font-semibold">Điểm sức khỏe</div>
+                <div className="text-sm font-black text-white flex items-center gap-1.5">
+                  <span>{businessEvaluation.healthScore}/100</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${businessEvaluation.rating.color}`}>
+                    {businessEvaluation.rating.label}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              type="button"
+              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              title={isAnalysisExpanded ? "Thu gọn phân tích" : "Mở rộng phân tích"}
+            >
+              {isAnalysisExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Content */}
+        {isAnalysisExpanded && (
+          <div className="p-4 bg-slate-50/50 space-y-4">
+            {/* 3 Core Pillars: Revenue Growth, Gross Margin, Category Mix */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Pillar 1: Revenue Trend */}
+              <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded bg-blue-50 text-[#0B63E5] flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Xu Hướng & Quy Mô
+                    </span>
+                  </div>
+                  <span className="badge-blue text-[10px]">Doanh số</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {businessEvaluation.revenueInsight}
+                </p>
+              </div>
+
+              {/* Pillar 2: Profit Margin */}
+              <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <PiggyBank className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Biên Lợi Nhuận & Giá Vốn
+                    </span>
+                  </div>
+                  <span className="badge-green text-[10px]">Tỷ suất: {activeMargin}%</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {businessEvaluation.marginInsight}
+                </p>
+              </div>
+
+              {/* Pillar 3: Category Risk */}
+              <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded bg-purple-50 text-purple-600 flex items-center justify-center">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Cơ Cấu Ngành Hàng
+                    </span>
+                  </div>
+                  <span className="badge-gray text-[10px]">{categoryData.length} nhóm hàng</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {businessEvaluation.categoryInsight}
+                </p>
+              </div>
+            </div>
+
+            {/* Strategic Action Recommendations Grid */}
+            <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-amber-500" />
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Khuyến Nghị Hành Động Chiến Lược Cho Cửa Hàng
+                  </h4>
+                </div>
+                <span className="text-[11px] text-slate-400 italic">Dựa trên dữ liệu bán hàng thực tế</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {businessEvaluation.recommendations.map((rec, i) => (
+                  <div key={i} className="p-3 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-slate-50 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                        <span className="text-xs font-bold text-slate-800">{rec.title}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${rec.badgeColor}`}>
+                          {rec.badge}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-normal">
+                        {rec.desc}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* REVENUE CHARTS SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Main Chart: Doanh thu & Lợi nhuận gộp */}
@@ -946,6 +1329,240 @@ export const QuarterlyFinancialReport: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* NEW ANALYTICAL CHARTS: PEAK HOURS & CASHFLOW / OPERATIONAL HEALTH */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Chart 1: Phân bổ doanh số theo khung giờ trong ngày (Khung Giờ Vàng) */}
+        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Flame className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Phân Bổ Doanh Thu Theo Khung Giờ (Giờ Vàng)
+                  </h3>
+                  <p className="text-xs text-slate-500">Nhận diện giờ cao điểm để xếp ca trực & bổ sung hàng hóa</p>
+                </div>
+              </div>
+              {hourlySalesData.peakSlot && (
+                <span className="px-2 py-1 rounded bg-amber-100 border border-amber-200 text-amber-800 text-[11px] font-bold self-start sm:self-center flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-amber-600" />
+                  Cao điểm: {hourlySalesData.peakSlot.slot}
+                </span>
+              )}
+            </div>
+
+            <div className="h-56 w-full mt-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={hourlySalesData.slots} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="slot" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tickFormatter={(val) => formatShortCurrency(val)}
+                    tick={{ fontSize: 10, fill: '#64748B' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    formatter={(val: any, name: string) => [
+                      formatCurrency(Number(val)),
+                      name === 'revenue' ? 'Doanh thu' : 'Số đơn',
+                    ]}
+                    labelFormatter={(label) => `Khung giờ: ${label}`}
+                    contentStyle={{
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12px',
+                    }}
+                  />
+                  <Bar
+                    dataKey="revenue"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={40}
+                  >
+                    {hourlySalesData.slots.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.isPeak ? '#F59E0B' : '#0B63E5'}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="p-2 rounded bg-slate-50">
+              <div className="text-[10px] text-slate-500">Giờ sáng (06-12h)</div>
+              <div className="font-bold text-slate-800 mt-0.5">
+                {formatShortCurrency(
+                  (hourlySalesData.slots[0]?.revenue || 0) + (hourlySalesData.slots[1]?.revenue || 0)
+                )}
+              </div>
+            </div>
+            <div className="p-2 rounded bg-slate-50">
+              <div className="text-[10px] text-slate-500">Giờ trưa - chiều (12-17h)</div>
+              <div className="font-bold text-slate-800 mt-0.5">
+                {formatShortCurrency(
+                  (hourlySalesData.slots[2]?.revenue || 0) + (hourlySalesData.slots[3]?.revenue || 0)
+                )}
+              </div>
+            </div>
+            <div className="p-2 rounded bg-amber-50/70 border border-amber-200/50">
+              <div className="text-[10px] text-amber-700 font-semibold">Giờ tối (17-23h)</div>
+              <div className="font-bold text-amber-900 mt-0.5">
+                {formatShortCurrency(
+                  (hourlySalesData.slots[4]?.revenue || 0) + (hourlySalesData.slots[5]?.revenue || 0)
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Chart 2: Cơ Cấu Phương Thức Thanh Toán & Sức Khỏe Vận Hành */}
+        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <QrCode className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Cơ Cấu Thanh Toán & Sức Khỏe Vận Hành
+                  </h3>
+                  <p className="text-xs text-slate-500">Tỷ trọng dòng tiền số hóa & các chỉ số đánh giá chuẩn bán lẻ</p>
+                </div>
+              </div>
+              <span className="badge-blue text-[10px]">
+                {paymentMethodData.nonCashPercent}% số hóa
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+              {/* Payment Donut */}
+              <div className="flex flex-col items-center justify-center">
+                <div className="h-40 w-full relative flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={paymentMethodData.chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={42}
+                        outerRadius={65}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {paymentMethodData.chartData.map((entry, index) => (
+                          <Cell key={`pay-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(val: any) => [formatCurrency(Number(val)), 'Số tiền']}
+                        contentStyle={{
+                          backgroundColor: '#FFFFFF',
+                          borderRadius: '8px',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '11px',
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-[10px] text-slate-400 font-medium">Không tiền mặt</span>
+                    <span className="text-xs font-bold text-[#0B63E5]">{paymentMethodData.nonCashPercent}%</span>
+                  </div>
+                </div>
+
+                <div className="w-full space-y-1 mt-1 text-[11px]">
+                  {paymentMethodData.chartData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between text-slate-600">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
+                        <span>{item.name}</span>
+                      </div>
+                      <span className="font-semibold text-slate-900">{formatShortCurrency(item.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Retail Health Gauges */}
+              <div className="space-y-3 flex flex-col justify-center border-t sm:border-t-0 sm:border-l border-slate-100 sm:pl-4 pt-3 sm:pt-0">
+                <div className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  Thước Đo Vận Hành Chuẩn
+                </div>
+
+                {/* Gauge 1: Gross margin */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-600">Biên lợi nhuận gộp</span>
+                    <span className="font-bold text-emerald-600">{activeMargin}% <span className="text-[10px] text-slate-400 font-normal">(Chuẩn ≥ 20%)</span></span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${activeMargin >= 20 ? 'bg-emerald-500' : activeMargin >= 12 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                      style={{ width: `${Math.min(100, (activeMargin / 30) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Gauge 2: Order Completion Rate */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-600">Tỷ lệ đơn thành công</span>
+                    <span className="font-bold text-blue-600">{businessEvaluation.completionRate}% <span className="text-[10px] text-slate-400 font-normal">(Chuẩn ≥ 98%)</span></span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full"
+                      style={{ width: `${Math.min(100, businessEvaluation.completionRate)}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Gauge 3: Cashless Adoption */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-600">Thanh toán số hóa</span>
+                    <span className="font-bold text-indigo-600">{paymentMethodData.nonCashPercent}% <span className="text-[10px] text-slate-400 font-normal">(Chuẩn ≥ 40%)</span></span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-indigo-500 rounded-full"
+                      style={{ width: `${Math.min(100, paymentMethodData.nonCashPercent)}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Gauge 4: Top Category Risk */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-600">Phân tán danh mục</span>
+                    <span className="font-bold text-slate-700">
+                      {categoryData[0] ? `${categoryData[0].value}% top ngành` : 'Đồng đều'} 
+                      <span className="text-[10px] text-slate-400 font-normal"> (Chuẩn &lt; 50%)</span>
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${(categoryData[0]?.value || 0) > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${Math.min(100, (categoryData[0]?.value || 30))}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
