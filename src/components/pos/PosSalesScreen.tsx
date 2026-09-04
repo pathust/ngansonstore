@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { Product } from '../../types';
 import { formatCurrency, getVietQRUrl } from '../../utils/formatters';
 import { generateOfflineQrDataUrl } from '../../utils/vietqr';
 import { useDebounce } from '../../utils/useDebounce';
@@ -98,13 +99,23 @@ export const PosSalesScreen: React.FC = () => {
   const totalAmountToPay = Math.max(0, Math.round(subtotal - discountVal));
   const changeDue = Math.max(0, cashGiven - totalAmountToPay);
 
+  const { productByIdMap, productByBarcodeOrSku } = useMemo(() => {
+    const byId = new Map<string, Product>();
+    const byBarcodeOrSku = new Map<string, Product>();
+    for (const p of products) {
+      if (p.id) byId.set(p.id, p);
+      if (p.barcode) byBarcodeOrSku.set(p.barcode.trim(), p);
+      if (p.sku) byBarcodeOrSku.set(p.sku.trim().toLowerCase(), p);
+    }
+    return { productByIdMap: byId, productByBarcodeOrSku: byBarcodeOrSku };
+  }, [products]);
+
   // Quick Barcode Scan Simulation
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeInput.trim()) return;
-    const found = products.find(
-      (p) => p.barcode === barcodeInput.trim() || p.sku.toLowerCase() === barcodeInput.trim().toLowerCase()
-    );
+    const term = barcodeInput.trim();
+    if (!term) return;
+    const found = productByBarcodeOrSku.get(term) || productByBarcodeOrSku.get(term.toLowerCase());
     if (found) {
       addToCart(found, 1);
       setBarcodeInput('');
@@ -601,16 +612,37 @@ export const PosSalesScreen: React.FC = () => {
                 <p className="text-[10px] text-slate-400 mt-0.5">Click vào các sản phẩm để thêm vào đơn</p>
               </div>
             ) : (
-              activeTab.items.map((item) => (
+              activeTab.items.map((item) => {
+              const prod = productByIdMap.get(item.product_id);
+              const isBelowCost = prod && prod.cost_price > 0 && item.price < prod.cost_price;
+              const isHighMargin = prod && prod.cost_price > 0 && item.price > prod.cost_price * 3;
+
+              return (
                 <div key={item.product_id} className="py-2 flex items-start justify-between gap-2 group">
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold text-slate-900 leading-snug truncate">
                       {item.name}
                     </div>
-                    <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2 mt-0.5">
+                    <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2 mt-0.5 flex-wrap">
                       <span>{item.sku}</span>
                       <span>•</span>
                       <span className="font-semibold text-[#0B63E5]">{formatCurrency(item.price)}</span>
+                      {isBelowCost && (
+                        <span
+                          className="text-[9px] text-rose-700 font-bold bg-rose-50 px-1 py-0.2 rounded border border-rose-200"
+                          title={`Giá vốn: ${formatCurrency(prod!.cost_price)}`}
+                        >
+                          ⚠️ Bán dưới vốn
+                        </span>
+                      )}
+                      {isHighMargin && (
+                        <span
+                          className="text-[9px] text-amber-800 font-semibold bg-amber-50 px-1 py-0.2 rounded border border-amber-200"
+                          title={`Giá vốn: ${formatCurrency(prod!.cost_price)} (Lãi ${(item.price / prod!.cost_price).toFixed(1)}x)`}
+                        >
+                          📈 Lãi &gt; 3x
+                        </span>
+                      )}
                     </div>
 
                     {/* Quantity Stepper */}
@@ -655,7 +687,8 @@ export const PosSalesScreen: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              ))
+              );
+            })
             )}
           </div>
 

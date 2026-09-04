@@ -274,6 +274,20 @@ export const QuarterlyFinancialReport: React.FC = () => {
     };
   }, [monthlyReportData, selectedQuarter]);
 
+  // --- Pre-index products and categories into O(1) Maps to avoid O(N^2) inner loop overhead ---
+  const { productByIdOrSku, categoryById } = useMemo(() => {
+    const pMap = new Map<string, (typeof products)[0]>();
+    for (const p of products) {
+      if (p.id) pMap.set(p.id, p);
+      if (p.sku) pMap.set(p.sku, p);
+    }
+    const cMap = new Map<string, (typeof categories)[0]>();
+    for (const c of categories) {
+      if (c.id) cMap.set(c.id, c);
+    }
+    return { productByIdOrSku: pMap, categoryById: cMap };
+  }, [products, categories]);
+
   // --- 4. REAL CATEGORY REVENUE BREAKDOWN ---
   const categoryData = useMemo(() => {
     // Determine the active subset of orders based on current view
@@ -289,9 +303,9 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
     activeOrders.forEach((order) => {
       order.items.forEach((item) => {
-        const prod = products.find((p) => p.id === item.product_id || p.sku === item.sku);
+        const prod = (item.product_id && productByIdOrSku.get(item.product_id)) || (item.sku && productByIdOrSku.get(item.sku));
         const catId = prod?.category || 'cat-fmcg';
-        const catObj = categories.find((c) => c.id === catId);
+        const catObj = categoryById.get(catId);
         const catName = catObj?.name || 'Hàng hóa khác';
         const itemRevenue = (item.price || 0) * (item.quantity || 1);
         catRevenueMap.set(catName, (catRevenueMap.get(catName) || 0) + itemRevenue);
@@ -301,7 +315,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
     const totalCatRevenue = Array.from(catRevenueMap.values()).reduce((a, b) => a + b, 0);
 
     if (totalCatRevenue === 0) {
-      return categories.slice(0, 5).map((c, i) => ({
+      return categories.slice(0, 5).map((c) => ({
         name: c.name,
         amount: 0,
         value: 0,
@@ -315,7 +329,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
         value: Number(((amount / totalCatRevenue) * 100).toFixed(1)),
       }))
       .sort((a, b) => b.amount - a.amount);
-  }, [completedOrderStats, viewMode, monthlySubView, selectedYear, selectedMonth, selectedQuarter, products, categories]);
+  }, [completedOrderStats, viewMode, monthlySubView, selectedYear, selectedMonth, selectedQuarter, productByIdOrSku, categoryById, categories]);
 
   // --- 5. REAL TOP SELLING PRODUCTS (FROM ACTUAL INVOICES) ---
   const topProducts = useMemo(() => {
@@ -326,7 +340,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
     completedOrderStats.forEach((order) => {
       order.items.forEach((item) => {
-        const prod = products.find((p) => p.id === item.product_id || p.sku === item.sku);
+        const prod = (item.product_id && productByIdOrSku.get(item.product_id)) || (item.sku && productByIdOrSku.get(item.sku));
         const key = item.sku || item.name;
         const current = itemMap.get(key) || {
           id: item.product_id,
@@ -352,7 +366,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
     return Array.from(itemMap.values())
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 6);
-  }, [completedOrderStats, products]);
+  }, [completedOrderStats, productByIdOrSku]);
 
   // Export current view data to Excel
   const handleExportExcel = () => {

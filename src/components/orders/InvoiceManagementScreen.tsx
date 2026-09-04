@@ -79,6 +79,8 @@ export const InvoiceManagementScreen: React.FC = () => {
   const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH'>('ALL');
   const [sortBy, setSortBy] = useState<'NEWEST' | 'OLDEST' | 'AMOUNT_DESC' | 'AMOUNT_ASC'>('NEWEST');
 
+  const productByIdMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -459,6 +461,14 @@ export const InvoiceManagementScreen: React.FC = () => {
         return;
       }
 
+      // Build O(1) product lookup maps before iterating rows
+      const productBySku = new Map<string, (typeof products)[0]>();
+      const productByName = new Map<string, (typeof products)[0]>();
+      for (const p of products) {
+        if (p.sku) productBySku.set(p.sku.trim().toLowerCase(), p);
+        if (p.name) productByName.set(p.name.trim().toLowerCase(), p);
+      }
+
       // Group rows by order code
       const orderMap = new Map<string, Partial<Order>>();
       const errors: string[] = [];
@@ -537,8 +547,8 @@ export const InvoiceManagementScreen: React.FC = () => {
         }
 
         const currentOrder = orderMap.get(code)!;
-        // find matching product id if possible
-        const matchedProd = products.find((p) => p.sku.toLowerCase() === sku.toLowerCase() || p.name.toLowerCase() === productName.toLowerCase());
+        // find matching product id with O(1) lookup
+        const matchedProd = productBySku.get(sku.toLowerCase()) || productByName.get(productName.toLowerCase());
         const productId = matchedProd ? matchedProd.id : `gen-${sku}`;
 
         currentOrder.items = currentOrder.items || [];
@@ -1272,7 +1282,7 @@ export const InvoiceManagementScreen: React.FC = () => {
                         </tr>
                       ) : (
                         editFormData.items.map((item, index) => {
-                          const product = products.find((p) => p.id === item.product_id);
+                          const product = productByIdMap.get(item.product_id);
                           const itemTotal = item.price * item.quantity;
 
                           return (

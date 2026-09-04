@@ -43,9 +43,19 @@ class CacheManager {
       timestamp: Date.now(),
       etag,
     };
+    // Keep 100% full dataset in memory for instant access
     this.memoryCache.set(key, entry);
     try {
-      localStorage.setItem(this.prefix + key, JSON.stringify(entry));
+      // For localStorage fallback, cap large arrays to 200 to strictly avoid 5MB quota exhaustion
+      let storageData: any = data;
+      if (Array.isArray(data) && data.length > 200) {
+        storageData = data.slice(0, 200);
+      }
+      const storageEntry: CacheEntry<any> = {
+        ...entry,
+        data: storageData,
+      };
+      localStorage.setItem(this.prefix + key, JSON.stringify(storageEntry));
     } catch (e) {
       // LocalStorage quota might be exceeded, clear older keys
       this.pruneOldest();

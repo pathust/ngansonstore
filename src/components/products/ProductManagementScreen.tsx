@@ -31,7 +31,12 @@ import {
   FileSpreadsheet,
   Mic,
   Boxes,
+  ShieldAlert,
+  TrendingDown,
+  TrendingUp,
+  AlertCircle,
 } from 'lucide-react';
+import { PriceAuditModal, detectPriceAnomaly, PriceAnomalyType } from './PriceAuditModal';
 
 interface ProductManagementScreenProps {
   isAddDrawerOpen?: boolean;
@@ -103,7 +108,37 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
   const [receivedQty, setReceivedQty] = useState<number>(10);
   const [receivedCost, setReceivedCost] = useState<number>(0);
 
+  // Modal: Audit kiểm tra bảng giá bất thường
+  const [isPriceAuditModalOpen, setIsPriceAuditModalOpen] = useState(false);
+  const [priceAnomalyFilter, setPriceAnomalyFilter] = useState<PriceAnomalyType>('ALL');
+
   const debouncedSearch = useDebounce(search, 200);
+
+  // Thống kê toàn bộ các sản phẩm có chênh lệch giá bất thường
+  const priceAnomalies = useMemo(() => {
+    let lossCount = 0;
+    let highMarginCount = 0;
+    let invertedCount = 0;
+    let zeroCostCount = 0;
+
+    products.forEach((p) => {
+      const a = detectPriceAnomaly(p);
+      if (a) {
+        if (a.type === 'LOSS') lossCount++;
+        else if (a.type === 'HIGH_MARGIN') highMarginCount++;
+        else if (a.type === 'INVERTED_HIGH') invertedCount++;
+        else if (a.type === 'ZERO_COST') zeroCostCount++;
+      }
+    });
+
+    return {
+      total: lossCount + highMarginCount + invertedCount,
+      lossCount,
+      highMarginCount,
+      invertedCount,
+      zeroCostCount,
+    };
+  }, [products]);
 
   // Filter products (memoized)
   const filteredProducts = useMemo(() => {
@@ -122,9 +157,26 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
       else if (stockFilter === 'LOW_STOCK') matchStock = p.stock > 0 && p.stock <= p.min_stock;
       else if (stockFilter === 'IN_STOCK') matchStock = p.stock > p.min_stock;
 
-      return matchSearch && matchCategory && matchStock;
+      // Price Anomaly Audit Filter
+      let matchPrice = true;
+      if (priceAnomalyFilter !== 'ALL') {
+        const anomaly = detectPriceAnomaly(p);
+        if (!anomaly) {
+          matchPrice = false;
+        } else if (priceAnomalyFilter === 'LOSS') {
+          matchPrice = anomaly.type === 'LOSS';
+        } else if (priceAnomalyFilter === 'HIGH_MARGIN') {
+          matchPrice = anomaly.type === 'HIGH_MARGIN';
+        } else if (priceAnomalyFilter === 'INVERTED_HIGH') {
+          matchPrice = anomaly.type === 'INVERTED_HIGH';
+        } else if (priceAnomalyFilter === 'ZERO_COST') {
+          matchPrice = anomaly.type === 'ZERO_COST';
+        }
+      }
+
+      return matchSearch && matchCategory && matchStock && matchPrice;
     });
-  }, [products, debouncedSearch, selectedCategory, stockFilter]);
+  }, [products, debouncedSearch, selectedCategory, stockFilter, priceAnomalyFilter]);
 
   // Pagination (memoized)
   const paginatedProducts = useMemo(() => {
@@ -360,6 +412,19 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
 
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => setIsPriceAuditModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer relative"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-white" />
+            <span>Audit Bảng Giá</span>
+            {priceAnomalies.total > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[10px] font-extrabold animate-pulse">
+                {priceAnomalies.total}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setIsStockInVoucherOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
           >
@@ -411,6 +476,59 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
           </button>
         </div>
       </div>
+
+      {/* Cảnh báo Audit Bảng Giá Bất Thường */}
+      {priceAnomalies.total > 0 && (
+        <div className="bg-amber-50/90 border border-amber-200 rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-amber-900 flex items-center gap-2">
+                <span>Phát hiện {priceAnomalies.total} mặt hàng có chênh lệch giá bất thường!</span>
+                <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-bold border border-rose-200">
+                  Cần rà soát
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                Gồm:{' '}
+                {priceAnomalies.lossCount > 0 && (
+                  <strong className="text-rose-700 font-bold">{priceAnomalies.lossCount} SP bán lỗ</strong>
+                )}
+                {priceAnomalies.lossCount > 0 && priceAnomalies.invertedCount > 0 && ', '}
+                {priceAnomalies.invertedCount > 0 && (
+                  <strong className="text-purple-700 font-bold">{priceAnomalies.invertedCount} SP vốn &gt; 3x bán (nhầm thùng/hộp)</strong>
+                )}
+                {(priceAnomalies.lossCount > 0 || priceAnomalies.invertedCount > 0) && priceAnomalies.highMarginCount > 0 && ', '}
+                {priceAnomalies.highMarginCount > 0 && (
+                  <strong className="text-amber-800 font-bold">{priceAnomalies.highMarginCount} SP bán &gt; 3x vốn</strong>
+                )}
+                . Vui lòng kiểm tra lại để tránh bán sai giá hoặc nhầm đơn vị tính!
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            <button
+              onClick={() => {
+                setPriceAnomalyFilter(priceAnomalyFilter === 'ALL' ? 'LOSS' : 'ALL');
+                setCurrentPage(1);
+              }}
+              className="px-2.5 py-1 rounded bg-white border border-amber-300 text-amber-900 hover:bg-amber-100/70 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              {priceAnomalyFilter !== 'ALL' ? 'Hiện tất cả SP' : 'Lọc SP bất thường'}
+            </button>
+            <button
+              onClick={() => setIsPriceAuditModalOpen(true)}
+              className="px-3 py-1 rounded bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Xem & Sửa Bảng Giá</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filter Toolbar */}
       <div className="bg-white border border-slate-200 rounded-md p-2.5 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
@@ -480,6 +598,26 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
           <option value="LOW_STOCK">Sắp hết hàng</option>
           <option value="OUT_OF_STOCK">Hết hàng trong kho</option>
         </select>
+
+        {/* Price Anomaly Filter */}
+        <select
+          value={priceAnomalyFilter}
+          onChange={(e) => {
+            setPriceAnomalyFilter(e.target.value as PriceAnomalyType);
+            setCurrentPage(1);
+          }}
+          className={`border rounded-md px-2.5 py-1.5 text-xs font-medium shadow-2xs outline-none cursor-pointer ${
+            priceAnomalyFilter !== 'ALL'
+              ? 'bg-amber-50 border-amber-300 text-amber-900 font-bold'
+              : 'bg-white border-slate-200 text-slate-700'
+          }`}
+        >
+          <option value="ALL">Toàn bộ giá {priceAnomalies.total > 0 ? `(${priceAnomalies.total} cảnh báo)` : ''}</option>
+          <option value="LOSS">🚨 Bán dưới vốn ({priceAnomalies.lossCount})</option>
+          <option value="INVERTED_HIGH">⚠️ Vốn &gt; 3x Bán ({priceAnomalies.invertedCount})</option>
+          <option value="HIGH_MARGIN">📈 Bán &gt; 3x Vốn ({priceAnomalies.highMarginCount})</option>
+          <option value="ZERO_COST">⚪ Chưa có vốn ({priceAnomalies.zeroCostCount})</option>
+        </select>
       </div>
 
       {/* Product Data Table */}
@@ -509,6 +647,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                 paginatedProducts.map((p) => {
                   const isOutOfStock = p.stock <= 0;
                   const isLowStock = p.stock > 0 && p.stock <= p.min_stock;
+                  const anomaly = detectPriceAnomaly(p);
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
@@ -549,12 +688,41 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
 
                       {/* Cost Price */}
                       <td className="py-2 px-3 text-right font-medium text-slate-600">
-                        {formatCurrency(p.cost_price)}
+                        <div>{formatCurrency(p.cost_price)}</div>
+                        {anomaly?.type === 'INVERTED_HIGH' && (
+                          <div
+                            className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 mt-0.5"
+                            title={anomaly.description}
+                          >
+                            Vốn &gt; 3x Bán ({anomaly.ratio}x)
+                          </div>
+                        )}
+                        {anomaly?.type === 'ZERO_COST' && (
+                          <div className="text-[9px] text-slate-400 mt-0.5">Chưa có vốn</div>
+                        )}
                       </td>
 
                       {/* Selling Price */}
                       <td className="py-2 px-3 text-right font-bold text-[#0B63E5]">
-                        {formatCurrency(p.selling_price)}
+                        <div>{formatCurrency(p.selling_price)}</div>
+                        {anomaly?.type === 'LOSS' && (
+                          <div
+                            className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700 border border-rose-200 mt-0.5"
+                            title={anomaly.description}
+                          >
+                            <TrendingDown className="w-2.5 h-2.5" />
+                            Bán lỗ ({anomaly.ratio}x)
+                          </div>
+                        )}
+                        {anomaly?.type === 'HIGH_MARGIN' && (
+                          <div
+                            className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 mt-0.5"
+                            title={anomaly.description}
+                          >
+                            <TrendingUp className="w-2.5 h-2.5" />
+                            Lãi &gt; 3x ({anomaly.ratio}x)
+                          </div>
+                        )}
                       </td>
 
                       {/* Stock Badge */}
@@ -750,6 +918,45 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                   />
                 </div>
               </div>
+
+              {/* Price Anomaly Warning in Drawer */}
+              {formData.cost_price > 0 && formData.selling_price > 0 && (
+                <div className="space-y-2">
+                  {formData.cost_price > formData.selling_price * 3 && (
+                    <div className="p-2.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-900 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-relaxed">
+                        <strong className="font-bold">Cảnh báo: Vốn gấp {(formData.cost_price / formData.selling_price).toFixed(1)}x Giá bán!</strong>
+                        <p className="text-purple-700 mt-0.5">
+                          Giá vốn đang cao hơn 3 lần giá bán. Có thể bạn đang nhập giá vốn theo Thùng/Hộp nhưng đặt giá bán theo Cái?
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {formData.selling_price < formData.cost_price && formData.cost_price <= formData.selling_price * 3 && (
+                    <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-relaxed">
+                        <strong className="font-bold">Cảnh báo: Bán dưới giá vốn (Bán lỗ)!</strong>
+                        <p className="text-rose-700 mt-0.5">
+                          Giá bán ({formData.selling_price.toLocaleString()}đ) thấp hơn giá vốn ({formData.cost_price.toLocaleString()}đ), lỗ {(formData.cost_price - formData.selling_price).toLocaleString()}đ mỗi sản phẩm!
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {formData.selling_price > formData.cost_price * 3 && (
+                    <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2">
+                      <TrendingUp className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-relaxed">
+                        <strong className="font-bold">Lưu ý: Giá bán gấp {(formData.selling_price / formData.cost_price).toFixed(1)}x Giá vốn!</strong>
+                        <p className="text-amber-700 mt-0.5">
+                          Giá bán chênh lệch rất cao so với giá vốn (lãi gộp {Math.round(((formData.selling_price - formData.cost_price) / formData.cost_price) * 100)}%). Hãy kiểm tra lại số liệu.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Initial Stock & Min Stock Threshold */}
               <div className="grid grid-cols-2 gap-3">
@@ -1149,6 +1356,18 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
       <StockInVoucherModal
         isOpen={isStockInVoucherOpen}
         onClose={() => setIsStockInVoucherOpen(false)}
+      />
+
+      {/* Price Audit Modal (Kiểm tra & Sửa bảng giá bất thường) */}
+      <PriceAuditModal
+        isOpen={isPriceAuditModalOpen}
+        onClose={() => setIsPriceAuditModalOpen(false)}
+        products={products}
+        onUpdateProduct={(id, updates) => updateProduct(id, updates)}
+        onSelectProductInTable={(p) => {
+          setIsPriceAuditModalOpen(false);
+          handleOpenEditDrawer(p);
+        }}
       />
     </div>
   );

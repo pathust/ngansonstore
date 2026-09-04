@@ -312,7 +312,7 @@ export class SupabaseService {
   }
 
   // ==================== ORDERS ====================
-  public async getOrders(limit = 3000): Promise<Order[]> {
+  public async getOrders(limit?: number): Promise<Order[]> {
     return this.fetchAllRows<Order>('orders', 'created_at', limit);
   }
 
@@ -337,7 +337,7 @@ export class SupabaseService {
   }
 
   // ==================== CASHBOOK ====================
-  public async getCashbook(limit = 3000): Promise<CashbookEntry[]> {
+  public async getCashbook(limit?: number): Promise<CashbookEntry[]> {
     return this.fetchAllRows<CashbookEntry>('cashbook', 'created_at', limit);
   }
 

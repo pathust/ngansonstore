@@ -828,6 +828,12 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                               <div className="text-[10px] text-slate-500 font-mono mt-0.5">
                                 SKU: {it.sku} {it.barcode ? `| Barcode: ${it.barcode}` : ''}
                               </div>
+                              {it.selling_price > 0 && it.cost_price > it.selling_price && (
+                                <div className="inline-flex items-center gap-1 text-[10px] text-rose-600 font-bold mt-0.5 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>Giá nhập ({formatCurrency(it.cost_price)}) cao hơn Giá bán ({formatCurrency(it.selling_price)})!</span>
+                                </div>
+                              )}
                             </td>
 
                             {/* ĐVT */}

@@ -271,7 +271,7 @@ class DatabaseManager {
         categoriesRes,
         usersRes,
         productsData,
-        customersRes,
+        customersData,
         suppliersRes,
         ordersData,
         cashbookData,
@@ -282,10 +282,10 @@ class DatabaseManager {
         supabase.from('categories').select('*'),
         supabase.from('app_users').select('*'),
         this.fetchAllRows('products'),
-        supabase.from('customers').select('*').range(0, 1000),
+        this.fetchAllRows('customers'),
         supabase.from('suppliers').select('*'),
-        this.fetchAllRows('orders', 'created_at', 3000),
-        this.fetchAllRows('cashbook', 'created_at', 3000),
+        this.fetchAllRows('orders', 'created_at'),
+        this.fetchAllRows('cashbook', 'created_at'),
         supabase.from('inventory_audits').select('*').order('created_at', { ascending: false }).limit(200),
       ]);
 
@@ -318,8 +318,8 @@ class DatabaseManager {
       if (productsData && productsData.length > 0) {
         this.cache.products = productsData;
       }
-      if (customersRes.data && customersRes.data.length > 0) {
-        this.cache.customers = customersRes.data;
+      if (customersData && customersData.length > 0) {
+        this.cache.customers = customersData;
       }
       if (suppliersRes.data && suppliersRes.data.length > 0) {
         this.cache.suppliers = suppliersRes.data;
@@ -603,7 +603,7 @@ class DatabaseManager {
         const cIndex = db.customers.findIndex(c => c.name === order.customer_name);
         if (cIndex >= 0) {
           db.customers[cIndex].total_purchased = (db.customers[cIndex].total_purchased || 0) + (order.final_amount || 0);
-          if (order.payment_method !== 'CASH') {
+          if ((order as any).payment_method === 'DEBT') {
             db.customers[cIndex].debt = (db.customers[cIndex].debt || 0) + (order.final_amount || 0);
           }
           this.syncToSupabase('customers', 'upsert', db.customers[cIndex]);

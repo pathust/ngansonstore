@@ -95,9 +95,10 @@ export default function App() {
         suppliers={suppliers}
         onNavigate={(screen) => {
           if (screen === 'pos') setCurrentTab('POS');
-          else if (screen === 'products' || screen === 'inventory') setCurrentTab('SCANNER');
+          else if (screen === 'products' || screen === 'inventory') setCurrentTab('PRODUCTS');
           else if (screen === 'invoices') setCurrentTab('INVOICES');
-          else if (screen === 'settings') setCurrentTab('SETTINGS');
+          else if (screen === 'settings' || screen === 'more') setCurrentTab('MORE');
+          else if (screen === 'overview') setCurrentTab('OVERVIEW');
           setIsVoiceOpen(false);
         }}
       />

@@ -226,6 +226,18 @@ export const safeStorageSet = (key: string, data: any, maxSlice?: number) => {
   }
 };
 
+export const safeStorageGet = <T,>(key: string, defaultValue: T): T => {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return defaultValue;
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn(`[Storage] Failed to read/parse key "${key}", falling back to default:`, err);
+    return defaultValue;
+  }
+};
+
 // One-time clear of legacy oversized localStorage caches to avoid QuotaExceededError
 if (typeof window !== 'undefined' && !localStorage.getItem(MOCK_CLEANED_FLAG)) {
   try {
@@ -300,33 +312,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return 'products'; // Default to products / data
   });
   const [branches, setBranches] = useState<Branch[]>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'branches');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {}
-    }
+    const parsed = safeStorageGet<Branch[]>(LOCAL_STORAGE_PREFIX + 'branches', []);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     return [{ id: 'ngan-son-store', name: 'Cửa hàng Ngân Sơn', address: '318 Vũ Quang', phone: '0912.345.678', is_default: true }];
   });
   const [currentBranch, setCurrentBranch] = useState<Branch>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'current_branch');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
+    const parsed = safeStorageGet<Branch | null>(LOCAL_STORAGE_PREFIX + 'current_branch', null);
+    if (parsed && typeof parsed === 'object' && parsed.id) return parsed;
     return { id: 'ngan-son-store', name: 'Cửa hàng Ngân Sơn', address: '318 Vũ Quang', phone: '0912.345.678', is_default: true };
   });
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Store Settings & QR Code Config
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'store_settings');
-    if (saved) {
-      try {
-        return { ...INITIAL_STORE_SETTINGS, ...JSON.parse(saved) };
-      } catch (e) {
-        console.error('Failed to parse store settings:', e);
-      }
+    const saved = safeStorageGet<Partial<StoreSettings> | null>(LOCAL_STORAGE_PREFIX + 'store_settings', null);
+    if (saved && typeof saved === 'object') {
+      return { ...INITIAL_STORE_SETTINGS, ...saved };
     }
     return INITIAL_STORE_SETTINGS;
   });
@@ -334,11 +335,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateStoreSettings = (updates: Partial<StoreSettings>) => {
     setStoreSettings((prev) => {
       const next = { ...prev, ...updates };
-      localStorage.setItem(LOCAL_STORAGE_PREFIX + 'store_settings', JSON.stringify(next));
+      safeStorageSet(LOCAL_STORAGE_PREFIX + 'store_settings', next);
       apiClient.updateStoreSettings(next).catch((err) => {
-      console.warn('[Settings] Failed to sync to server:', err);
-      savePendingChange('settings', next);
-    });
+        console.warn('[Settings] Failed to sync to server:', err);
+        savePendingChange('settings', next);
+      });
       return next;
     });
     showToast('Đã lưu thông tin cửa hàng & mã QR thành công!', 'success');
@@ -349,49 +350,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const fromDb = await supabaseService.getStoreSettings();
       if (fromDb) {
         setStoreSettings(fromDb);
-        localStorage.setItem(LOCAL_STORAGE_PREFIX + 'store_settings', JSON.stringify(fromDb));
+        safeStorageSet(LOCAL_STORAGE_PREFIX + 'store_settings', fromDb);
         showToast('Đã làm mới cài đặt cửa hàng từ Supabase', 'info');
         return;
       }
     } catch {}
     setStoreSettings(INITIAL_STORE_SETTINGS);
-    localStorage.setItem(LOCAL_STORAGE_PREFIX + 'store_settings', JSON.stringify(INITIAL_STORE_SETTINGS));
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'store_settings', INITIAL_STORE_SETTINGS);
     showToast('Đã khôi phục cài đặt cửa hàng', 'info');
   };
 
   // Products & Categories
   const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'products');
-    return saved ? JSON.parse(saved) : [];
+    const saved = safeStorageGet<Product[]>(LOCAL_STORAGE_PREFIX + 'products', []);
+    return Array.isArray(saved) ? saved : [];
   });
 
   const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'categories');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {}
-    }
-    return [];
+    const parsed = safeStorageGet<Category[]>(LOCAL_STORAGE_PREFIX + 'categories', []);
+    return Array.isArray(parsed) ? parsed : [];
   });
 
   // Suppliers (Nhà Cung Cấp)
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'suppliers');
-    return saved ? JSON.parse(saved) : [];
+    const saved = safeStorageGet<Supplier[]>(LOCAL_STORAGE_PREFIX + 'suppliers', []);
+    return Array.isArray(saved) ? saved : [];
   });
 
   // Customers (Khách Hàng)
   const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'customers');
-    return saved ? JSON.parse(saved) : [];
+    const saved = safeStorageGet<Customer[]>(LOCAL_STORAGE_PREFIX + 'customers', []);
+    return Array.isArray(saved) ? saved : [];
   });
 
   // Orders (mặc định sắp xếp giảm dần theo thời gian)
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'orders');
-    const raw: Order[] = saved ? JSON.parse(saved) : [];
+    const saved = safeStorageGet<Order[]>(LOCAL_STORAGE_PREFIX + 'orders', []);
+    const raw: Order[] = Array.isArray(saved) ? saved : [];
     return raw
       .map((o) => ({
         ...o,
@@ -402,15 +397,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Audits (sắp xếp giảm dần)
   const [inventoryAudits, setInventoryAudits] = useState<InventoryAudit[]>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'audits');
-    const raw: InventoryAudit[] = saved ? JSON.parse(saved) : [];
+    const saved = safeStorageGet<InventoryAudit[]>(LOCAL_STORAGE_PREFIX + 'audits', []);
+    const raw: InventoryAudit[] = Array.isArray(saved) ? saved : [];
     return raw.sort((a, b) => parseDateToTimestamp(b.date) - parseDateToTimestamp(a.date));
   });
 
   // Cashbook (sắp xếp giảm dần)
   const [cashbookEntries, setCashbookEntries] = useState<CashbookEntry[]>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'cashbook');
-    const raw: CashbookEntry[] = saved ? JSON.parse(saved) : [];
+    const saved = safeStorageGet<CashbookEntry[]>(LOCAL_STORAGE_PREFIX + 'cashbook', []);
+    const raw: CashbookEntry[] = Array.isArray(saved) ? saved : [];
     return raw
       .map((c) => ({
         ...c,
@@ -513,9 +508,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           localStorage.removeItem('nganson_pending_sync');
           console.log('[Sync] Successfully pushed pending changes');
         } catch (pushErr: unknown) {
-  const message = pushErr instanceof Error ? pushErr.message : 'Unknown error';
-          console.warn('[Sync] Failed to push pending changes:', message);
-          throw pushErr; // Abort pull if push fails to avoid overwriting local un-synced data
+          const message = pushErr instanceof Error ? pushErr.message : 'Unknown error';
+          console.warn('[Sync] Failed to push pending changes (will retry next cycle):', message);
+          // Do not throw pushErr to allow differential pull to proceed and prevent desync
         }
       }
 
@@ -523,11 +518,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (payload) {
         if (payload.settings) {
           setStoreSettings((prev) => ({ ...prev, ...payload.settings }));
-          localStorage.setItem(LOCAL_STORAGE_PREFIX + 'store_settings', JSON.stringify(payload.settings));
+          safeStorageSet(LOCAL_STORAGE_PREFIX + 'store_settings', payload.settings);
         }
         if (payload.branches && payload.branches.length > 0) {
           setBranches(payload.branches);
-          localStorage.setItem(LOCAL_STORAGE_PREFIX + 'branches', JSON.stringify(payload.branches));
+          safeStorageSet(LOCAL_STORAGE_PREFIX + 'branches', payload.branches);
           setCurrentBranch((prev) => {
             const found = payload.branches!.find((b) => b.id === prev?.id);
             return found || payload.branches!.find((b) => b.is_default) || payload.branches![0];
@@ -535,7 +530,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         if (payload.users && payload.users.length > 0) {
           setUsers(payload.users);
-          localStorage.setItem(LOCAL_STORAGE_PREFIX + 'users', JSON.stringify(payload.users));
+          safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', payload.users);
           setCurrentUser((prev) => {
             const found = payload.users!.find((u) => u.id === prev?.id);
             return found || payload.users![0];
@@ -543,7 +538,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         if (payload.categories && payload.categories.length > 0) {
           setCategories(payload.categories);
-          localStorage.setItem(LOCAL_STORAGE_PREFIX + 'categories', JSON.stringify(payload.categories));
+          safeStorageSet(LOCAL_STORAGE_PREFIX + 'categories', payload.categories);
         }
         if (payload.products && payload.products.length > 0) {
           setProducts(payload.products);
@@ -572,7 +567,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       setSyncState('IDLE');
     } catch (err: unknown) {
-  const message = err instanceof Error ? err.message : 'Unknown error';
+      const message = err instanceof Error ? err.message : 'Unknown error';
       console.warn('[Sync] Server sync warning:', message);
       // If server is not responding, fallback to local offline mode
       setSyncState(navigator.onLine ? 'ERROR' : 'OFFLINE');
@@ -590,10 +585,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }, 12000);
 
-    // Realtime Supabase live-listener for instant updates
+    // Realtime Supabase live-listener for instant updates with 600ms debounce
+    let realtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const unsubscribeRealtime = supabaseService.subscribeRealtime((table, eventType) => {
       console.log(`[Supabase Realtime] Event: ${eventType} on table: ${table}`);
-      syncWithServer();
+      if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer);
+      realtimeDebounceTimer = setTimeout(() => {
+        syncWithServer();
+      }, 600);
     });
 
     // Online / Offline listeners & Window Focus
@@ -613,6 +612,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     window.addEventListener('focus', handleFocus);
     return () => {
       clearInterval(periodicInterval);
+      if (realtimeDebounceTimer) clearTimeout(realtimeDebounceTimer);
       unsubscribeRealtime();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -1036,6 +1036,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       })
     );
 
+    // Sync updated stock & cost to server
+    const targetProd = products.find((p) => p.id === productId);
+    if (targetProd) {
+      const currentStock = Math.max(0, targetProd.stock);
+      const currentCost = targetProd.cost_price;
+      const totalValue = currentStock * currentCost + receivedQty * receivedCostPerUnit;
+      const newTotalStock = currentStock + receivedQty;
+      const newWeightedCost = Math.round(totalValue / newTotalStock);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      apiClient.updateProduct(productId, {
+        stock: newTotalStock,
+        cost_price: newWeightedCost,
+        last_received_date: todayStr,
+      }).catch((err) => {
+        console.warn('[StockIn] Update product sync failed:', err);
+      });
+    }
+
     // Ghi nhận phiếu chi nhập hàng vào Sổ quỹ
     const product = products.find((p) => p.id === productId);
     const totalAmount = receivedQty * receivedCostPerUnit;
@@ -1073,6 +1091,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let totalAmt = 0;
     let newlyCreatedCount = 0;
     let mergedCount = 0;
+    const modifiedProducts: Product[] = [];
 
     setProducts((prev) => {
       const idMap = new Map<string, Product>();
@@ -1137,6 +1156,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           idMap.set(updatedProd.id, updatedProd);
           if (updatedProd.sku) skuMap.set(updatedProd.sku.trim().toLowerCase(), updatedProd);
           if (updatedProd.barcode) barcodeMap.set(updatedProd.barcode.trim(), updatedProd);
+          modifiedProducts.push(updatedProd);
         } else {
           // Brand new product creation on the fly
           newlyCreatedCount++;
@@ -1165,11 +1185,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           skuMap.set(newProd.sku.trim().toLowerCase(), newProd);
           barcodeMap.set(newProd.barcode.trim(), newProd);
           nameMap.set(newProd.name.trim().toLowerCase(), newProd);
+          modifiedProducts.push(newProd);
         }
       });
 
       return updatedList;
     });
+
+    // Sync all modified/created products to server & Supabase
+    if (modifiedProducts.length > 0) {
+      apiClient.batchUpsertProducts(modifiedProducts, 'OVERWRITE').catch((err) => {
+        console.warn('[Stock Voucher] Batch upsert products failed:', err);
+      });
+    }
 
     // Cashbook entry
     if (paymentMethod !== 'DEBT' && totalAmt > 0) {
@@ -1629,14 +1657,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     // 3. Set order status
+    const updatedNote = `${order.note ? order.note + ' | ' : ''}[Đã hủy: ${reason || 'Khách hủy/Hoàn trả'}]`;
     setOrders((prev) =>
       prev.map((o) =>
         o.id === orderId
-          ? { ...o, status: 'CANCELLED', note: `${o.note ? o.note + ' | ' : ''}[Đã hủy: ${reason || 'Khách hủy/Hoàn trả'}]` }
+          ? { ...o, status: 'CANCELLED', note: updatedNote }
           : o
       )
     );
-    apiClient.deleteOrder(orderId, returnStock).catch((err) => console.warn('[Order] Sync cancel failed:', err));
+    apiClient.updateOrder(orderId, { status: 'CANCELLED', note: updatedNote }).catch((err) => {
+      savePendingChange('orders', { ...order, status: 'CANCELLED', note: updatedNote });
+      console.warn('[Order] Sync cancel failed:', err);
+    });
 
     showToast(`Đã hủy hóa đơn ${order.code} và hoàn trả ${order.items.reduce((s, i) => s + i.quantity, 0)} sản phẩm về kho!`, 'success');
   };
@@ -1670,6 +1702,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: 'COMPLETED' } : o))
     );
+    apiClient.updateOrder(orderId, { status: 'COMPLETED' }).catch((err) => {
+      savePendingChange('orders', { ...order, status: 'COMPLETED' });
+      console.warn('[Order] Sync restore failed:', err);
+    });
 
     showToast(`Đã khôi phục trạng thái hoàn thành cho hóa đơn ${order.code}!`, 'success');
   };
@@ -1693,6 +1729,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
+    apiClient.deleteOrder(orderId, returnStock).catch((err) => {
+      console.warn('[Order] Sync delete failed:', err);
+    });
     showToast(`Đã xóa vĩnh viễn hóa đơn ${order.code}!`, 'info');
   };
 

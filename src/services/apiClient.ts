@@ -96,11 +96,11 @@ class ApiClient {
         supabaseService.getCategories(),
         supabaseService.getUsers(),
         supabaseService.getProducts(),
-        supabaseService.getOrders(3000),
+        supabaseService.getOrders(),
         supabaseService.getSuppliers(),
         supabaseService.getCustomers(),
         supabaseService.getInventoryAudits(200),
-        supabaseService.getCashbook(3000),
+        supabaseService.getCashbook(),
       ]);
 
       if (products.length > 0 || orders.length > 0 || customers.length > 0 || categories.length > 0 || users.length > 0) {
@@ -128,29 +128,38 @@ class ApiClient {
 
   public async pushSync(payload: SyncPayload): Promise<{ success: boolean; serverTimestamp: number }> {
     try {
-      if (payload.products?.length) await supabaseService.batchUpsertProducts(payload.products);
+      const tasks: Promise<any>[] = [];
+      if (payload.products?.length) {
+        tasks.push(supabaseService.batchUpsertProducts(payload.products));
+      }
       if (payload.orders?.length) {
-        for (const o of payload.orders) await supabaseService.upsertOrder(o);
+        tasks.push(...payload.orders.map((o) => supabaseService.upsertOrder(o)));
       }
       if (payload.customers?.length) {
-        for (const c of payload.customers) await supabaseService.upsertCustomer(c);
+        tasks.push(...payload.customers.map((c) => supabaseService.upsertCustomer(c)));
       }
       if (payload.suppliers?.length) {
-        for (const s of payload.suppliers) await supabaseService.upsertSupplier(s);
+        tasks.push(...payload.suppliers.map((s) => supabaseService.upsertSupplier(s)));
       }
       if (payload.cashbook?.length) {
-        for (const cb of payload.cashbook) await supabaseService.upsertCashbook(cb);
+        tasks.push(...payload.cashbook.map((cb) => supabaseService.upsertCashbook(cb)));
       }
       if (payload.inventory_audits?.length) {
-        for (const ia of payload.inventory_audits) await supabaseService.upsertInventoryAudit(ia);
+        tasks.push(...payload.inventory_audits.map((ia) => supabaseService.upsertInventoryAudit(ia)));
       }
       if (payload.branches?.length) {
-        for (const b of payload.branches) await supabaseService.upsertBranch(b);
+        tasks.push(...payload.branches.map((b) => supabaseService.upsertBranch(b)));
       }
       if (payload.users?.length) {
-        for (const u of payload.users) await supabaseService.upsertUser(u);
+        tasks.push(...payload.users.map((u) => supabaseService.upsertUser(u)));
       }
-      if (payload.settings) await supabaseService.updateStoreSettings(payload.settings);
+      if (payload.settings) {
+        tasks.push(supabaseService.updateStoreSettings(payload.settings));
+      }
+
+      if (tasks.length > 0) {
+        await Promise.all(tasks);
+      }
       return { success: true, serverTimestamp: Date.now() };
     } catch (err) {
       console.warn('[Supabase Direct Push] Falling back to API proxy:', err);
