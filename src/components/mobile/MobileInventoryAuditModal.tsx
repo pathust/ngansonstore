@@ -88,11 +88,14 @@ export const MobileInventoryAuditModal: React.FC<MobileInventoryAuditModalProps>
         product_id: item.product.id,
         sku: item.product.sku,
         name: item.product.name,
+        unit: item.product.unit || 'Cái',
         system_stock: item.product.stock,
         actual_stock: item.actualStock,
+        diff: diff,
         diff_stock: diff,
         cost_price: item.product.cost_price,
         diff_value: diff * item.product.cost_price,
+        reason: '' as const,
       };
     });
 

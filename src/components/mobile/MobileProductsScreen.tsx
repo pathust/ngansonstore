@@ -74,11 +74,16 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
       if (filterOptions.stockStatus === 'ABOVE_MAX' && p.stock <= 100) return false;
 
       // Category filter
-      if (
-        filterOptions.selectedCategoryIds.length > 0 &&
-        !filterOptions.selectedCategoryIds.includes(p.category)
-      ) {
-        return false;
+      if (filterOptions.selectedCategoryIds.length > 0) {
+        const matchesCat = filterOptions.selectedCategoryIds.some((catId) => {
+          const cat = categories.find((c) => c.id === catId);
+          return (
+            p.category === catId ||
+            (p as any).category_id === catId ||
+            (cat && (p.category === cat.name || (p as any).category_id === cat.name))
+          );
+        });
+        if (!matchesCat) return false;
       }
 
       // Business status
@@ -106,13 +111,14 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
     });
 
     return result;
-  }, [products, searchQuery, filterOptions, priceType, sortOption]);
+  }, [products, searchQuery, filterOptions, priceType, sortOption, categories]);
 
   // Grouped products by category
   const groupedProducts = useMemo(() => {
     const map = new Map<string, Product[]>();
     filteredProducts.forEach((p) => {
-      const catName = categories.find((c) => c.id === p.category_id)?.name || 'Khác';
+      const catObj = categories.find((c) => c.id === p.category || c.name === p.category || (c.id === (p as any).category_id));
+      const catName = catObj?.name || p.category || 'Khác';
       if (!map.has(catName)) map.set(catName, []);
       map.get(catName)!.push(p);
     });

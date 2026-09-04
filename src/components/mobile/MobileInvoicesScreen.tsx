@@ -19,7 +19,7 @@ interface MobileInvoicesScreenProps {
 }
 
 export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOpenPos }) => {
-  const { orders, setSelectedOrderForReceipt, setIsThermalReceiptOpen, showToast } = useApp();
+  const { orders, openOrderReceipt, showToast } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -392,8 +392,7 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
 
               <button
                 onClick={() => {
-                  setSelectedOrderForReceipt(selectedOrder);
-                  setIsThermalReceiptOpen(true);
+                  openOrderReceipt(selectedOrder);
                   setSelectedOrder(null);
                 }}
                 className="py-3 rounded-xl bg-[#0066FF] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md active:scale-98"

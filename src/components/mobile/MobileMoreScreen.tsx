@@ -20,6 +20,9 @@ import {
   TrendingUp,
   Landmark,
   ShieldCheck,
+  Lock,
+  Monitor,
+  RefreshCw,
 } from 'lucide-react';
 import { MobileCustomerModal } from './MobileCustomerModal';
 import { MobileSupplierModal } from './MobileSupplierModal';
@@ -36,10 +39,37 @@ import { MobileStaffModal } from './MobileStaffModal';
 interface MobileMoreScreenProps {
   onNavigateTab: (tab: 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE') => void;
   onOpenSettings?: () => void;
+  onOpenDesktopMode?: () => void;
+  isManualOverride?: boolean;
+  onResetAutoView?: () => void;
 }
 
-export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({ onNavigateTab, onOpenSettings }) => {
-  const { storeSettings, currentUser, setIsUserSwitcherOpen } = useApp();
+export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
+  onNavigateTab,
+  onOpenSettings,
+  onOpenDesktopMode,
+  isManualOverride,
+  onResetAutoView,
+}) => {
+  const { storeSettings, currentUser, setIsUserSwitcherOpen, showToast } = useApp();
+
+  // Role & Permissions checks
+  const canManageCustomers = currentUser.role === 'ADMIN' || currentUser.permissions.canManageCustomers;
+  const canManageSuppliers = currentUser.role === 'ADMIN' || currentUser.permissions.canManageSuppliers;
+  const canManageStaff = currentUser.role === 'ADMIN';
+  const canManageCashbook = currentUser.role === 'ADMIN' || currentUser.permissions.canManageCashbook;
+  const canAuditInventory = currentUser.role === 'ADMIN' || currentUser.permissions.canAuditInventory;
+  const canStockIn = currentUser.role === 'ADMIN' || currentUser.permissions.canStockIn || currentUser.permissions.canManageSuppliers;
+  const canViewReports = currentUser.role === 'ADMIN' || currentUser.permissions.canViewReports;
+  const canEditSettings = currentUser.role === 'ADMIN' || currentUser.permissions.canEditSystemSettings;
+
+  const requirePermission = (allowed: boolean, action: () => void, message = 'Bạn không có quyền truy cập chức năng này!') => {
+    if (!allowed) {
+      showToast(message, 'warning');
+      return;
+    }
+    action();
+  };
 
   // Modals state
   const [isCustomersOpen, setIsCustomersOpen] = useState(false);
@@ -93,11 +123,14 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({ onNavigateTa
 
         <div className="border-t border-slate-100 pt-2.5">
           <button
-            onClick={handleOpenSettingsModal}
+            onClick={() => requirePermission(canEditSettings, handleOpenSettingsModal)}
             className="w-full flex items-center justify-between text-xs font-semibold text-slate-700 hover:text-[#0066FF] transition-colors"
           >
             <span>Thông tin cửa hàng & Cài đặt VietQR</span>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
+            <div className="flex items-center gap-1">
+              {!canEditSettings && <Lock className="w-3.5 h-3.5 text-amber-500" />}
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+            </div>
           </button>
         </div>
       </div>
@@ -107,240 +140,332 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({ onNavigateTa
         {/* Nhóm: Đối tác & Nhân sự */}
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs">
           <h3 className="font-extrabold text-sm text-slate-900 mb-3">Đối tác & Nhân sự</h3>
-          <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+          <div className="grid grid-cols-2 gap-y-3 gap-x-2">
             <button
-              onClick={() => setIsCustomersOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canManageCustomers, () => setIsCustomersOpen(true))}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canManageCustomers ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0066FF] flex items-center justify-center">
-                <Users className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0066FF] flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-slate-900 truncate">Khách hàng</span>
+                  <span className="text-[10px] text-slate-400 truncate">Quản lý & Công nợ</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Khách hàng</span>
-                <span className="text-[10px] text-slate-400">Quản lý & Công nợ</span>
-              </div>
+              {!canManageCustomers && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
 
             <button
-              onClick={() => setIsSuppliersOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canManageSuppliers, () => setIsSuppliersOpen(true))}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canManageSuppliers ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
-                <Truck className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                  <Truck className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-slate-900 truncate">Nhà cung cấp</span>
+                  <span className="text-[10px] text-slate-400 truncate">Nhập hàng & Nợ</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Nhà cung cấp</span>
-                <span className="text-[10px] text-slate-400">Nhập hàng & Nợ NCC</span>
-              </div>
+              {!canManageSuppliers && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
 
             <button
-              onClick={() => setIsStaffOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canManageStaff, () => setIsUserSwitcherOpen(true), 'Chỉ Quản trị viên (Admin) mới có quyền quản lý nhân sự & phân quyền!')}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canManageStaff ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-slate-900 truncate">Nhân viên</span>
+                  <span className="text-[10px] text-slate-400 truncate">Phân quyền & PIN</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Nhân viên</span>
-                <span className="text-[10px] text-slate-400">Phân quyền & PIN</span>
-              </div>
+              {!canManageStaff && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
           </div>
         </div>
 
-        {/* Nhóm: Giao dịch (Image 12) */}
+        {/* Nhóm: Giao dịch */}
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs">
           <h3 className="font-extrabold text-sm text-slate-900 mb-3">Giao dịch</h3>
-          <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+          <div className="grid grid-cols-2 gap-y-3 gap-x-2">
             <button
               onClick={() => onNavigateTab('POS')}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              className="flex items-center gap-2.5 p-1.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
             >
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0066FF] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0066FF] flex items-center justify-center shrink-0">
                 <ShoppingBag className="w-4 h-4" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Bán hàng</span>
-                <span className="text-[10px] text-slate-400">Thu ngân & POS</span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-slate-900 truncate">Bán hàng</span>
+                <span className="text-[10px] text-slate-400 truncate">Thu ngân & POS</span>
               </div>
             </button>
 
             <button
               onClick={() => onNavigateTab('INVOICES')}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              className="flex items-center gap-2.5 p-1.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
             >
-              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
                 <FileText className="w-4 h-4" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Hóa đơn</span>
-                <span className="text-[10px] text-slate-400">Lịch sử bán hàng</span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-slate-900 truncate">Hóa đơn</span>
+                <span className="text-[10px] text-slate-400 truncate">Lịch sử bán hàng</span>
               </div>
             </button>
 
             <button
-              onClick={() => setIsCashbookOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canManageCashbook, () => setIsCashbookOpen(true))}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canManageCashbook ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <Wallet className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-slate-900 truncate">Sổ quỹ</span>
+                  <span className="text-[10px] text-slate-400 truncate">Tồn quỹ & Thu chi</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Sổ quỹ</span>
-                <span className="text-[10px] text-slate-400">Tồn quỹ & Thu chi</span>
-              </div>
+              {!canManageCashbook && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
 
             <button
               onClick={() => setIsOrdersOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              className="flex items-center gap-2.5 p-1.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
             >
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                 <Package className="w-4 h-4" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Đặt hàng</span>
-                <span className="text-[10px] text-slate-400">Đơn hàng đặt trước</span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-slate-900 truncate">Đặt hàng</span>
+                <span className="text-[10px] text-slate-400 truncate">Đơn hàng đặt trước</span>
               </div>
             </button>
 
             <button
               onClick={() => setIsReturnsOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              className="flex items-center gap-2.5 p-1.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
             >
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                 <RotateCcw className="w-4 h-4" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Trả hàng</span>
-                <span className="text-[10px] text-slate-400">Đổi trả & Hoàn tiền</span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-slate-900 truncate">Trả hàng</span>
+                <span className="text-[10px] text-slate-400 truncate">Đổi trả & Hoàn tiền</span>
               </div>
             </button>
 
             <button
               onClick={() => setIsShiftOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              className="flex items-center gap-2.5 p-1.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
             >
-              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                 <Clock className="w-4 h-4" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Phiếu giao ca</span>
-                <span className="text-[10px] text-slate-400">Kết ca & Kiểm tiền</span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-slate-900 truncate">Phiếu giao ca</span>
+                <span className="text-[10px] text-slate-400 truncate">Kết ca & Kiểm tiền</span>
               </div>
             </button>
           </div>
         </div>
 
-        {/* Nhóm: Hàng hoá (Image 12) */}
+        {/* Nhóm: Hàng hoá & Kho */}
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs">
           <h3 className="font-extrabold text-sm text-slate-900 mb-3">Hàng hoá & Kho</h3>
-          <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+          <div className="grid grid-cols-2 gap-y-3 gap-x-2">
             <button
               onClick={() => onNavigateTab('PRODUCTS')}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              className="flex items-center gap-2.5 p-1.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
             >
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0066FF] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0066FF] flex items-center justify-center shrink-0">
                 <Package className="w-4 h-4" />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Hàng hoá</span>
-                <span className="text-[10px] text-slate-400">Danh mục & Tồn kho</span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-slate-900 truncate">Hàng hoá</span>
+                <span className="text-[10px] text-slate-400 truncate">Danh mục & Tồn kho</span>
               </div>
             </button>
 
             <button
-              onClick={() => setIsInventoryOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canAuditInventory, () => setIsInventoryOpen(true))}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canAuditInventory ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
-                <CheckSquare className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                  <CheckSquare className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-slate-900 truncate">Kiểm kho</span>
+                  <span className="text-[10px] text-slate-400 truncate">Cân bằng tồn kho</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Kiểm kho</span>
-                <span className="text-[10px] text-slate-400">Cân bằng tồn kho</span>
-              </div>
+              {!canAuditInventory && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
 
             <button
-              onClick={() => setIsPurchaseOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canStockIn, () => setIsPurchaseOpen(true))}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canStockIn ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <ArrowDownToLine className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <ArrowDownToLine className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-slate-900 truncate">Nhập hàng</span>
+                  <span className="text-[10px] text-slate-400 truncate">Tạo phiếu nhập NCC</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Nhập hàng</span>
-                <span className="text-[10px] text-slate-400">Tạo phiếu nhập NCC</span>
-              </div>
+              {!canStockIn && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
 
             <button
-              onClick={() => setIsReturnsOpen(true)}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canManageSuppliers, () => setIsReturnsOpen(true))}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canManageSuppliers ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
-                <RotateCcw className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-slate-900 truncate">Trả hàng nhập</span>
+                  <span className="text-[10px] text-slate-400 truncate">Xuất trả nhà CC</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-slate-900">Trả hàng nhập</span>
-                <span className="text-[10px] text-slate-400">Xuất trả nhà CC</span>
-              </div>
+              {!canManageSuppliers && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
           </div>
         </div>
-
 
         {/* Nhóm: Báo cáo & Cài đặt */}
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs">
           <h3 className="font-extrabold text-sm text-slate-900 mb-3">Báo cáo & Cài đặt</h3>
-          <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+          <div className="grid grid-cols-2 gap-y-3 gap-x-2">
             <button
-              onClick={() => {
+              onClick={() => requirePermission(canViewReports, () => {
                 setReportMode('SALES');
                 setIsReportsOpen(true);
-              }}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              })}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canViewReports ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <BarChart3 className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                  <BarChart3 className="w-4 h-4" />
+                </div>
+                <span className="truncate">Báo cáo bán hàng</span>
               </div>
-              <span>Báo cáo bán hàng</span>
+              {!canViewReports && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
 
             <button
-              onClick={() => {
+              onClick={() => requirePermission(canViewReports, () => {
                 setReportMode('END_OF_DAY');
                 setIsReportsOpen(true);
-              }}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              })}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canViewReports ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <TrendingUp className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <span className="truncate">Báo cáo cuối ngày</span>
               </div>
-              <span>Báo cáo cuối ngày</span>
+              {!canViewReports && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
 
             <button
-              onClick={handleOpenSettingsModal}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canEditSettings, handleOpenSettingsModal)}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canEditSettings ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
-                <Landmark className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                  <Landmark className="w-4 h-4" />
+                </div>
+                <span className="truncate">Ngân hàng VietQR</span>
               </div>
-              <span>Ngân hàng VietQR</span>
+              {!canEditSettings && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
 
             <button
-              onClick={handleOpenSettingsModal}
-              className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-800 hover:text-[#0066FF] active:scale-95 transition-transform"
+              onClick={() => requirePermission(canEditSettings, handleOpenSettingsModal)}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canEditSettings ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
             >
-              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
-                <Settings className="w-4 h-4" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <Settings className="w-4 h-4" />
+                </div>
+                <span className="truncate">Cài đặt hệ thống</span>
               </div>
-              <span>Cài đặt hệ thống</span>
+              {!canEditSettings && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
             </button>
+          </div>
+        </div>
+
+        {/* Nhóm: Chế độ hiển thị & Thiết bị */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs">
+          <h3 className="font-extrabold text-sm text-slate-900 mb-2">Giao diện & Chế độ xem</h3>
+          <p className="text-xs text-slate-500 mb-3">
+            Đang hiển thị: <strong className="text-blue-600 font-bold">Chế độ Điện thoại (Mobile)</strong>
+          </p>
+
+          <div className="flex flex-col gap-2">
+            {onOpenDesktopMode && (
+              <button
+                onClick={onOpenDesktopMode}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-700 flex items-center justify-between transition-all active:scale-98"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                    <Monitor className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-xs font-bold text-slate-900">Chuyển sang bản Máy tính (Desktop)</span>
+                    <span className="text-[10px] text-slate-500">Xem đầy đủ bảng biểu, phím tắt & báo cáo chuyên sâu</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+              </button>
+            )}
+
+            {isManualOverride && onResetAutoView && (
+              <button
+                onClick={onResetAutoView}
+                className="w-full py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 flex items-center justify-center gap-2 text-xs font-medium transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+                <span>Khôi phục tự động theo kích thước màn hình</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

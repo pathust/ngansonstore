@@ -17,9 +17,15 @@ export type MobileTab = 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE';
 
 interface MobileAppContainerProps {
   onOpenDesktopMode?: () => void;
+  isManualOverride?: boolean;
+  onResetAutoView?: () => void;
 }
 
-export const MobileAppContainer: React.FC<MobileAppContainerProps> = () => {
+export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
+  onOpenDesktopMode,
+  isManualOverride,
+  onResetAutoView,
+}) => {
   const [activeTab, setActiveTab] = useState<MobileTab>('OVERVIEW');
   const { setIsVoiceAssistantOpen } = useApp();
 
@@ -39,7 +45,14 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = () => {
         {activeTab === 'PRODUCTS' && <MobileProductsScreen />}
         {activeTab === 'POS' && <MobilePosScreen />}
         {activeTab === 'INVOICES' && <MobileInvoicesScreen onOpenPos={() => setActiveTab('POS')} />}
-        {activeTab === 'MORE' && <MobileMoreScreen onNavigateTab={(tab) => setActiveTab(tab)} />}
+        {activeTab === 'MORE' && (
+          <MobileMoreScreen
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onOpenDesktopMode={onOpenDesktopMode}
+            isManualOverride={isManualOverride}
+            onResetAutoView={onResetAutoView}
+          />
+        )}
       </div>
 
       {/* 5-Tab Fixed Bottom Navigation Bar (Image 2, 4, 5, 7, 12, 17) */}

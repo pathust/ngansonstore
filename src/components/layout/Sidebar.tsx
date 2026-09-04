@@ -13,14 +13,24 @@ import {
   Users,
   Settings,
   X,
+  Smartphone,
 } from 'lucide-react';
 
 interface SidebarProps {
   isMobileOpen?: boolean;
   setIsMobileOpen?: (open: boolean) => void;
+  onOpenMobileMode?: () => void;
+  isManualOverride?: boolean;
+  onResetAutoView?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  isMobileOpen,
+  setIsMobileOpen,
+  onOpenMobileMode,
+  isManualOverride,
+  onResetAutoView,
+}) => {
   const {
     currentView,
     setCurrentView,
@@ -239,6 +249,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, setIsMobileOpen 
             </div>
           ))}
         </nav>
+
+        {/* Mobile Viewport Toggle Button */}
+        {onOpenMobileMode && (
+          <div className="px-3 py-2 border-t border-slate-200/80 bg-slate-50/50 flex flex-col gap-1 shrink-0">
+            <button
+              onClick={onOpenMobileMode}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/60 text-slate-700 hover:text-blue-700 text-xs font-semibold shadow-2xs transition-all cursor-pointer group"
+              title="Chuyển sang giao diện xem trên điện thoại di động"
+            >
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+                <span>Giao diện Mobile</span>
+              </div>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Điện thoại</span>
+            </button>
+            {isManualOverride && onResetAutoView && (
+              <button
+                onClick={onResetAutoView}
+                className="text-[10px] text-slate-400 hover:text-slate-600 text-center py-0.5 cursor-pointer"
+              >
+                (Khôi phục tự động theo màn hình)
+              </button>
+            )}
+          </div>
+        )}
 
         {/* User Card Footer - Click to Switch User */}
         <div

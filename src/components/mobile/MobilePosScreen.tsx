@@ -80,12 +80,13 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
   }, [orderTabs, activeTabId]);
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
+  const currentCustomerName = selectedCustomer ? selectedCustomer.name : (activeTab.customer_name || 'Khách lẻ');
 
   // Filter products for selling
   const filteredProducts = useMemo(() => {
     let list = products;
     if (selectedCategory !== 'ALL') {
-      list = list.filter((p) => p.category_id === selectedCategory);
+      list = list.filter((p) => p.category === selectedCategory || (p as any).category_id === selectedCategory);
     }
     const q = searchQuery.trim().toLowerCase();
     if (!q) return list;
@@ -97,21 +98,51 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
     );
   }, [products, searchQuery, selectedCategory]);
 
-  // Discount multiplier based on price tier
-  const discountMultiplier = useMemo(() => {
-    if (priceTier === 'CONTRACTOR') return 0.95; // 5% discount
-    if (priceTier === 'WHOLESALE') return 0.90; // 10% discount
-    return 1.0;
-  }, [priceTier]);
+  // Sync price tier from active tab discount
+  useEffect(() => {
+    if (activeTab.discount_type === 'PERCENT') {
+      if (activeTab.discount_amount === 5) setPriceTier('CONTRACTOR');
+      else if (activeTab.discount_amount === 10) setPriceTier('WHOLESALE');
+      else if (activeTab.discount_amount === 0) setPriceTier('STANDARD');
+    }
+  }, [activeTab.discount_amount, activeTab.discount_type]);
 
-  // Cart calculations with price tier
+  const handleSelectPriceTier = (tier: 'STANDARD' | 'CONTRACTOR' | 'WHOLESALE') => {
+    setPriceTier(tier);
+    const discountPercent = tier === 'CONTRACTOR' ? 5 : tier === 'WHOLESALE' ? 10 : 0;
+    updateActiveTabInfo({
+      discount_amount: discountPercent,
+      discount_type: 'PERCENT',
+    });
+    setIsPriceTierSheetOpen(false);
+    const title = tier === 'CONTRACTOR' ? 'Giá thợ & công trình (-5%)' : tier === 'WHOLESALE' ? 'Giá bán sỉ / Đại lý (-10%)' : 'Bảng giá chung (Mặc định)';
+    showToast(`Đã áp dụng: ${title}`, 'success');
+  };
+
+  const discountMultiplier = useMemo(() => {
+    if (activeTab.discount_type === 'PERCENT' && activeTab.discount_amount > 0) {
+      return (100 - activeTab.discount_amount) / 100;
+    }
+    if (priceTier === 'CONTRACTOR') return 0.95;
+    if (priceTier === 'WHOLESALE') return 0.90;
+    return 1.0;
+  }, [priceTier, activeTab.discount_amount, activeTab.discount_type]);
+
+  // Cart calculations aligned with activeTab and AppContext completeCheckout
   const rawSubtotal = useMemo(() => {
     return activeTab.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   }, [activeTab.items]);
 
+  const discountAmount = useMemo(() => {
+    if (activeTab.discount_type === 'PERCENT') {
+      return Math.round((rawSubtotal * (activeTab.discount_amount || 0)) / 100);
+    }
+    return activeTab.discount_amount || 0;
+  }, [rawSubtotal, activeTab.discount_amount, activeTab.discount_type]);
+
   const cartSubtotal = useMemo(() => {
-    return Math.round(rawSubtotal * discountMultiplier);
-  }, [rawSubtotal, discountMultiplier]);
+    return Math.max(0, rawSubtotal - discountAmount);
+  }, [rawSubtotal, discountAmount]);
 
   // Pre-generate offline QR for instant POS payment display
   useEffect(() => {
@@ -146,17 +177,25 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
     return activeTab.items.reduce((sum, item) => sum + item.quantity, 0);
   }, [activeTab.items]);
 
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
   const handleCheckout = () => {
+    if (isCheckingOut) return;
     if (activeTab.items.length === 0) {
       showToast('Giỏ hàng đang trống!', 'warning');
       return;
     }
 
-    const order = completeCheckout(paymentMethod, cartSubtotal);
-    if (order) {
-      setIsPaymentModalOpen(false);
-      setIsCartDrawerOpen(false);
-      showToast(`Đã thanh toán thành công đơn ${order.code}!`, 'success');
+    setIsCheckingOut(true);
+    try {
+      const order = completeCheckout(paymentMethod, cartSubtotal);
+      if (order) {
+        setIsPaymentModalOpen(false);
+        setIsCartDrawerOpen(false);
+        showToast(`Đã thanh toán thành công đơn ${order.code}!`, 'success');
+      }
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -222,7 +261,7 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
             className="flex items-center gap-1.5 hover:text-[#0066FF] transition-colors"
           >
             <User className="w-4 h-4 text-slate-500" />
-            <span>{selectedCustomer ? selectedCustomer.name : 'Khách lẻ'}</span>
+            <span>{currentCustomerName}</span>
           </button>
 
           <button
@@ -424,7 +463,7 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
             <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-slate-100">
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">Giỏ hàng ({cartTotalItems} món)</h3>
-                <span className="text-xs text-slate-500 font-medium">Khách: {selectedCustomer?.name || 'Khách lẻ'}</span>
+                <span className="text-xs text-slate-500 font-medium">Khách: {currentCustomerName}</span>
               </div>
               <button aria-label="Đóng giỏ hàng" onClick={() => setIsCartDrawerOpen(false)} className="p-1 text-slate-400">
                 <X className="w-5 h-5" />
@@ -707,11 +746,7 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
               ].map((tier) => (
                 <div
                   key={tier.id}
-                  onClick={() => {
-                    setPriceTier(tier.id as any);
-                    setIsPriceTierSheetOpen(false);
-                    showToast(`Đã áp dụng: ${tier.title}`, 'success');
-                  }}
+                  onClick={() => handleSelectPriceTier(tier.id as any)}
                   className="py-3 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex flex-col">

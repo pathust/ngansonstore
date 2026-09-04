@@ -37,8 +37,16 @@ const MainLayout: React.FC = () => {
   const [isCreateAuditOpen, setIsCreateAuditOpen] = useState(false);
   const [isCashModalOpen, setIsCashModalOpen] = useState(false);
 
-  // Auto-detect mobile screen or allow manual toggle
-  const [isMobileScreen, setIsMobileScreen] = useState(() => {
+  // Auto-detect mobile screen or allow manual toggle with localStorage persistence
+  const [manualModeOverride, setManualModeOverride] = useState<'AUTO' | 'MOBILE' | 'DESKTOP'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('nganson_view_mode_preference');
+      if (saved === 'MOBILE' || saved === 'DESKTOP') return saved;
+    }
+    return 'AUTO';
+  });
+
+  const [windowIsMobile, setWindowIsMobile] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth < 768;
     }
@@ -47,16 +55,37 @@ const MainLayout: React.FC = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobileScreen(window.innerWidth < 768);
+      setWindowIsMobile(window.innerWidth < 768);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const isMobileScreen = manualModeOverride === 'MOBILE' ? true : manualModeOverride === 'DESKTOP' ? false : windowIsMobile;
+
+  const switchToDesktop = () => {
+    setManualModeOverride('DESKTOP');
+    localStorage.setItem('nganson_view_mode_preference', 'DESKTOP');
+  };
+
+  const switchToMobile = () => {
+    setManualModeOverride('MOBILE');
+    localStorage.setItem('nganson_view_mode_preference', 'MOBILE');
+  };
+
+  const resetToAutoView = () => {
+    setManualModeOverride('AUTO');
+    localStorage.removeItem('nganson_view_mode_preference');
+  };
+
   if (isMobileScreen) {
     return (
       <div className="h-screen w-screen overflow-hidden bg-[#F5F6F8] font-sans antialiased text-slate-800 relative">
-        <MobileAppContainer onOpenDesktopMode={() => setIsMobileScreen(false)} />
+        <MobileAppContainer
+          onOpenDesktopMode={switchToDesktop}
+          isManualOverride={manualModeOverride !== 'AUTO'}
+          onResetAutoView={resetToAutoView}
+        />
         <GlobalLoadingBar isLoading={isLoading} syncState={syncState} loadingMessage={loadingMessage} />
         <GlobalVoiceAssistant />
         <ToastContainer />
@@ -69,7 +98,13 @@ const MainLayout: React.FC = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#F3F4F6] font-sans antialiased text-slate-800 relative">
       {/* Navigation Sidebar */}
-      <Sidebar isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} />
+      <Sidebar
+        isMobileOpen={isMobileOpen}
+        setIsMobileOpen={setIsMobileOpen}
+        onOpenMobileMode={switchToMobile}
+        isManualOverride={manualModeOverride !== 'AUTO'}
+        onResetAutoView={resetToAutoView}
+      />
 
       {/* Floating Mobile Menu Button for Small Screens */}
       <button
@@ -190,7 +225,7 @@ const MainLayout: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsMobileScreen(true)}
+              onClick={switchToMobile}
               className="px-2.5 py-0.5 rounded-full bg-blue-50 text-[#0066FF] font-bold hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer text-[10px]"
               title="Chuyển sang giao diện di động KiotViet"
             >
