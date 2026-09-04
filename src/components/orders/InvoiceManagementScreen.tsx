@@ -76,7 +76,9 @@ export const InvoiceManagementScreen: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'CASH' | 'TRANSFER' | 'CARD'>('ALL');
-  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH'>('ALL');
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH' | 'CUSTOM'>('ALL');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [sortBy, setSortBy] = useState<'NEWEST' | 'OLDEST' | 'AMOUNT_DESC' | 'AMOUNT_ASC'>('NEWEST');
 
   const productByIdMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -167,21 +169,37 @@ export const InvoiceManagementScreen: React.FC = () => {
 
         // Date Filter
         if (dateFilter !== 'ALL') {
+          const orderTs = parseDateToTimestamp(order.created_at);
           const now = new Date();
-          const orderDateFormatted = formatDate(order.created_at);
-          const todayFormatted = formatDate(now);
-          
-          const yesterday = new Date(now);
-          yesterday.setDate(now.getDate() - 1);
-          const yesterdayFormatted = formatDate(yesterday);
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
           if (dateFilter === 'TODAY') {
-            if (orderDateFormatted !== todayFormatted) {
-              return false;
-            }
+            if (orderTs < startOfToday || orderTs > endOfToday) return false;
           } else if (dateFilter === 'YESTERDAY') {
-            if (orderDateFormatted !== yesterdayFormatted) {
-              return false;
+            const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+            const endOfYesterday = startOfToday - 1;
+            if (orderTs < startOfYesterday || orderTs > endOfYesterday) return false;
+          } else if (dateFilter === 'LAST7') {
+            const sevenDaysAgo = startOfToday - 6 * 24 * 60 * 60 * 1000;
+            if (orderTs < sevenDaysAgo || orderTs > endOfToday) return false;
+          } else if (dateFilter === 'MONTH') {
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
+            if (orderTs < startOfMonth || orderTs > endOfToday) return false;
+          } else if (dateFilter === 'CUSTOM') {
+            if (customStartDate) {
+              const [sy, sm, sd] = customStartDate.split('-').map(Number);
+              if (sy && sm && sd) {
+                const startTs = new Date(sy, sm - 1, sd, 0, 0, 0).getTime();
+                if (orderTs < startTs) return false;
+              }
+            }
+            if (customEndDate) {
+              const [ey, em, ed] = customEndDate.split('-').map(Number);
+              if (ey && em && ed) {
+                const endTs = new Date(ey, em - 1, ed, 23, 59, 59, 999).getTime();
+                if (orderTs > endTs) return false;
+              }
             }
           }
         }
@@ -203,20 +221,20 @@ export const InvoiceManagementScreen: React.FC = () => {
         }
         return parseDateToTimestamp(b.created_at) - parseDateToTimestamp(a.created_at);
       });
-  }, [orders, statusFilter, paymentFilter, searchTerm, dateFilter, sortBy]);
+  }, [orders, statusFilter, paymentFilter, searchTerm, dateFilter, customStartDate, customEndDate, sortBy]);
 
   const paginatedOrders = useMemo(() => {
     return filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   }, [filteredOrders, currentPage, pageSize]);
 
-  // Statistics Summary
+  // Statistics Summary (dynamically updates with active filters)
   const stats = useMemo(() => {
-    const totalOrdersCount = orders.length;
-    const completedOrders = orders.filter((o) => o.status === 'COMPLETED');
-    const cancelledOrders = orders.filter((o) => o.status === 'CANCELLED');
+    const totalOrdersCount = filteredOrders.length;
+    const completedOrders = filteredOrders.filter((o) => o.status === 'COMPLETED');
+    const cancelledOrders = filteredOrders.filter((o) => o.status === 'CANCELLED');
 
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + o.final_amount, 0);
-    const totalProfit = completedOrders.reduce((sum, o) => sum + o.profit, 0);
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.final_amount || 0), 0);
+    const totalProfit = completedOrders.reduce((sum, o) => sum + (o.profit || 0), 0);
     const averageOrderValue = completedOrders.length > 0 ? Math.round(totalRevenue / completedOrders.length) : 0;
 
     return {
@@ -226,8 +244,20 @@ export const InvoiceManagementScreen: React.FC = () => {
       totalRevenue,
       totalProfit,
       averageOrderValue,
+      allOrdersCount: orders.length,
     };
-  }, [orders]);
+  }, [filteredOrders, orders.length]);
+
+  const isFiltered = useMemo(() => {
+    return (
+      statusFilter !== 'ALL' ||
+      paymentFilter !== 'ALL' ||
+      dateFilter !== 'ALL' ||
+      searchTerm.trim() !== '' ||
+      customStartDate !== '' ||
+      customEndDate !== ''
+    );
+  }, [statusFilter, paymentFilter, dateFilter, searchTerm, customStartDate, customEndDate]);
 
   // Handle Export to Excel
   const handleExportOrdersToExcel = () => {
@@ -722,7 +752,14 @@ export const InvoiceManagementScreen: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1.5">
-            <span>Doanh thu thực tế</span>
+            <span className="flex items-center gap-1.5">
+              <span>Doanh thu thực tế</span>
+              {isFiltered && (
+                <span className="text-[10px] bg-blue-100 text-[#0B63E5] px-1.5 py-0.5 rounded font-bold">
+                  Bộ lọc
+                </span>
+              )}
+            </span>
             <DollarSign className="w-4 h-4 text-[#0B63E5]" />
           </div>
           <div className="text-lg md:text-xl font-bold text-slate-900">
@@ -730,13 +767,20 @@ export const InvoiceManagementScreen: React.FC = () => {
           </div>
           <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            {stats.completedCount} đơn thành công
+            {stats.completedCount} đơn thành công {isFiltered ? `(${stats.totalOrdersCount} đơn lọc)` : `(tổng ${stats.allOrdersCount})`}
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1.5">
-            <span>Tổng lợi nhuận gộp</span>
+            <span className="flex items-center gap-1.5">
+              <span>Tổng lợi nhuận gộp</span>
+              {isFiltered && (
+                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">
+                  Bộ lọc
+                </span>
+              )}
+            </span>
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-lg md:text-xl font-bold text-emerald-700">
@@ -749,7 +793,7 @@ export const InvoiceManagementScreen: React.FC = () => {
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1.5">
-            <span>Giá trị trung bình đơn (AOV)</span>
+            <span>Giá trị TB đơn (AOV)</span>
             <Tag className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-lg md:text-xl font-bold text-slate-900">
@@ -766,7 +810,9 @@ export const InvoiceManagementScreen: React.FC = () => {
           <div className="text-lg md:text-xl font-bold text-rose-600">
             {stats.cancelledCount} <span className="text-xs font-normal text-slate-500">đơn</span>
           </div>
-          <div className="text-[11px] text-rose-500 mt-1">Đã hoàn trả số lượng vào kho</div>
+          <div className="text-[11px] text-rose-500 mt-1">
+            {isFiltered ? 'Trong danh sách kết quả lọc' : 'Đã hoàn trả số lượng vào kho'}
+          </div>
         </div>
       </div>
 
@@ -794,11 +840,58 @@ export const InvoiceManagementScreen: React.FC = () => {
           </div>
 
           {/* Quick Filters */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs flex-wrap">
+            {/* Date Filter */}
+            <select
+              value={dateFilter}
+              onChange={(e) => {
+                setDateFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B63E5] text-xs cursor-pointer"
+            >
+              <option value="ALL">📅 Tất cả thời gian</option>
+              <option value="TODAY">📅 Hôm nay</option>
+              <option value="YESTERDAY">📅 Hôm qua</option>
+              <option value="LAST7">📅 7 ngày qua</option>
+              <option value="MONTH">📅 Tháng này</option>
+              <option value="CUSTOM">📅 Tùy chọn ngày...</option>
+            </select>
+
+            {/* Custom Date Inputs */}
+            {dateFilter === 'CUSTOM' && (
+              <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 border border-slate-200 rounded-lg">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => {
+                    setCustomStartDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-transparent text-xs text-slate-700 outline-none"
+                  title="Từ ngày"
+                />
+                <span className="text-slate-400 text-xs">-</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => {
+                    setCustomEndDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-transparent text-xs text-slate-700 outline-none"
+                  title="Đến ngày"
+                />
+              </div>
+            )}
+
             {/* Status Filter */}
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
               className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B63E5] text-xs cursor-pointer"
             >
               <option value="ALL">Tất cả trạng thái</option>
@@ -809,7 +902,10 @@ export const InvoiceManagementScreen: React.FC = () => {
             {/* Payment Method Filter */}
             <select
               value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value as any)}
+              onChange={(e) => {
+                setPaymentFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
               className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B63E5] text-xs cursor-pointer"
             >
               <option value="ALL">Tất cả thanh toán</option>
@@ -829,6 +925,26 @@ export const InvoiceManagementScreen: React.FC = () => {
               <option value="AMOUNT_DESC">Giá trị giảm dần (Cao nhất)</option>
               <option value="AMOUNT_ASC">Giá trị tăng dần (Thấp nhất)</option>
             </select>
+
+            {/* Clear Filters Button */}
+            {(statusFilter !== 'ALL' || paymentFilter !== 'ALL' || dateFilter !== 'ALL' || searchTerm.trim() !== '' || customStartDate !== '' || customEndDate !== '') && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('ALL');
+                  setPaymentFilter('ALL');
+                  setDateFilter('ALL');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setCurrentPage(1);
+                }}
+                className="flex items-center gap-1 px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold border border-rose-200 rounded-lg text-xs cursor-pointer transition-colors"
+                title="Xóa tất cả bộ lọc"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Xóa lọc ({filteredOrders.length}/{orders.length})</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

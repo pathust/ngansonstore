@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, parseDateToTimestamp } from '../../utils/formatters';
 import {
   Phone,
   Bell,
@@ -30,7 +30,7 @@ interface MobileOverviewScreenProps {
 
 export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNavigateTab }) => {
   const { orders } = useApp();
-  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'this_month' | 'last_month'>('last_month');
+  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'this_month' | 'last_month'>('this_month');
   const [showProfit, setShowProfit] = useState(false);
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
 
@@ -43,36 +43,91 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
   const [isReturnsOpen, setIsReturnsOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
 
-  // Time filter label
-  const timeLabels: Record<string, string> = {
-    today: 'Hôm nay, 03/09/2026',
-    yesterday: 'Hôm qua, 02/09/2026',
-    this_month: 'Tháng này',
-    last_month: 'Tháng trước',
-  };
-
-  // Calculate metrics based on orders
-  const metrics = useMemo(() => {
-    const completedOrders = orders.filter((o) => o.status !== 'CANCELLED');
-    const orderCount = completedOrders.length;
-    const revenue = completedOrders.reduce((sum, o) => sum + o.final_amount, 0);
-    const profit = completedOrders.reduce((sum, o) => sum + (o.final_amount - (o.total_cost || 0)), 0);
-
-    // Group by day for simple bar chart
-    const dayMap: Record<number, number> = {
-      1: Math.round(revenue * 0.7) || 9200000,
-      2: Math.round(revenue * 0.1) || 1450000,
-      3: Math.round(revenue * 0.2) || 2000000,
-    };
+  // Dynamic time filter labels
+  const timeLabels = useMemo(() => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const formatShortDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 
     return {
-      orderCount: orderCount > 0 ? orderCount : 15,
-      revenue: revenue > 0 ? revenue : 12645350,
-      profit: profit > 0 ? profit : 3450000,
-      returnCount: 0,
-      chartDays: dayMap,
+      today: `Hôm nay, ${formatShortDate(today)}`,
+      yesterday: `Hôm qua, ${formatShortDate(yesterday)}`,
+      this_month: `Tháng này (T${today.getMonth() + 1})`,
+      last_month: `Tháng trước (T${today.getMonth() === 0 ? 12 : today.getMonth()})`,
     };
-  }, [orders]);
+  }, []);
+
+  // Calculate metrics based on actual orders for selected timeRange
+  const metrics = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+
+    const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+    const endOfYesterday = startOfToday - 1;
+
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
+
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0).getTime();
+    const endOfLastMonth = startOfThisMonth - 1;
+
+    const completedOrders = orders.filter((o) => o.status === 'COMPLETED');
+
+    const filtered = completedOrders.filter((o) => {
+      const ts = parseDateToTimestamp(o.created_at);
+      if (timeRange === 'today') {
+        return ts >= startOfToday && ts <= endOfToday;
+      }
+      if (timeRange === 'yesterday') {
+        return ts >= startOfYesterday && ts <= endOfYesterday;
+      }
+      if (timeRange === 'this_month') {
+        return ts >= startOfThisMonth && ts <= endOfToday;
+      }
+      if (timeRange === 'last_month') {
+        return ts >= startOfLastMonth && ts <= endOfLastMonth;
+      }
+      return true;
+    });
+
+    const orderCount = filtered.length;
+    const revenue = filtered.reduce((sum, o) => sum + (o.final_amount || 0), 0);
+    const profit = filtered.reduce((sum, o) => sum + (o.profit || 0), 0);
+
+    // Calculate last 7 days daily revenue for chart
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const sevenDaysData: { dayLabel: string; revenue: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const dStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime();
+      const dEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
+      const dRev = completedOrders
+        .filter((o) => {
+          const ts = parseDateToTimestamp(o.created_at);
+          return ts >= dStart && ts <= dEnd;
+        })
+        .reduce((sum, o) => sum + (o.final_amount || 0), 0);
+
+      sevenDaysData.push({
+        dayLabel: pad(d.getDate()),
+        revenue: dRev,
+      });
+    }
+
+    const maxChartRev = Math.max(...sevenDaysData.map((d) => d.revenue), 1000000);
+
+    return {
+      orderCount,
+      revenue,
+      profit,
+      returnCount: orders.filter((o) => o.status === 'CANCELLED').length,
+      chartDays: sevenDaysData,
+      maxChartRev,
+    };
+  }, [orders, timeRange]);
 
   const formatShortMillion = (amount: number) => {
     if (amount >= 1000000) {
@@ -289,52 +344,37 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
           <div className="pt-2 pb-1">
             <div className="h-44 w-full flex flex-col justify-between relative">
               {/* Y Axis Grid lines */}
-              {[10, 8, 6, 4, 2, 0].map((val) => (
-                <div key={val} className="flex items-center gap-2 w-full text-[10px] text-slate-400">
-                  <span className="w-6 text-right font-mono">{val > 0 ? `${val}Tr` : '0'}</span>
-                  <div className="flex-1 border-b border-slate-100" />
-                </div>
-              ))}
+              {(() => {
+                const maxM = Math.max(1, Math.ceil(metrics.maxChartRev / 1000000));
+                const ticks = [maxM, Math.round(maxM * 0.75), Math.round(maxM * 0.5), Math.round(maxM * 0.25), 0];
+                return ticks.map((val, idx) => (
+                  <div key={idx} className="flex items-center gap-2 w-full text-[10px] text-slate-400">
+                    <span className="w-8 text-right font-mono">{val > 0 ? `${val}Tr` : '0'}</span>
+                    <div className="flex-1 border-b border-slate-100" />
+                  </div>
+                ));
+              })()}
 
               {/* Bar Columns Container */}
               <div className="absolute inset-x-8 bottom-4 top-2 flex items-end justify-around pl-4">
-                {/* Day 01 */}
-                <div className="flex flex-col items-center gap-1.5 h-full justify-end">
-                  <div
-                    className="w-5 rounded-t-xs bg-[#0066FF] transition-all hover:brightness-110"
-                    style={{ height: '90%' }}
-                    title="01: 9,200,000 đ"
-                  />
-                  <span className="text-[10px] font-bold text-red-500">01</span>
-                </div>
-
-                {/* Day 02 */}
-                <div className="flex flex-col items-center gap-1.5 h-full justify-end">
-                  <div
-                    className="w-5 rounded-t-xs bg-[#0066FF] transition-all hover:brightness-110"
-                    style={{ height: '16%' }}
-                    title="02: 1,450,000 đ"
-                  />
-                  <span className="text-[10px] font-bold text-red-500">02</span>
-                </div>
-
-                {/* Day 03 */}
-                <div className="flex flex-col items-center gap-1.5 h-full justify-end">
-                  <div
-                    className="w-5 rounded-t-xs bg-[#0066FF] transition-all hover:brightness-110"
-                    style={{ height: '22%' }}
-                    title="03: 2,000,000 đ"
-                  />
-                  <span className="text-[10px] font-medium text-slate-500">03</span>
-                </div>
-
-                {/* Future empty days */}
-                {[4, 5, 6, 7].map((d) => (
-                  <div key={d} className="flex flex-col items-center gap-1.5 h-full justify-end">
-                    <div className="w-5" style={{ height: '0%' }} />
-                    <span className="text-[10px] text-slate-300">0{d}</span>
-                  </div>
-                ))}
+                {metrics.chartDays.map((d, index) => {
+                  const percent = metrics.maxChartRev > 0 ? Math.min(100, Math.round((d.revenue / metrics.maxChartRev) * 100)) : 0;
+                  const isToday = index === metrics.chartDays.length - 1;
+                  return (
+                    <div key={d.dayLabel} className="flex flex-col items-center gap-1.5 h-full justify-end flex-1 max-w-[36px]">
+                      <div
+                        className={`w-5 rounded-t-xs transition-all hover:brightness-110 ${
+                          d.revenue > 0 ? 'bg-[#0066FF]' : 'bg-slate-200'
+                        }`}
+                        style={{ height: `${Math.max(4, percent)}%` }}
+                        title={`Ngày ${d.dayLabel}: ${formatCurrency(d.revenue)}`}
+                      />
+                      <span className={`text-[10px] ${isToday ? 'font-bold text-[#0066FF]' : 'font-medium text-slate-500'}`}>
+                        {d.dayLabel}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

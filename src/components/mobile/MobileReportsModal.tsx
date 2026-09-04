@@ -11,6 +11,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { parseDateToTimestamp } from '../../utils/formatters';
 
 interface MobileReportsModalProps {
   isOpen: boolean;
@@ -28,17 +29,20 @@ export const MobileReportsModal: React.FC<MobileReportsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const currentMonthStr = todayStr.slice(0, 7);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
 
   const completedOrders = orders.filter((o) => o.status === 'COMPLETED');
 
   const filteredOrders = completedOrders.filter((o) => {
+    const orderTs = parseDateToTimestamp(o.created_at);
     if (timeRange === 'TODAY') {
-      return o.created_at?.includes(todayStr) || (o as any).date?.includes(todayStr);
+      return orderTs >= startOfToday && orderTs <= endOfToday;
     }
     if (timeRange === 'MONTH') {
-      return o.created_at?.includes(currentMonthStr) || (o as any).date?.includes(currentMonthStr);
+      return orderTs >= startOfMonth && orderTs <= endOfToday;
     }
     return true;
   });

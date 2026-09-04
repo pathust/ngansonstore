@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CashbookEntry } from '../../types';
 import { formatCurrency, formatDateTime, parseDateToTimestamp, exportToExcel } from '../../utils/formatters';
@@ -35,6 +35,9 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
   const setModalOpen = setExternalModalOpen || setInternalModalOpen;
 
   const [filterType, setFilterType] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH' | 'CUSTOM'>('ALL');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [search, setSearch] = useState('');
 
   // Pagination State
@@ -48,29 +51,73 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
   const [note, setNote] = useState<string>('');
   const [refCode, setRefCode] = useState<string>('');
 
-  // Calculate Running Totals
-  const totalIn = cashbookEntries
-    .filter((e) => e.type === 'IN')
-    .reduce((s, e) => s + e.amount, 0);
-
-  const totalOut = cashbookEntries
-    .filter((e) => e.type === 'OUT')
-    .reduce((s, e) => s + e.amount, 0);
-
-  const balance = totalIn - totalOut;
-
   // Filter & sort list descending (mới nhất lên đầu)
-  const filteredEntries = cashbookEntries
-    .filter((e) => {
-      const matchType = filterType === 'ALL' || e.type === filterType;
-      const matchSearch =
-        search.trim() === '' ||
-        e.code.toLowerCase().includes(search.toLowerCase()) ||
-        e.category.toLowerCase().includes(search.toLowerCase()) ||
-        e.note.toLowerCase().includes(search.toLowerCase());
-      return matchType && matchSearch;
-    })
-    .sort((a, b) => parseDateToTimestamp(b.created_at) - parseDateToTimestamp(a.created_at));
+  const filteredEntries = useMemo(() => {
+    return cashbookEntries
+      .filter((e) => {
+        const matchType = filterType === 'ALL' || e.type === filterType;
+        const matchSearch =
+          search.trim() === '' ||
+          e.code.toLowerCase().includes(search.toLowerCase()) ||
+          e.category.toLowerCase().includes(search.toLowerCase()) ||
+          e.note.toLowerCase().includes(search.toLowerCase());
+        if (!matchType || !matchSearch) return false;
+
+        // Date Filter
+        if (dateFilter !== 'ALL') {
+          const entryTs = parseDateToTimestamp(e.created_at);
+          const now = new Date();
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+
+          if (dateFilter === 'TODAY') {
+            if (entryTs < startOfToday || entryTs > endOfToday) return false;
+          } else if (dateFilter === 'YESTERDAY') {
+            const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+            const endOfYesterday = startOfToday - 1;
+            if (entryTs < startOfYesterday || entryTs > endOfYesterday) return false;
+          } else if (dateFilter === 'LAST7') {
+            const sevenDaysAgo = startOfToday - 6 * 24 * 60 * 60 * 1000;
+            if (entryTs < sevenDaysAgo || entryTs > endOfToday) return false;
+          } else if (dateFilter === 'MONTH') {
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
+            if (entryTs < startOfMonth || entryTs > endOfToday) return false;
+          } else if (dateFilter === 'CUSTOM') {
+            if (customStartDate) {
+              const [sy, sm, sd] = customStartDate.split('-').map(Number);
+              if (sy && sm && sd) {
+                const startTs = new Date(sy, sm - 1, sd, 0, 0, 0).getTime();
+                if (entryTs < startTs) return false;
+              }
+            }
+            if (customEndDate) {
+              const [ey, em, ed] = customEndDate.split('-').map(Number);
+              if (ey && em && ed) {
+                const endTs = new Date(ey, em - 1, ed, 23, 59, 59, 999).getTime();
+                if (entryTs > endTs) return false;
+              }
+            }
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => parseDateToTimestamp(b.created_at) - parseDateToTimestamp(a.created_at));
+  }, [cashbookEntries, filterType, search, dateFilter, customStartDate, customEndDate]);
+
+  // Running Ledger Balances (All-time)
+  const totalInAll = useMemo(() => cashbookEntries.filter((e) => e.type === 'IN').reduce((s, e) => s + e.amount, 0), [cashbookEntries]);
+  const totalOutAll = useMemo(() => cashbookEntries.filter((e) => e.type === 'OUT').reduce((s, e) => s + e.amount, 0), [cashbookEntries]);
+  const balanceAll = totalInAll - totalOutAll;
+
+  // Filtered Totals
+  const filteredIn = useMemo(() => filteredEntries.filter((e) => e.type === 'IN').reduce((s, e) => s + e.amount, 0), [filteredEntries]);
+  const filteredOut = useMemo(() => filteredEntries.filter((e) => e.type === 'OUT').reduce((s, e) => s + e.amount, 0), [filteredEntries]);
+  const filteredNet = filteredIn - filteredOut;
+
+  const isFiltered = useMemo(() => {
+    return filterType !== 'ALL' || dateFilter !== 'ALL' || search.trim() !== '' || customStartDate !== '' || customEndDate !== '';
+  }, [filterType, dateFilter, search, customStartDate, customEndDate]);
 
   const paginatedEntries = filteredEntries.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
@@ -103,7 +150,11 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
   };
 
   const handleExportCashbook = () => {
-    const data = cashbookEntries.map((c) => ({
+    if (filteredEntries.length === 0) {
+      showToast('Không có dữ liệu phiếu thu chi để xuất Excel!', 'warning');
+      return;
+    }
+    const data = filteredEntries.map((c) => ({
       'Mã Phiếu': c.code,
       'Thời Gian': c.created_at,
       'Loại': c.type === 'IN' ? 'Thu (+)' : 'Chi (-)',
@@ -113,8 +164,8 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
       'Chứng Từ Kèm Theo': c.ref_code || '',
       'Chi Nhánh': c.branch,
     }));
-    exportToExcel(data, 'So_quy_tien_mat', 'SoQuy');
-    showToast('Đã xuất sổ quỹ ra file Excel!', 'success');
+    exportToExcel(data, `So_quy_tien_mat_${dateFilter}`, 'SoQuy');
+    showToast(`Đã xuất ${filteredEntries.length} phiếu sổ quỹ ra file Excel!`, 'success');
   };
 
   return (
@@ -170,8 +221,16 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
         {/* Total In */}
         <div className="stat-card flex items-center justify-between">
           <div>
-            <div className="text-[11px] font-semibold text-slate-500 mb-0.5">Tổng tiền Thu (+)</div>
-            <div className="text-lg font-bold text-emerald-600 tracking-tight">{formatCurrency(totalIn)}</div>
+            <div className="text-[11px] font-semibold text-slate-500 mb-0.5 flex items-center gap-1">
+              <span>Tổng tiền Thu (+)</span>
+              {isFiltered && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold">Lọc</span>}
+            </div>
+            <div className="text-lg font-bold text-emerald-600 tracking-tight">
+              {formatCurrency(isFiltered ? filteredIn : totalInAll)}
+            </div>
+            {isFiltered && (
+              <div className="text-[10px] text-slate-400 mt-0.5">Toàn thời gian: {formatCurrency(totalInAll)}</div>
+            )}
           </div>
           <div className="w-8 h-8 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <ArrowDownLeft className="w-4 h-4" />
@@ -181,8 +240,16 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
         {/* Total Out */}
         <div className="stat-card flex items-center justify-between">
           <div>
-            <div className="text-[11px] font-semibold text-slate-500 mb-0.5">Tổng tiền Chi (-)</div>
-            <div className="text-lg font-bold text-rose-600 tracking-tight">{formatCurrency(totalOut)}</div>
+            <div className="text-[11px] font-semibold text-slate-500 mb-0.5 flex items-center gap-1">
+              <span>Tổng tiền Chi (-)</span>
+              {isFiltered && <span className="text-[10px] bg-rose-100 text-rose-700 px-1 rounded font-bold">Lọc</span>}
+            </div>
+            <div className="text-lg font-bold text-rose-600 tracking-tight">
+              {formatCurrency(isFiltered ? filteredOut : totalOutAll)}
+            </div>
+            {isFiltered && (
+              <div className="text-[10px] text-slate-400 mt-0.5">Toàn thời gian: {formatCurrency(totalOutAll)}</div>
+            )}
           </div>
           <div className="w-8 h-8 rounded-md bg-rose-50 text-rose-600 flex items-center justify-center">
             <ArrowUpRight className="w-4 h-4" />
@@ -192,8 +259,16 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
         {/* Running Balance */}
         <div className="stat-card flex items-center justify-between">
           <div>
-            <div className="text-[11px] font-semibold text-slate-500 mb-0.5">Tồn quỹ tiền mặt</div>
-            <div className="text-lg font-bold text-[#0B63E5] tracking-tight">{formatCurrency(balance)}</div>
+            <div className="text-[11px] font-semibold text-slate-500 mb-0.5 flex items-center gap-1">
+              <span>{isFiltered ? 'Chênh lệch kỳ lọc' : 'Tồn quỹ tiền mặt'}</span>
+              {isFiltered && <span className="text-[10px] bg-blue-100 text-[#0B63E5] px-1 rounded font-bold">Lọc</span>}
+            </div>
+            <div className={`text-lg font-bold tracking-tight ${isFiltered ? (filteredNet >= 0 ? 'text-[#0B63E5]' : 'text-rose-600') : 'text-[#0B63E5]'}`}>
+              {formatCurrency(isFiltered ? filteredNet : balanceAll)}
+            </div>
+            {isFiltered && (
+              <div className="text-[10px] text-slate-500 mt-0.5">Tồn quỹ hiện tại: <strong>{formatCurrency(balanceAll)}</strong></div>
+            )}
           </div>
           <div className="w-8 h-8 rounded-md bg-blue-50 text-[#0B63E5] flex items-center justify-center">
             <Wallet className="w-4 h-4" />
@@ -202,43 +277,121 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white border border-slate-200 rounded-md p-2.5 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-2.5">
-        <div className="relative flex-1 w-full sm:w-auto">
+      <div className="bg-white border border-slate-200 rounded-md p-2.5 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-2.5 flex-wrap">
+        <div className="relative flex-1 w-full md:w-auto min-w-[200px]">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Tìm theo mã phiếu, hạng mục, diễn giải..."
-            className="w-full pl-7 pr-2.5 py-1 bg-slate-50 text-xs text-slate-900 border border-slate-200 rounded-md outline-none focus:bg-white focus:border-[#0B63E5]"
+            className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 text-xs text-slate-900 border border-slate-200 rounded-md outline-none focus:bg-white focus:border-[#0B63E5]"
           />
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-md text-xs font-semibold">
-          <button
-            onClick={() => setFilterType('ALL')}
-            className={`px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
-              filterType === 'ALL' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
-            }`}
+        <div className="flex items-center gap-1.5 flex-wrap w-full md:w-auto">
+          {/* Date Filter */}
+          <select
+            value={dateFilter}
+            onChange={(e) => {
+              setDateFilter(e.target.value as any);
+              setCurrentPage(1);
+            }}
+            className="px-2 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-md focus:outline-none focus:border-[#0B63E5] text-xs cursor-pointer"
           >
-            Tất cả ({cashbookEntries.length})
-          </button>
-          <button
-            onClick={() => setFilterType('IN')}
-            className={`px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
-              filterType === 'IN' ? 'bg-emerald-600 text-white shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Phiếu Thu
-          </button>
-          <button
-            onClick={() => setFilterType('OUT')}
-            className={`px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
-              filterType === 'OUT' ? 'bg-rose-600 text-white shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Phiếu Chi
-          </button>
+            <option value="ALL">📅 Tất cả thời gian</option>
+            <option value="TODAY">📅 Hôm nay</option>
+            <option value="YESTERDAY">📅 Hôm qua</option>
+            <option value="LAST7">📅 7 ngày qua</option>
+            <option value="MONTH">📅 Tháng này</option>
+            <option value="CUSTOM">📅 Tùy chọn ngày...</option>
+          </select>
+
+          {/* Custom Date Inputs */}
+          {dateFilter === 'CUSTOM' && (
+            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 border border-slate-200 rounded-md">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => {
+                  setCustomStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs text-slate-700 outline-none"
+                title="Từ ngày"
+              />
+              <span className="text-slate-400 text-xs">-</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => {
+                  setCustomEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs text-slate-700 outline-none"
+                title="Đến ngày"
+              />
+            </div>
+          )}
+
+          {/* Type Filter Buttons */}
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-md text-xs font-semibold">
+            <button
+              onClick={() => {
+                setFilterType('ALL');
+                setCurrentPage(1);
+              }}
+              className={`px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
+                filterType === 'ALL' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tất cả ({cashbookEntries.length})
+            </button>
+            <button
+              onClick={() => {
+                setFilterType('IN');
+                setCurrentPage(1);
+              }}
+              className={`px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
+                filterType === 'IN' ? 'bg-emerald-600 text-white shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Phiếu Thu
+            </button>
+            <button
+              onClick={() => {
+                setFilterType('OUT');
+                setCurrentPage(1);
+              }}
+              className={`px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
+                filterType === 'OUT' ? 'bg-rose-600 text-white shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Phiếu Chi
+            </button>
+          </div>
+
+          {/* Clear Filters Button */}
+          {isFiltered && (
+            <button
+              onClick={() => {
+                setSearch('');
+                setFilterType('ALL');
+                setDateFilter('ALL');
+                setCustomStartDate('');
+                setCustomEndDate('');
+                setCurrentPage(1);
+              }}
+              className="flex items-center gap-1 px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold border border-rose-200 rounded-md text-xs cursor-pointer transition-colors"
+              title="Xóa tất cả bộ lọc"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Xóa lọc ({filteredEntries.length}/{cashbookEntries.length})</span>
+            </button>
+          )}
         </div>
       </div>
 

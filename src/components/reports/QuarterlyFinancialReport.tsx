@@ -46,10 +46,12 @@ export const QuarterlyFinancialReport: React.FC = () => {
   // Selected periods
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
+  const currentQuarter: 'Q1' | 'Q2' | 'Q3' | 'Q4' =
+    currentMonth <= 3 ? 'Q1' : currentMonth <= 6 ? 'Q2' : currentMonth <= 9 ? 'Q3' : 'Q4';
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
   const [selectedWeekType, setSelectedWeekType] = useState<'THIS_WEEK' | 'LAST_WEEK' | 'LAST_7_DAYS'>('THIS_WEEK');
-  const [selectedQuarter, setSelectedQuarter] = useState<'Q1' | 'Q2' | 'Q3' | 'Q4'>('Q3');
+  const [selectedQuarter, setSelectedQuarter] = useState<'Q1' | 'Q2' | 'Q3' | 'Q4'>(currentQuarter);
   const [monthlySubView, setMonthlySubView] = useState<'ALL_MONTHS' | 'SELECTED_MONTH'>('ALL_MONTHS');
 
   // Category palette
@@ -93,32 +95,34 @@ export const QuarterlyFinancialReport: React.FC = () => {
     };
   }, [completedOrderStats]);
 
-  // --- 1. WEEKLY DATA CALCULATION (100% REAL ORDERS) ---
-  const weeklyReportData = useMemo(() => {
+  // Filtered orders for the selected week view
+  const filteredWeekOrders = useMemo(() => {
     const now = new Date();
     const nowTimestamp = now.getTime();
 
-    // Determine filter range for week
-    let filteredWeekOrders = completedOrderStats;
-
     if (selectedWeekType === 'LAST_7_DAYS') {
       const sevenDaysAgo = nowTimestamp - 7 * 24 * 60 * 60 * 1000;
-      filteredWeekOrders = completedOrderStats.filter((o) => o.timestamp >= sevenDaysAgo && o.timestamp <= nowTimestamp);
+      return completedOrderStats.filter((o) => o.timestamp >= sevenDaysAgo && o.timestamp <= nowTimestamp);
     } else if (selectedWeekType === 'THIS_WEEK') {
       // Current Monday to Sunday
       const currentDay = now.getDay();
       const distanceToMon = (currentDay + 6) % 7;
       const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMon, 0, 0, 0);
       const sunday = new Date(monday.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
-      filteredWeekOrders = completedOrderStats.filter((o) => o.timestamp >= monday.getTime() && o.timestamp <= sunday.getTime());
+      return completedOrderStats.filter((o) => o.timestamp >= monday.getTime() && o.timestamp <= sunday.getTime());
     } else if (selectedWeekType === 'LAST_WEEK') {
       // Last week Monday to Sunday
       const currentDay = now.getDay();
       const distanceToMon = (currentDay + 6) % 7;
       const lastMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMon - 7, 0, 0, 0);
       const lastSunday = new Date(lastMonday.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
-      filteredWeekOrders = completedOrderStats.filter((o) => o.timestamp >= lastMonday.getTime() && o.timestamp <= lastSunday.getTime());
+      return completedOrderStats.filter((o) => o.timestamp >= lastMonday.getTime() && o.timestamp <= lastSunday.getTime());
     }
+    return completedOrderStats;
+  }, [completedOrderStats, selectedWeekType]);
+
+  // --- 1. WEEKLY DATA CALCULATION (100% REAL ORDERS) ---
+  const weeklyReportData = useMemo(() => {
 
     // Days mapping: Thứ 2 (1), Thứ 3 (2), Thứ 4 (3), Thứ 5 (4), Thứ 6 (5), Thứ 7 (6), Chủ Nhật (0)
     const dayConfig = [
@@ -167,7 +171,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
       aov,
       margin,
     };
-  }, [completedOrderStats, selectedWeekType]);
+  }, [filteredWeekOrders]);
 
   // --- 2. MONTHLY DATA CALCULATION (100% REAL ORDERS) ---
   const monthlyReportData = useMemo(() => {
@@ -288,20 +292,29 @@ export const QuarterlyFinancialReport: React.FC = () => {
     return { productByIdOrSku: pMap, categoryById: cMap };
   }, [products, categories]);
 
+  // Currently active orders corresponding to the selected view mode and filters
+  const currentViewOrders = useMemo(() => {
+    if (viewMode === 'WEEK') {
+      return filteredWeekOrders;
+    }
+    if (viewMode === 'MONTH') {
+      if (monthlySubView === 'SELECTED_MONTH') {
+        return completedOrderStats.filter((o) => o.year === selectedYear && o.month === selectedMonth);
+      }
+      return completedOrderStats.filter((o) => o.year === selectedYear);
+    }
+    if (viewMode === 'QUARTER') {
+      const qMonths = { Q1: [1, 2, 3], Q2: [4, 5, 6], Q3: [7, 8, 9], Q4: [10, 11, 12] }[selectedQuarter];
+      return completedOrderStats.filter((o) => o.year === selectedYear && qMonths.includes(o.month));
+    }
+    return completedOrderStats;
+  }, [viewMode, filteredWeekOrders, completedOrderStats, monthlySubView, selectedYear, selectedMonth, selectedQuarter]);
+
   // --- 4. REAL CATEGORY REVENUE BREAKDOWN ---
   const categoryData = useMemo(() => {
-    // Determine the active subset of orders based on current view
-    let activeOrders = completedOrderStats;
-    if (viewMode === 'MONTH' && monthlySubView === 'SELECTED_MONTH') {
-      activeOrders = completedOrderStats.filter((o) => o.year === selectedYear && o.month === selectedMonth);
-    } else if (viewMode === 'QUARTER') {
-      const qMonths = { Q1: [1, 2, 3], Q2: [4, 5, 6], Q3: [7, 8, 9], Q4: [10, 11, 12] }[selectedQuarter];
-      activeOrders = completedOrderStats.filter((o) => o.year === selectedYear && qMonths.includes(o.month));
-    }
-
     const catRevenueMap = new Map<string, number>();
 
-    activeOrders.forEach((order) => {
+    currentViewOrders.forEach((order) => {
       order.items.forEach((item) => {
         const prod = (item.product_id && productByIdOrSku.get(item.product_id)) || (item.sku && productByIdOrSku.get(item.sku));
         const catId = prod?.category || 'cat-fmcg';
@@ -329,16 +342,16 @@ export const QuarterlyFinancialReport: React.FC = () => {
         value: Number(((amount / totalCatRevenue) * 100).toFixed(1)),
       }))
       .sort((a, b) => b.amount - a.amount);
-  }, [completedOrderStats, viewMode, monthlySubView, selectedYear, selectedMonth, selectedQuarter, productByIdOrSku, categoryById, categories]);
+  }, [currentViewOrders, productByIdOrSku, categoryById, categories]);
 
-  // --- 5. REAL TOP SELLING PRODUCTS (FROM ACTUAL INVOICES) ---
+  // --- 5. REAL TOP SELLING PRODUCTS (FROM ACTUAL INVOICES FOR CURRENT VIEW) ---
   const topProducts = useMemo(() => {
     const itemMap = new Map<
       string,
       { id: string; name: string; sku: string; qty: number; revenue: number; profit: number; img: string }
     >();
 
-    completedOrderStats.forEach((order) => {
+    currentViewOrders.forEach((order) => {
       order.items.forEach((item) => {
         const prod = (item.product_id && productByIdOrSku.get(item.product_id)) || (item.sku && productByIdOrSku.get(item.sku));
         const key = item.sku || item.name;
@@ -366,7 +379,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
     return Array.from(itemMap.values())
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 6);
-  }, [completedOrderStats, productByIdOrSku]);
+  }, [currentViewOrders, productByIdOrSku]);
 
   // Export current view data to Excel
   const handleExportExcel = () => {

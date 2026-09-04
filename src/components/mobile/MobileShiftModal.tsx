@@ -10,7 +10,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { formatCurrency, formatDateTime, parseDateToTimestamp } from '../../utils/formatters';
 
 interface MobileShiftModalProps {
   isOpen: boolean;
@@ -23,18 +23,21 @@ export const MobileShiftModal: React.FC<MobileShiftModalProps> = ({
 }) => {
   const { orders, cashbookEntries, currentUser, showToast } = useApp();
 
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+
   const startCash = 500000; // 500K initial float
   const cashSales = orders
-    .filter((o) => o.status === 'COMPLETED' && o.payment_method === 'CASH')
-    .reduce((sum, o) => sum + o.final_amount, 0);
+    .filter((o) => o.status === 'COMPLETED' && o.payment_method === 'CASH' && parseDateToTimestamp(o.created_at) >= startOfToday)
+    .reduce((sum, o) => sum + (o.final_amount || 0), 0);
 
   const cashReceipts = cashbookEntries
-    .filter((c) => c.type === 'RECEIPT')
-    .reduce((sum, c) => sum + c.amount, 0);
+    .filter((c) => c.type === 'IN' && parseDateToTimestamp(c.created_at) >= startOfToday)
+    .reduce((sum, c) => sum + (c.amount || 0), 0);
 
   const cashPayments = cashbookEntries
-    .filter((c) => c.type === 'PAYMENT')
-    .reduce((sum, c) => sum + c.amount, 0);
+    .filter((c) => c.type === 'OUT' && parseDateToTimestamp(c.created_at) >= startOfToday)
+    .reduce((sum, c) => sum + (c.amount || 0), 0);
 
   const expectedCash = startCash + cashSales + cashReceipts - cashPayments;
   const [actualCash, setActualCash] = useState<number>(expectedCash);

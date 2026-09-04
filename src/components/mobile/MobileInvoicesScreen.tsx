@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { formatCurrency, formatDateTime, parseDateToTimestamp, parseOrderDate } from '../../utils/formatters';
 import { Order } from '../../types';
 import {
   Search,
@@ -23,7 +23,7 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'this_month' | 'last_month'>('last_month');
+  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'this_month' | 'last_month'>('this_month');
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -45,6 +45,28 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
   const filteredOrders = useMemo(() => {
     let result = orders.filter((o) => o.status !== 'CANCELLED');
 
+    // Time filter
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+
+    const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+    const endOfYesterday = startOfToday - 1;
+
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
+
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0).getTime();
+    const endOfLastMonth = startOfThisMonth - 1;
+
+    result = result.filter((o) => {
+      const ts = parseDateToTimestamp(o.created_at);
+      if (timeRange === 'today') return ts >= startOfToday && ts <= endOfToday;
+      if (timeRange === 'yesterday') return ts >= startOfYesterday && ts <= endOfYesterday;
+      if (timeRange === 'this_month') return ts >= startOfThisMonth && ts <= endOfToday;
+      if (timeRange === 'last_month') return ts >= startOfLastMonth && ts <= endOfLastMonth;
+      return true;
+    });
+
     // Payment method filter
     if (paymentFilter !== 'ALL') {
       result = result.filter((o) => o.payment_method === paymentFilter);
@@ -63,28 +85,29 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
 
     // Sorting
     result = [...result].sort((a, b) => {
-      if (sortOption === 'NEWEST') return b.created_at - a.created_at;
-      if (sortOption === 'OLDEST') return a.created_at - b.created_at;
-      if (sortOption === 'AMOUNT_DESC') return b.final_amount - a.final_amount;
-      if (sortOption === 'AMOUNT_ASC') return a.final_amount - b.final_amount;
+      if (sortOption === 'NEWEST') return parseDateToTimestamp(b.created_at) - parseDateToTimestamp(a.created_at);
+      if (sortOption === 'OLDEST') return parseDateToTimestamp(a.created_at) - parseDateToTimestamp(b.created_at);
+      if (sortOption === 'AMOUNT_DESC') return (b.final_amount || 0) - (a.final_amount || 0);
+      if (sortOption === 'AMOUNT_ASC') return (a.final_amount || 0) - (b.final_amount || 0);
       return 0;
     });
 
     return result;
-  }, [orders, searchQuery, paymentFilter, sortOption]);
+  }, [orders, timeRange, searchQuery, paymentFilter, sortOption]);
 
   // Group orders by date (e.g. "THỨ HAI, 03/08/2026")
   const groupedOrders = useMemo(() => {
     const groups: { dateLabel: string; orders: Order[] }[] = [];
 
-    // If we have actual orders, group them
     if (filteredOrders.length > 0) {
       const map: Record<string, Order[]> = {};
+      const dayNames = ['CHỦ NHẬT', 'THỨ HAI', 'THỨ BA', 'THỨ TƯ', 'THỨ NĂM', 'THỨ SÁU', 'THỨ BẢY'];
+
       filteredOrders.forEach((order) => {
-        const d = new Date(order.created_at);
-        const dayNames = ['CHỦ NHẬT', 'THỨ HAI', 'THỨ BA', 'THỨ TƯ', 'THỨ NĂM', 'THỨ SÁU', 'THỨ BẢY'];
-        const dayName = dayNames[d.getDay()];
-        const dateStr = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+        const parsed = parseOrderDate(order.created_at);
+        const dayName = dayNames[parsed.dayOfWeek];
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const dateStr = `${pad(parsed.day)}/${pad(parsed.month)}/${parsed.year}`;
         const key = `${dayName}, ${dateStr}`;
         if (!map[key]) map[key] = [];
         map[key].push(order);
@@ -100,11 +123,11 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
 
   const summaryDisplay = useMemo(() => {
     if (summaryMetric === 'REVENUE') {
-      const rev = filteredOrders.reduce((sum, o) => sum + o.final_amount, 0);
+      const rev = filteredOrders.reduce((sum, o) => sum + (o.final_amount || 0), 0);
       return { label: 'Tổng tiền hàng', value: `${rev.toLocaleString('vi-VN')}` };
     }
     if (summaryMetric === 'PROFIT') {
-      const profit = filteredOrders.reduce((sum, o) => sum + (o.final_amount - (o.total_cost || 0)), 0);
+      const profit = filteredOrders.reduce((sum, o) => sum + ((o.final_amount || 0) - (o.total_cost || 0)), 0);
       return { label: 'Tổng lợi nhuận', value: `${profit.toLocaleString('vi-VN')}` };
     }
     const totalItems = filteredOrders.reduce(
@@ -115,8 +138,7 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
   }, [filteredOrders, summaryMetric]);
 
   const totalInvoicesCount = useMemo(() => {
-    if (filteredOrders.length > 0) return filteredOrders.length;
-    return 15;
+    return filteredOrders.length;
   }, [filteredOrders]);
 
   return (
