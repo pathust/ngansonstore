@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+mobile/node_modules/
+
+# Antigravity & AI IDE files
+.antigravity/
+.vscode/
+.idea/
+
+# Local database & data files (already migrated to Supabase)
+.data/
+
+# Environment files
+.env*
+!.env.example
+
+# Production builds
+dist/
+build/
+coverage/
+mobile/.expo/
+mobile/web-build/
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs & debug files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Extra locks & temp scripts
+bun.lock
+*.tmp
+*.tmp.*
+fix_*.py
+fix_*.cjs
+fix_*.js
