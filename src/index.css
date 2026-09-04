@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #0B63E5;
+  --primary-hover: #0952C4;
+  --success: #10B981;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+  --slate-100: #F1F5F9;
+  --slate-200: #E2E8F0;
+  --slate-700: #334155;
+}
+
+@layer base {
+  body {
+    font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #F3F4F6;
+    color: #1E293B;
+  }
+}
+
+/* High Density Components & Utilities */
+.table-header {
+  background-color: #F8FAFC;
+  border-bottom: 2px solid #E2E8F0;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.035em;
+  color: #334155;
+  font-weight: 700;
+}
+
+.stat-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  padding: 14px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+}
+
+.badge-red {
+  background-color: #FEE2E2;
+  color: #991B1B;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+.badge-orange {
+  background-color: #FFEDD5;
+  color: #9A3412;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+.badge-green {
+  background-color: #D1FAE5;
+  color: #065F46;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+.badge-blue {
+  background-color: #EEF2FF;
+  color: #0B63E5;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+.sidebar-item-active {
+  background-color: #EEF2FF;
+  color: #0B63E5;
+  border-right: 3px solid #0B63E5;
+  font-weight: 600;
+}
+
+.scroll-hide::-webkit-scrollbar {
+  display: none;
+}
+.scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* K80 Thermal Receipt Print Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #k80-thermal-receipt, #k80-thermal-receipt * {
+    visibility: visible;
+  }
+  #k80-thermal-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 8px;
+    background: white;
+    color: black;
+    font-size: 12px;
+    font-family: 'Courier New', Courier, monospace;
+  }
+}
+
