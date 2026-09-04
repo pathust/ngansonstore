@@ -32,7 +32,7 @@ export const MobileShiftModal: React.FC<MobileShiftModalProps> = ({
     .reduce((sum, o) => sum + (o.final_amount || 0), 0);
 
   const cashReceipts = cashbookEntries
-    .filter((c) => c.type === 'IN' && parseDateToTimestamp(c.created_at) >= startOfToday)
+    .filter((c) => c.type === 'IN' && c.category !== 'Thu tiền bán hàng POS' && parseDateToTimestamp(c.created_at) >= startOfToday)
     .reduce((sum, c) => sum + (c.amount || 0), 0);
 
   const cashPayments = cashbookEntries

@@ -29,12 +29,14 @@ interface MobileOrdersManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPos?: () => void;
+  onSelectOrderForPOS?: (order: PreOrder) => void;
 }
 
 export const MobileOrdersManagementModal: React.FC<MobileOrdersManagementModalProps> = ({
   isOpen,
   onClose,
   onOpenPos,
+  onSelectOrderForPOS,
 }) => {
   const { showToast } = useApp();
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('ALL');
@@ -63,7 +65,15 @@ export const MobileOrdersManagementModal: React.FC<MobileOrdersManagementModalPr
     const updated = orders.map((o) => (o.id === order.id ? { ...o, status: 'COMPLETED' as const } : o));
     setOrders(updated);
     localStorage.setItem('nganson_preorders', JSON.stringify(updated));
-    showToast(`Đã chuyển đơn đặt hàng ${order.code} thành Hóa đơn bán hàng thành công!`, 'success');
+    showToast(`Đã chuyển đơn đặt hàng ${order.code} sang bán hàng!`, 'success');
+    if (onSelectOrderForPOS) {
+      onSelectOrderForPOS(order);
+    } else if (onOpenPos) {
+      onClose();
+      onOpenPos();
+    } else {
+      onClose();
+    }
   };
 
   const handleCancelOrder = (order: PreOrder) => {

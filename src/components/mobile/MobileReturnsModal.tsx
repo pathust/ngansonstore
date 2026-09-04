@@ -35,6 +35,7 @@ export const MobileReturnsModal: React.FC<MobileReturnsModalProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedInvoiceCode, setSelectedInvoiceCode] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [refundAmount, setRefundAmount] = useState<number>(0);
   const [refundReason, setRefundReason] = useState('Khách đổi loại hàng khác');
 
@@ -72,7 +73,7 @@ export const MobileReturnsModal: React.FC<MobileReturnsModalProps> = ({
         id: `ret-${Date.now()}`,
         code: newCode,
         invoiceCode: selectedInvoiceCode,
-        customerName: 'Khách trả hàng',
+        customerName: customerName || 'Khách lẻ',
         items: [{ name: 'Hàng hoá hoàn lại', quantity: 1, price: refundAmount }],
         totalRefund: refundAmount,
         refundMethod: 'CASH',
@@ -95,6 +96,7 @@ export const MobileReturnsModal: React.FC<MobileReturnsModalProps> = ({
       showToast(`Đã lập phiếu trả hàng ${newCode} và chi hoàn tiền ${formatCurrency(refundAmount)}!`, 'success');
       setIsCreating(false);
       setSelectedInvoiceCode('');
+      setCustomerName('');
       setRefundAmount(0);
 
     } catch (error) {
@@ -141,9 +143,15 @@ export const MobileReturnsModal: React.FC<MobileReturnsModalProps> = ({
                 <select
                   value={selectedInvoiceCode}
                   onChange={(e) => {
-                    setSelectedInvoiceCode(e.target.value);
-                    const ord = orders.find((o) => o.code === e.target.value);
-                    if (ord) setRefundAmount(ord.final_amount);
+                    const code = e.target.value;
+                    setSelectedInvoiceCode(code);
+                    const ord = orders.find((o) => o.code === code);
+                    if (ord) {
+                      setRefundAmount(ord.final_amount);
+                      setCustomerName(ord.customer_name || 'Khách lẻ');
+                    } else {
+                      setCustomerName('');
+                    }
                   }}
                   className="w-full p-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white"
                 >
@@ -153,9 +161,13 @@ export const MobileReturnsModal: React.FC<MobileReturnsModalProps> = ({
                       {o.code} - {o.customer_name || 'Khách lẻ'} ({formatCurrency(o.final_amount)})
                     </option>
                   ))}
-                  <option value="HD004967">HD004967 - Khách lẻ (2.009.000 đ)</option>
-                  <option value="HD004966">HD004966 - Khách lẻ (1.140.350 đ)</option>
                 </select>
+                {customerName && (
+                  <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-center justify-between">
+                    <span className="text-slate-400">Khách hàng:</span>
+                    <span className="font-bold text-slate-800">{customerName}</span>
+                  </div>
+                )}
               </div>
 
               <div>

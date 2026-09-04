@@ -1619,20 +1619,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       savePendingChange('orders', newOrder);
     });
 
-    // 3. If Cash or Transfer, record into Cashbook Sổ Quỹ
-    addCashbookEntry({
-      type: 'IN',
-      amount: finalAmount,
-      category: 'Thu tiền bán hàng POS',
-      note: `Thu tiền đơn hàng ${orderCode} (${activeTab.customer_name || 'Khách lẻ'})`,
-      ref_code: orderCode,
-    });
+    // 3. Update Customer accumulated purchase & debt if customer specified
+    const customerPaid = customerPaidAmount !== undefined ? customerPaidAmount : finalAmount;
+    const actualCollected = Math.min(finalAmount, Math.max(0, customerPaid));
+    const debtIncrease = Math.max(0, finalAmount - actualCollected);
 
-    // 4. Set last completed order & open K80 thermal receipt modal
+    if (activeTab.customer_name && activeTab.customer_name !== 'Khách lẻ') {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          const matchPhone = activeTab.customer_phone && c.phone === activeTab.customer_phone;
+          const matchName = c.name.toLowerCase().trim() === activeTab.customer_name.toLowerCase().trim();
+          if (matchPhone || matchName) {
+            const updatedTotalPurchased = (c.total_purchased || 0) + finalAmount;
+            const updatedDebt = (c.debt || 0) + debtIncrease;
+            const updatedCust = {
+              ...c,
+              total_purchased: updatedTotalPurchased,
+              debt: updatedDebt,
+            };
+            apiClient.updateCustomer(c.id, updatedCust).catch((err) => {
+              console.warn('[Customer] Sync update failed:', err);
+              savePendingChange('customers', updatedCust);
+            });
+            return updatedCust;
+          }
+          return c;
+        })
+      );
+    }
+
+    // 4. If Cash or Transfer, record into Cashbook Sổ Quỹ (record actual collected amount)
+    if (actualCollected > 0) {
+      addCashbookEntry({
+        type: 'IN',
+        amount: actualCollected,
+        category: 'Thu tiền bán hàng POS',
+        note: `Thu tiền đơn hàng ${orderCode} (${activeTab.customer_name || 'Khách lẻ'})${debtIncrease > 0 ? ` [Ghi nợ: ${debtIncrease.toLocaleString('vi-VN')} đ]` : ''}`,
+        ref_code: orderCode,
+      });
+    }
+
+    // 5. Set last completed order & open K80 thermal receipt modal
     setLastCompletedOrder(newOrder);
     setIsReceiptModalOpen(true);
 
-    // 5. Reset active tab
+    // 6. Reset active tab
     clearActiveCart();
 
     // Trigger celebration effects
@@ -1774,7 +1805,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ref_code: order.code,
     });
 
-    // 3. Set order status
+    // 3. Rollback customer total_purchased if customer is known
+    if (order.customer_name && order.customer_name !== 'Khách lẻ') {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          const matchPhone = order.phone && c.phone === order.phone;
+          const matchName = c.name.toLowerCase().trim() === order.customer_name.toLowerCase().trim();
+          if (matchPhone || matchName) {
+            const updatedCust = {
+              ...c,
+              total_purchased: Math.max(0, (c.total_purchased || 0) - order.final_amount),
+            };
+            apiClient.updateCustomer(c.id, updatedCust).catch((err) => {
+              console.warn('[Customer] Sync update failed:', err);
+              savePendingChange('customers', updatedCust);
+            });
+            return updatedCust;
+          }
+          return c;
+        })
+      );
+    }
+
+    // 4. Set order status
     const updatedNote = `${order.note ? order.note + ' | ' : ''}[Đã hủy: ${reason || 'Khách hủy/Hoàn trả'}]`;
     setOrders((prev) =>
       prev.map((o) =>
