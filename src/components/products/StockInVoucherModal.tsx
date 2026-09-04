@@ -61,6 +61,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
     showToast,
     currentUser,
     currentBranch,
+    isPriceAuditConfirmed,
   } = useApp();
 
   // Voucher header states
@@ -828,12 +829,27 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                               <div className="text-[10px] text-slate-500 font-mono mt-0.5">
                                 SKU: {it.sku} {it.barcode ? `| Barcode: ${it.barcode}` : ''}
                               </div>
-                              {it.selling_price > 0 && it.cost_price > it.selling_price && (
-                                <div className="inline-flex items-center gap-1 text-[10px] text-rose-600 font-bold mt-0.5 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
-                                  <AlertTriangle className="w-3 h-3" />
-                                  <span>Giá nhập ({formatCurrency(it.cost_price)}) cao hơn Giá bán ({formatCurrency(it.selling_price)})!</span>
-                                </div>
-                              )}
+                              {(() => {
+                                const existingProd = products.find((p) => p.id === it.product_id);
+                                const isConfirmed = existingProd ? isPriceAuditConfirmed(existingProd) : false;
+
+                                if (it.selling_price > 0 && it.cost_price > it.selling_price) {
+                                  if (isConfirmed) {
+                                    return (
+                                      <div className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-medium mt-0.5 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                        <span>✓ Đã duyệt giá OK</span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div className="inline-flex items-center gap-1 text-[10px] text-rose-600 font-bold mt-0.5 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                      <AlertTriangle className="w-3 h-3" />
+                                      <span>Giá nhập ({formatCurrency(it.cost_price)}) cao hơn Giá bán ({formatCurrency(it.selling_price)})!</span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </td>
 
                             {/* ĐVT */}

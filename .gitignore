@@ -43,3 +43,4 @@ bun.lock
 fix_*.py
 fix_*.cjs
 fix_*.js
+.vercel

@@ -13,6 +13,7 @@ export interface Product {
   image?: string;
   last_received_date?: string;
   description?: string;
+  price_audit_confirmed?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -295,6 +296,17 @@ export interface StoreSettings {
   showTaxCodeOnReceipt: boolean;
   showSloganOnReceipt: boolean;
   autoOpenCashDrawer: boolean;
+
+  // Confirmed price audit anomalies: productId -> { cost_price, selling_price, confirmed_at, confirmed_by }
+  confirmedPriceAudits?: Record<
+    string,
+    {
+      cost_price: number;
+      selling_price: number;
+      confirmed_at: string;
+      confirmed_by?: string;
+    }
+  >;
 }
 
 export interface BackgroundTask {

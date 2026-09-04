@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Product } from '../../types';
+import { useApp } from '../../context/AppContext';
 import { formatCurrency } from '../../utils/formatters';
 import { exportToExcel } from '../../utils/formatters';
 import {
   AlertTriangle,
   X,
+  Check,
   CheckCircle2,
   TrendingDown,
   TrendingUp,
@@ -13,6 +15,7 @@ import {
   Save,
   Search,
   ExternalLink,
+  ShieldCheck,
 } from 'lucide-react';
 
 export type PriceAnomalyType = 'ALL' | 'LOSS' | 'HIGH_MARGIN' | 'INVERTED_HIGH' | 'ZERO_COST';
@@ -91,32 +94,47 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
   onUpdateProduct,
   onSelectProductInTable,
 }) => {
+  const {
+    confirmProductPriceAudit,
+    unconfirmProductPriceAudit,
+    confirmAllProductPriceAudits,
+    isPriceAuditConfirmed,
+  } = useApp();
+
   const [activeTab, setActiveTab] = useState<PriceAnomalyType>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'UNCONFIRMED' | 'CONFIRMED' | 'ALL'>('UNCONFIRMED');
   const [search, setSearch] = useState<string>('');
   const [editingPrices, setEditingPrices] = useState<Record<string, { cost: number; sell: number }>>({});
   const [savedSuccessIds, setSavedSuccessIds] = useState<Record<string, boolean>>({});
 
-  // Analyze all products
+  // Analyze all products with confirmation status
   const anomalies = useMemo(() => {
-    const list: { product: Product; anomaly: PriceAnomalyInfo }[] = [];
+    const list: { product: Product; anomaly: PriceAnomalyInfo; isConfirmed: boolean }[] = [];
     products.forEach((p) => {
       const a = detectPriceAnomaly(p);
       if (a) {
-        list.push({ product: p, anomaly: a });
+        const isConfirmed = isPriceAuditConfirmed(p);
+        list.push({ product: p, anomaly: a, isConfirmed });
       }
     });
     return list;
-  }, [products]);
+  }, [products, isPriceAuditConfirmed]);
 
-  const lossCount = useMemo(() => anomalies.filter((a) => a.anomaly.type === 'LOSS').length, [anomalies]);
-  const highMarginCount = useMemo(() => anomalies.filter((a) => a.anomaly.type === 'HIGH_MARGIN').length, [anomalies]);
-  const invertedHighCount = useMemo(() => anomalies.filter((a) => a.anomaly.type === 'INVERTED_HIGH').length, [anomalies]);
-  const zeroCostCount = useMemo(() => anomalies.filter((a) => a.anomaly.type === 'ZERO_COST').length, [anomalies]);
+  const totalUnconfirmed = useMemo(() => anomalies.filter((a) => !a.isConfirmed).length, [anomalies]);
+  const totalConfirmed = useMemo(() => anomalies.filter((a) => a.isConfirmed).length, [anomalies]);
 
-  // Filtered by tab and search
+  const lossCount = useMemo(() => anomalies.filter((a) => !a.isConfirmed && a.anomaly.type === 'LOSS').length, [anomalies]);
+  const highMarginCount = useMemo(() => anomalies.filter((a) => !a.isConfirmed && a.anomaly.type === 'HIGH_MARGIN').length, [anomalies]);
+  const invertedHighCount = useMemo(() => anomalies.filter((a) => !a.isConfirmed && a.anomaly.type === 'INVERTED_HIGH').length, [anomalies]);
+  const zeroCostCount = useMemo(() => anomalies.filter((a) => !a.isConfirmed && a.anomaly.type === 'ZERO_COST').length, [anomalies]);
+
+  // Filtered by tab, status and search
   const filteredList = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return anomalies.filter(({ product, anomaly }) => {
+    return anomalies.filter(({ product, anomaly, isConfirmed }) => {
+      if (statusFilter === 'UNCONFIRMED' && isConfirmed) return false;
+      if (statusFilter === 'CONFIRMED' && !isConfirmed) return false;
+
       const matchTab = activeTab === 'ALL' || anomaly.type === activeTab;
       const matchSearch =
         !q ||
@@ -125,7 +143,17 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
         product.barcode.includes(q);
       return matchTab && matchSearch;
     });
-  }, [anomalies, activeTab, search]);
+  }, [anomalies, activeTab, statusFilter, search]);
+
+  const unconfirmedInView = useMemo(
+    () => filteredList.filter((item) => !item.isConfirmed).map((item) => item.product.id),
+    [filteredList]
+  );
+
+  const handleConfirmAllInView = () => {
+    if (unconfirmedInView.length === 0) return;
+    confirmAllProductPriceAudits(unconfirmedInView);
+  };
 
   const handlePriceChange = (id: string, field: 'cost' | 'sell', val: number) => {
     setEditingPrices((prev) => {
@@ -165,7 +193,7 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
   };
 
   const handleExportExcel = () => {
-    const data = anomalies.map(({ product, anomaly }, idx) => ({
+    const data = anomalies.map(({ product, anomaly, isConfirmed }, idx) => ({
       'STT': idx + 1,
       'Mã SKU': product.sku,
       'Tên Sản Phẩm': product.name,
@@ -176,6 +204,7 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
       'Tỷ Lệ Bán/Vốn': product.cost_price > 0 ? (product.selling_price / product.cost_price).toFixed(2) : 'N/A',
       'Loại Bất Thường': anomaly.label,
       'Chi Tiết Đánh Giá': anomaly.description,
+      'Trạng Thái Duyệt': isConfirmed ? 'Đã xác nhận OK' : 'Cần xử lý',
       'Tồn Kho': product.stock,
     }));
 
@@ -289,6 +318,60 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
           </button>
         </div>
 
+        {/* Status Selector & Bulk Action Bar */}
+        <div className="px-4 py-2.5 bg-slate-100/90 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-600">Trạng thái:</span>
+            <div className="inline-flex rounded-lg bg-slate-200/80 p-0.5 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('UNCONFIRMED')}
+                className={`px-3 py-1 rounded-md transition-all ${
+                  statusFilter === 'UNCONFIRMED'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900'
+                }`}
+              >
+                ⚠️ Cần xử lý ({totalUnconfirmed})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('CONFIRMED')}
+                className={`px-3 py-1 rounded-md transition-all ${
+                  statusFilter === 'CONFIRMED'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900'
+                }`}
+              >
+                ✅ Đã duyệt OK ({totalConfirmed})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('ALL')}
+                className={`px-3 py-1 rounded-md transition-all ${
+                  statusFilter === 'ALL'
+                    ? 'bg-slate-800 text-white shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900'
+                }`}
+              >
+                Tất cả ({anomalies.length})
+              </button>
+            </div>
+          </div>
+
+          {unconfirmedInView.length > 0 && (
+            <button
+              type="button"
+              onClick={handleConfirmAllInView}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 shrink-0 cursor-pointer"
+              title="Xác nhận tất cả sản phẩm đang hiển thị trong danh sách này là OK"
+            >
+              <Check className="w-3.5 h-3.5 stroke-[3]" />
+              <span>Duyệt OK tất cả ({unconfirmedInView.length} SP)</span>
+            </button>
+          )}
+        </div>
+
         {/* Toolbar Filter & Search */}
         <div className="px-4 py-2.5 bg-white border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
@@ -300,7 +383,7 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Tất cả cảnh báo ({anomalies.length})
+              Tất cả loại ({anomalies.length})
             </button>
             <button
               onClick={() => setActiveTab('LOSS')}
@@ -322,6 +405,16 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
             >
               Bán &gt; 3x Vốn ({highMarginCount})
             </button>
+            <button
+              onClick={() => setActiveTab('INVERTED_HIGH')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                activeTab === 'INVERTED_HIGH'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+              }`}
+            >
+              Vốn &gt; 3x Bán ({invertedHighCount})
+            </button>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -337,7 +430,7 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
             </div>
             <button
               onClick={handleExportExcel}
-              className="flex items-center gap-1 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition-colors shadow-2xs"
+              className="flex items-center gap-1 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
               title="Xuất file Excel danh sách giá bất thường"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -366,11 +459,11 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
                     <th className="py-2.5 px-3 text-right">Giá vốn (VNĐ)</th>
                     <th className="py-2.5 px-3 text-right">Giá bán lẻ (VNĐ)</th>
                     <th className="py-2.5 px-3">Đánh giá Audit</th>
-                    <th className="py-2.5 px-3 text-center">Sửa nhanh &amp; Lưu</th>
+                    <th className="py-2.5 px-3 text-center">Xác nhận &amp; Lưu</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredList.map(({ product, anomaly }) => {
+                  {filteredList.map(({ product, anomaly, isConfirmed }) => {
                     const edits = editingPrices[product.id] || {
                       cost: product.cost_price,
                       sell: product.selling_price,
@@ -383,7 +476,7 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
                       <tr
                         key={product.id}
                         className={`hover:bg-slate-50/80 transition-colors ${
-                          anomaly.type === 'LOSS' ? 'bg-rose-50/30' : ''
+                          isConfirmed ? 'bg-slate-50/40' : anomaly.type === 'LOSS' ? 'bg-rose-50/30' : ''
                         }`}
                       >
                         {/* Product Info */}
@@ -444,23 +537,54 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
 
                         {/* Anomaly Badge */}
                         <td className="py-3 px-3">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${anomaly.badgeColor}`}
-                          >
-                            <AlertTriangle className="w-2.5 h-2.5" />
-                            {anomaly.label}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {isConfirmed ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                Đã duyệt OK
+                              </span>
+                            ) : (
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${anomaly.badgeColor}`}
+                              >
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                {anomaly.label}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-slate-600 mt-1">{anomaly.description}</div>
                         </td>
 
-                        {/* Inline Save & Link */}
+                        {/* Actions: Confirm / Unconfirm + Inline Save & Link */}
                         <td className="py-3 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {isConfirmed ? (
+                              <button
+                                type="button"
+                                onClick={() => unconfirmProductPriceAudit(product.id)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition-colors"
+                                title="Giá này đã được duyệt OK. Nhấn để bỏ duyệt / kích hoạt lại cảnh báo."
+                              >
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                <span>Đã duyệt</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => confirmProductPriceAudit(product.id)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all shadow-2xs cursor-pointer"
+                                title="Xác nhận giá này là hợp lý, bỏ qua cảnh báo"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>Duyệt OK</span>
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               disabled={!isEdited}
                               onClick={() => handleSaveItem(product.id)}
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-all shadow-2xs ${
+                              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold transition-all shadow-2xs ${
                                 isSuccess
                                   ? 'bg-emerald-600 text-white'
                                   : isEdited

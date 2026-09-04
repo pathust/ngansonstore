@@ -49,6 +49,7 @@ export const PosSalesScreen: React.FC = () => {
     setCurrentView,
     orders,
     storeSettings,
+    isPriceAuditConfirmed,
   } = useApp();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('cat-all');
@@ -614,8 +615,9 @@ export const PosSalesScreen: React.FC = () => {
             ) : (
               activeTab.items.map((item) => {
               const prod = productByIdMap.get(item.product_id);
-              const isBelowCost = prod && prod.cost_price > 0 && item.price < prod.cost_price;
-              const isHighMargin = prod && prod.cost_price > 0 && item.price > prod.cost_price * 3;
+              const isConfirmed = prod ? isPriceAuditConfirmed(prod) : false;
+              const isBelowCost = !isConfirmed && prod && prod.cost_price > 0 && item.price < prod.cost_price;
+              const isHighMargin = !isConfirmed && prod && prod.cost_price > 0 && item.price > prod.cost_price * 3;
 
               return (
                 <div key={item.product_id} className="py-2 flex items-start justify-between gap-2 group">

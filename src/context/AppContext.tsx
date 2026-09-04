@@ -44,6 +44,7 @@ const INITIAL_STORE_SETTINGS: StoreSettings = {
   showTaxCodeOnReceipt: true,
   showSloganOnReceipt: true,
   autoOpenCashDrawer: false,
+  confirmedPriceAudits: {},
 };
 
 const FALLBACK_ADMIN_USER: AppUser = {
@@ -109,6 +110,10 @@ interface AppContextType {
     note?: string;
     items: StockInVoucherItem[];
   }) => StockInVoucher;
+  confirmProductPriceAudit: (productId: string) => void;
+  unconfirmProductPriceAudit: (productId: string) => void;
+  confirmAllProductPriceAudits: (productIds: string[]) => void;
+  isPriceAuditConfirmed: (product: { id: string; cost_price: number; selling_price: number }) => boolean;
 
   // Suppliers (Nhà Cung Cấp)
   suppliers: Supplier[];
@@ -1248,6 +1253,64 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     showToast(toastMsg, 'success');
     return voucher;
+  };
+
+  // Price Audit Confirmation Handlers
+  const confirmProductPriceAudit = (productId: string) => {
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return;
+    const currentMap = storeSettings.confirmedPriceAudits || {};
+    const nextMap = {
+      ...currentMap,
+      [productId]: {
+        cost_price: Number(prod.cost_price || 0),
+        selling_price: Number(prod.selling_price || 0),
+        confirmed_at: new Date().toISOString(),
+        confirmed_by: currentUser?.name || 'Quản lý',
+      },
+    };
+    updateStoreSettings({ confirmedPriceAudits: nextMap });
+    showToast(`Đã duyệt giá sản phẩm "${prod.name}" là hợp lệ`, 'success');
+  };
+
+  const unconfirmProductPriceAudit = (productId: string) => {
+    const prod = products.find((p) => p.id === productId);
+    const currentMap = storeSettings.confirmedPriceAudits || {};
+    if (!currentMap[productId]) return;
+    const nextMap = { ...currentMap };
+    delete nextMap[productId];
+    updateStoreSettings({ confirmedPriceAudits: nextMap });
+    showToast(`Đã hủy duyệt giá sản phẩm "${prod ? prod.name : productId}"`, 'info');
+  };
+
+  const confirmAllProductPriceAudits = (productIds: string[]) => {
+    if (!productIds.length) return;
+    const currentMap = { ...(storeSettings.confirmedPriceAudits || {}) };
+    let count = 0;
+    for (const id of productIds) {
+      const prod = products.find((p) => p.id === id);
+      if (prod) {
+        currentMap[id] = {
+          cost_price: Number(prod.cost_price || 0),
+          selling_price: Number(prod.selling_price || 0),
+          confirmed_at: new Date().toISOString(),
+          confirmed_by: currentUser?.name || 'Quản lý',
+        };
+        count++;
+      }
+    }
+    updateStoreSettings({ confirmedPriceAudits: currentMap });
+    showToast(`Đã duyệt giá hợp lệ cho ${count} sản phẩm!`, 'success');
+  };
+
+  const isPriceAuditConfirmed = (product: { id: string; cost_price: number; selling_price: number }): boolean => {
+    if (!product || !product.id) return false;
+    const record = storeSettings.confirmedPriceAudits?.[product.id];
+    if (!record) return false;
+    return (
+      Number(record.cost_price) === Number(product.cost_price || 0) &&
+      Number(record.selling_price) === Number(product.selling_price || 0)
+    );
   };
 
   // Multi-Tab POS Cart Actions
@@ -2447,6 +2510,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deleteProduct,
         receiveStockWithWeightedCost,
         receiveStockVoucher,
+        confirmProductPriceAudit,
+        unconfirmProductPriceAudit,
+        confirmAllProductPriceAudits,
+        isPriceAuditConfirmed,
         suppliers,
         addSupplier,
         updateSupplier,
