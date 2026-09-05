@@ -9,6 +9,9 @@ import { GlobalLoadingBar } from './components/common/GlobalLoadingBar';
 import { BackgroundTaskBar } from './components/common/BackgroundTaskBar';
 import { GlobalVoiceAssistant } from './components/common/GlobalVoiceAssistant';
 import { MobileAppContainer } from './components/mobile/MobileAppContainer';
+import { LoginScreen } from './components/auth/LoginScreen';
+import { ChangePasswordModal } from './components/auth/ChangePasswordModal';
+import { UserProfileModal } from './components/auth/UserProfileModal';
 import { Menu } from 'lucide-react';
 
 const QuarterlyFinancialReport = React.lazy(() => import('./components/reports/QuarterlyFinancialReport').then(m => ({ default: m.QuarterlyFinancialReport })));
@@ -20,13 +23,19 @@ const SupplierManagementScreen = React.lazy(() => import('./components/suppliers
 const CustomerManagementScreen = React.lazy(() => import('./components/customers/CustomerManagementScreen').then(m => ({ default: m.CustomerManagementScreen })));
 const InvoiceManagementScreen = React.lazy(() => import('./components/orders/InvoiceManagementScreen').then(m => ({ default: m.InvoiceManagementScreen })));
 const StoreSettingsScreen = React.lazy(() => import('./components/settings/StoreSettingsScreen').then(m => ({ default: m.StoreSettingsScreen })));
+const UserManagementScreen = React.lazy(() => import('./components/users/UserManagementScreen').then(m => ({ default: m.UserManagementScreen })));
 
 const MainLayout: React.FC = () => {
   const {
     currentView,
     currentUser,
+    isAuthenticated,
     isUserSwitcherOpen,
     setIsUserSwitcherOpen,
+    isUserProfileOpen,
+    setIsUserProfileOpen,
+    isChangePasswordOpen,
+    setIsChangePasswordOpen,
     syncState,
     isLoading,
     loadingMessage,
@@ -78,6 +87,16 @@ const MainLayout: React.FC = () => {
     localStorage.removeItem('nganson_view_mode_preference');
   };
 
+  // Authentication Guard: Require login if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="h-screen w-screen overflow-hidden font-sans antialiased text-slate-800 relative">
+        <LoginScreen />
+        <ToastContainer />
+      </div>
+    );
+  }
+
   if (isMobileScreen) {
     return (
       <div className="h-screen w-screen overflow-hidden bg-[#F5F6F8] font-sans antialiased text-slate-800 relative">
@@ -91,6 +110,18 @@ const MainLayout: React.FC = () => {
         <ToastContainer />
         <ThermalReceiptModal />
         <UserSwitcherModal isOpen={isUserSwitcherOpen} onClose={() => setIsUserSwitcherOpen(false)} />
+        <UserProfileModal
+          isOpen={isUserProfileOpen}
+          onClose={() => setIsUserProfileOpen(false)}
+          onOpenChangePassword={() => {
+            setIsUserProfileOpen(false);
+            setIsChangePasswordOpen(true);
+          }}
+        />
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          onClose={() => setIsChangePasswordOpen(false)}
+        />
       </div>
     );
   }
@@ -186,6 +217,14 @@ const MainLayout: React.FC = () => {
               <AccessDeniedView moduleName="Cài đặt Cửa hàng & Mã QR" />
             )
           )}
+
+          {currentView === 'users' && (
+            currentUser.role === 'ADMIN' || currentUser.permissions.canManageUsers ? (
+              <UserManagementScreen />
+            ) : (
+              <AccessDeniedView moduleName="Quản trị Tài khoản & Phân quyền" />
+            )
+          )}
           </React.Suspense>
         </main>
 
@@ -260,6 +299,22 @@ const MainLayout: React.FC = () => {
       <UserSwitcherModal
         isOpen={isUserSwitcherOpen}
         onClose={() => setIsUserSwitcherOpen(false)}
+      />
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={isUserProfileOpen}
+        onClose={() => setIsUserProfileOpen(false)}
+        onOpenChangePassword={() => {
+          setIsUserProfileOpen(false);
+          setIsChangePasswordOpen(true);
+        }}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
       />
     </div>
   );

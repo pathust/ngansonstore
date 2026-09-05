@@ -47,40 +47,151 @@ const INITIAL_STORE_SETTINGS: StoreSettings = {
   confirmedPriceAudits: {},
 };
 
-const FALLBACK_ADMIN_USER: AppUser = {
-  id: 'user-admin-01',
-  name: 'Quản trị viên',
-  role: 'ADMIN',
-  roleTitle: 'Quản trị viên hệ thống',
-  email: '',
-  phone: '',
-  avatar: '',
-  permissions: {
-    canViewReports: true,
-    canManageProducts: true,
-    canStockIn: true,
-    canManageSuppliers: true,
-    canManageCustomers: true,
-    canAuditInventory: true,
-    canBalanceAudit: true,
-    canManageCashbook: true,
-    canAccessDataCenter: true,
-    canSellPOS: true,
-    canViewInvoices: true,
-    canDeleteInvoices: true,
-    canEditSystemSettings: true,
-    canManageUsers: true,
-    canImportData: true,
+export const DEFAULT_APP_USERS: AppUser[] = [
+  {
+    id: 'user-admin-01',
+    name: 'Phan Anh Tài',
+    username: 'tai',
+    password: 'admin123',
+    role: 'ADMIN',
+    roleTitle: 'Full Access Admin (Toàn quyền hệ thống)',
+    email: 'sn.phanminh@gmail.com',
+    phone: '0912.345.678',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+    bio: 'Chủ sở hữu & Quản trị viên cấp cao nhất - Cửa hàng Ngân Sơn',
+    status: 'ACTIVE',
+    permissions: {
+      canViewReports: true,
+      canManageProducts: true,
+      canStockIn: true,
+      canManageSuppliers: true,
+      canManageCustomers: true,
+      canAuditInventory: true,
+      canBalanceAudit: true,
+      canManageCashbook: true,
+      canAccessDataCenter: true,
+      canSellPOS: true,
+      canViewInvoices: true,
+      canDeleteInvoices: true,
+      canEditSystemSettings: true,
+      canManageUsers: true,
+      canImportData: true,
+    },
   },
-};
+  {
+    id: 'user-manager-01',
+    name: 'Phan Minh Sơn',
+    username: 'son',
+    password: 'minhson318vuquang',
+    role: 'MANAGER',
+    roleTitle: 'Quản lý cửa hàng (Store Manager)',
+    email: 'son.phanminh@nganson.vn',
+    phone: '0977.334.455',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
+    bio: 'Quản lý cửa hàng - Giám sát vận hành, Báo cáo tài chính, Kiểm kê kho hàng',
+    status: 'ACTIVE',
+    permissions: {
+      canViewReports: true,
+      canManageProducts: true,
+      canStockIn: true,
+      canManageSuppliers: true,
+      canManageCustomers: true,
+      canAuditInventory: true,
+      canBalanceAudit: true,
+      canManageCashbook: true,
+      canAccessDataCenter: true,
+      canSellPOS: true,
+      canViewInvoices: true,
+      canDeleteInvoices: false,
+      canEditSystemSettings: false,
+      canManageUsers: false,
+      canImportData: false,
+    },
+  },
+  {
+    id: 'user-manager-02',
+    name: 'Nguyễn Thị Ngân',
+    username: 'ngan',
+    password: 'ngan318vuquang',
+    role: 'MANAGER',
+    roleTitle: 'Quản lý cửa hàng (Store Manager)',
+    email: 'ngan.nguyen@nganson.vn',
+    phone: '0988.112.233',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
+    bio: 'Quản lý cửa hàng - Phụ trách Báo cáo doanh thu, Kiểm kê kho, Sổ quỹ & Nhà cung cấp',
+    status: 'ACTIVE',
+    permissions: {
+      canViewReports: true,
+      canManageProducts: true,
+      canStockIn: true,
+      canManageSuppliers: true,
+      canManageCustomers: true,
+      canAuditInventory: true,
+      canBalanceAudit: true,
+      canManageCashbook: true,
+      canAccessDataCenter: true,
+      canSellPOS: true,
+      canViewInvoices: true,
+      canDeleteInvoices: false,
+      canEditSystemSettings: false,
+      canManageUsers: false,
+      canImportData: false,
+    },
+  },
+  {
+    id: 'user-staff-01',
+    name: 'Phan Minh Nhật',
+    username: 'nhat',
+    password: 'minhnhat318vuquang',
+    role: 'STAFF',
+    roleTitle: 'Nhân viên bán hàng (Cashier / POS)',
+    email: 'nhat.phanminh@nganson.vn',
+    phone: '0966.556.677',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
+    bio: 'Nhân viên bán hàng tại quầy - Thực hiện giao dịch POS, thu tiền và in hóa đơn',
+    status: 'ACTIVE',
+    permissions: {
+      canViewReports: false,
+      canManageProducts: false,
+      canStockIn: false,
+      canManageSuppliers: false,
+      canManageCustomers: false,
+      canAuditInventory: false,
+      canBalanceAudit: false,
+      canManageCashbook: false,
+      canAccessDataCenter: false,
+      canSellPOS: true,
+      canViewInvoices: true,
+      canDeleteInvoices: false,
+      canEditSystemSettings: false,
+      canManageUsers: false,
+      canImportData: false,
+    },
+  },
+];
+
+const FALLBACK_ADMIN_USER = DEFAULT_APP_USERS[0];
 
 interface AppContextType {
   // User Management & Roles
   users: AppUser[];
   currentUser: AppUser;
-  switchUser: (userId: string) => void;
+  isAuthenticated: boolean;
+  login: (usernameOrEmail: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  resetUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  saveUser: (userData: Partial<AppUser> & { name: string }) => Promise<{ success: boolean; error?: string; user?: AppUser }>;
+  deleteUser: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  toggleUserLock: (userId: string) => Promise<{ success: boolean; error?: string }>;
+  updateUserProfile: (profileData: Partial<AppUser>) => Promise<{ success: boolean; error?: string }>;
+  switchUser: (userId: string, password?: string) => Promise<{ success: boolean; error?: string }>;
   isUserSwitcherOpen: boolean;
   setIsUserSwitcherOpen: (open: boolean) => void;
+  isUserProfileOpen: boolean;
+  setIsUserProfileOpen: (open: boolean) => void;
+  isChangePasswordOpen: boolean;
+  setIsChangePasswordOpen: (open: boolean) => void;
 
   // Navigation & Shell
   currentView: string;
@@ -263,26 +374,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {}
-    }
-    return [FALLBACK_ADMIN_USER];
-  });
-
-  const [currentUser, setCurrentUser] = useState<AppUser>(() => {
-    const savedId = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'current_user_id');
-    const savedUsers = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'users');
-    if (savedUsers) {
-      try {
-        const parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const found = savedId ? parsed.find((u: AppUser) => u.id === savedId) : parsed[0];
-          if (found) return found;
+          return DEFAULT_APP_USERS.map((du) => {
+            const f = parsed.find((p: AppUser) => p.id === du.id);
+            return f ? { ...du, ...f, password: f.password || du.password } : du;
+          });
         }
       } catch (e) {}
     }
-    return FALLBACK_ADMIN_USER;
+    return DEFAULT_APP_USERS;
   });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const isAuth = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'is_authenticated');
+      const authUserId = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'current_user_id');
+      return isAuth === 'true' && !!authUserId;
+    }
+    return false;
+  });
+
+  const [currentUser, setCurrentUser] = useState<AppUser>(() => {
+    const savedId = typeof window !== 'undefined' ? localStorage.getItem(LOCAL_STORAGE_PREFIX + 'current_user_id') : null;
+    const found = users.find((u) => u.id === savedId) || users[0] || DEFAULT_APP_USERS[0];
+    return found;
+  });
+
+  const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -293,12 +412,276 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return false;
   });
 
-  const switchUser = (userId: string) => {
-    const found = users.find((u) => u.id === userId);
-    if (found) {
-      setCurrentUser(found);
-      safeStorageSet(LOCAL_STORAGE_PREFIX + 'current_user_id', found.id);
+  const login = async (usernameOrEmail: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const term = usernameOrEmail.trim().toLowerCase();
+    // 1. Try server login
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: term, password }),
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        const found = users.find((u) => u.id === data.user.id) || (data.user as AppUser);
+        setCurrentUser(found);
+        setIsAuthenticated(true);
+        safeStorageSet(LOCAL_STORAGE_PREFIX + 'is_authenticated', 'true');
+        safeStorageSet(LOCAL_STORAGE_PREFIX + 'current_user_id', found.id);
+        showToast(data.message || `Đăng nhập thành công! Chào mừng ${found.name}`, 'success');
+        return { success: true };
+      } else if (!data.success && res.status !== 500 && res.status !== 502 && res.status !== 503) {
+        return { success: false, error: data.error || 'Tên đăng nhập hoặc mật khẩu không chính xác!' };
+      }
+    } catch (e) {
+      console.warn('[Auth] Server login failed, checking offline state:', e);
     }
+
+    // 2. Offline fallback
+    const localUser = users.find(
+      (u) =>
+        u.username?.toLowerCase() === term ||
+        u.email?.toLowerCase() === term ||
+        u.phone?.trim() === term ||
+        u.name?.toLowerCase() === term
+    );
+
+    if (!localUser) {
+      return { success: false, error: 'Tên đăng nhập hoặc tài khoản không tồn tại!' };
+    }
+
+    if (localUser.status === 'LOCKED') {
+      return { success: false, error: 'Tài khoản này đã bị khóa. Vui lòng liên hệ Quản trị viên!' };
+    }
+
+    if (localUser.password && localUser.password !== password) {
+      return { success: false, error: 'Mật khẩu không chính xác! Vui lòng thử lại.' };
+    }
+
+    setCurrentUser(localUser);
+    setIsAuthenticated(true);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'is_authenticated', 'true');
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'current_user_id', localUser.id);
+    showToast(`Đăng nhập thành công! Chào mừng ${localUser.name}`, 'success');
+    return { success: true };
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'is_authenticated', 'false');
+    localStorage.removeItem(LOCAL_STORAGE_PREFIX + 'is_authenticated');
+    showToast('Đã đăng xuất khỏi hệ thống an toàn!', 'info');
+  };
+
+  const changePassword = async (oldPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser) return { success: false, error: 'Chưa có thông tin tài khoản' };
+    if (newPassword.length < 6) {
+      return { success: false, error: 'Mật khẩu mới phải có ít nhất 6 ký tự!' };
+    }
+    if (currentUser.password && currentUser.password !== oldPassword) {
+      return { success: false, error: 'Mật khẩu hiện tại không đúng!' };
+    }
+
+    const updatedUser: AppUser = { ...currentUser, password: newPassword, updatedAt: Date.now() };
+    const updatedUsers = users.map((u) => (u.id === currentUser.id ? updatedUser : u));
+    setUsers(updatedUsers);
+    setCurrentUser(updatedUser);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
+
+    try {
+      await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, oldPassword, newPassword }),
+      });
+    } catch (e) {}
+
+    showToast('Đổi mật khẩu thành công!', 'success');
+    setIsChangePasswordOpen(false);
+    return { success: true };
+  };
+
+  const resetUserPassword = async (userId: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser.role !== 'ADMIN' && !currentUser.permissions.canManageUsers) {
+      return { success: false, error: 'Bạn không có quyền thực hiện thao tác này!' };
+    }
+    if (newPassword.length < 6) {
+      return { success: false, error: 'Mật khẩu mới phải có ít nhất 6 ký tự!' };
+    }
+
+    const updatedUsers = users.map((u) => (u.id === userId ? { ...u, password: newPassword, updatedAt: Date.now() } : u));
+    setUsers(updatedUsers);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
+
+    try {
+      await fetch(`/api/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword }),
+      });
+    } catch (e) {}
+
+    showToast('Đã đặt lại mật khẩu cho nhân viên thành công!', 'success');
+    return { success: true };
+  };
+
+  const saveUser = async (userData: Partial<AppUser> & { name: string }): Promise<{ success: boolean; error?: string; user?: AppUser }> => {
+    if (currentUser.role !== 'ADMIN' && !currentUser.permissions.canManageUsers) {
+      return { success: false, error: 'Bạn không có quyền quản trị người dùng!' };
+    }
+
+    let savedUser: AppUser;
+    const existingIndex = userData.id ? users.findIndex((u) => u.id === userData.id) : -1;
+    if (existingIndex >= 0) {
+      savedUser = {
+        ...users[existingIndex],
+        ...userData,
+        updatedAt: Date.now(),
+      };
+      const updatedList = [...users];
+      updatedList[existingIndex] = savedUser;
+      setUsers(updatedList);
+      safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedList);
+      if (currentUser.id === savedUser.id) {
+        setCurrentUser(savedUser);
+      }
+    } else {
+      const newId = userData.id || `user-${Date.now()}`;
+      savedUser = {
+        id: newId,
+        name: userData.name,
+        username: userData.username || userData.email?.split('@')[0] || `user_${Date.now().toString().slice(-4)}`,
+        password: userData.password || '123456',
+        role: userData.role || 'STAFF',
+        roleTitle: userData.roleTitle || (userData.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : userData.role === 'MANAGER' ? 'Quản lý cửa hàng (Store Manager)' : 'Nhân viên bán hàng (Cashier / POS)'),
+        email: userData.email || '',
+        phone: userData.phone || '',
+        avatar: userData.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+        permissions: userData.permissions || {
+          canViewReports: false,
+          canManageProducts: false,
+          canStockIn: false,
+          canManageSuppliers: false,
+          canManageCustomers: false,
+          canAuditInventory: false,
+          canBalanceAudit: false,
+          canManageCashbook: false,
+          canAccessDataCenter: false,
+          canSellPOS: true,
+          canViewInvoices: true,
+          canDeleteInvoices: false,
+          canEditSystemSettings: false,
+          canManageUsers: false,
+          canImportData: false,
+        },
+        bio: userData.bio || '',
+        status: userData.status || 'ACTIVE',
+        updatedAt: Date.now(),
+      };
+      const updatedList = [...users, savedUser];
+      setUsers(updatedList);
+      safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedList);
+    }
+
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(savedUser),
+      });
+    } catch (e) {}
+
+    showToast('Lưu thông tin người dùng thành công!', 'success');
+    return { success: true, user: savedUser };
+  };
+
+  const toggleUserLock = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser.role !== 'ADMIN' && !currentUser.permissions.canManageUsers) {
+      return { success: false, error: 'Bạn không có quyền quản lý người dùng!' };
+    }
+    const target = users.find((u) => u.id === userId);
+    if (!target) return { success: false, error: 'Không tìm thấy tài khoản!' };
+    if (target.role === 'ADMIN' || target.id === 'user-admin-01') {
+      return { success: false, error: 'Không thể khóa tài khoản Quản trị viên cấp cao!' };
+    }
+
+    const newStatus: 'ACTIVE' | 'LOCKED' = target.status === 'LOCKED' ? 'ACTIVE' : 'LOCKED';
+    const updatedUsers = users.map((u) => (u.id === userId ? { ...u, status: newStatus, updatedAt: Date.now() } : u));
+    setUsers(updatedUsers);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
+
+    try {
+      await fetch(`/api/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (e) {}
+
+    showToast(newStatus === 'ACTIVE' ? `Đã mở khóa tài khoản ${target.name}` : `Đã khóa tài khoản ${target.name}`, 'info');
+    return { success: true };
+  };
+
+  const deleteUser = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser.role !== 'ADMIN' && !currentUser.permissions.canManageUsers) {
+      return { success: false, error: 'Bạn không có quyền quản lý người dùng!' };
+    }
+    const target = users.find((u) => u.id === userId);
+    if (!target) return { success: false, error: 'Không tìm thấy tài khoản!' };
+    if (target.role === 'ADMIN' || target.id === 'user-admin-01') {
+      return { success: false, error: 'Không thể xóa tài khoản Quản trị viên cấp cao!' };
+    }
+
+    const updatedUsers = users.filter((u) => u.id !== userId);
+    setUsers(updatedUsers);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
+
+    try {
+      await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+    } catch (e) {}
+
+    showToast(`Đã xóa tài khoản ${target.name} thành công!`, 'success');
+    return { success: true };
+  };
+
+  const updateUserProfile = async (profileData: Partial<AppUser>): Promise<{ success: boolean; error?: string }> => {
+    if (!currentUser) return { success: false, error: 'Chưa có thông tin đăng nhập' };
+    const updated: AppUser = { ...currentUser, ...profileData, updatedAt: Date.now() };
+    setCurrentUser(updated);
+    const updatedUsers = users.map((u) => (u.id === currentUser.id ? updated : u));
+    setUsers(updatedUsers);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
+
+    try {
+      await fetch(`/api/users/${currentUser.id}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData),
+      });
+    } catch (e) {}
+
+    showToast('Cập nhật hồ sơ cá nhân thành công!', 'success');
+    setIsUserProfileOpen(false);
+    return { success: true };
+  };
+
+  const switchUser = async (userId: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+    const found = users.find((u) => u.id === userId);
+    if (!found) return { success: false, error: 'Không tìm thấy người dùng' };
+    if (found.status === 'LOCKED') {
+      return { success: false, error: 'Tài khoản này đang bị khóa!' };
+    }
+    if (password !== undefined) {
+      if (found.password && found.password !== password) {
+        return { success: false, error: 'Mật khẩu không chính xác!' };
+      }
+    }
+    setCurrentUser(found);
+    setIsAuthenticated(true);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'is_authenticated', 'true');
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'current_user_id', found.id);
+    showToast(`Đã chuyển phiên làm việc sang: ${found.name} (${found.roleTitle})`, 'success');
+    return { success: true };
   };
 
   useEffect(() => {
@@ -2598,9 +2981,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       value={{
         users,
         currentUser,
+        isAuthenticated,
+        login,
+        logout,
+        changePassword,
+        resetUserPassword,
+        saveUser,
+        deleteUser,
+        toggleUserLock,
+        updateUserProfile,
         switchUser,
         isUserSwitcherOpen,
         setIsUserSwitcherOpen,
+        isUserProfileOpen,
+        setIsUserProfileOpen,
+        isChangePasswordOpen,
+        setIsChangePasswordOpen,
         currentView,
         setCurrentView,
         currentBranch,

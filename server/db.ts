@@ -115,13 +115,136 @@ const DEFAULT_SETTINGS: StoreSettings = {
   autoOpenCashDrawer: false,
 };
 
+export const DEFAULT_USERS: AppUser[] = [
+  {
+    id: 'user-admin-01',
+    name: 'Phan Anh Tài',
+    username: 'tai',
+    password: 'admin123',
+    role: 'ADMIN',
+    roleTitle: 'Full Access Admin (Toàn quyền hệ thống)',
+    email: 'sn.phanminh@gmail.com',
+    phone: '0912.345.678',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+    bio: 'Chủ sở hữu & Quản trị viên cấp cao nhất - Cửa hàng Ngân Sơn',
+    status: 'ACTIVE',
+    permissions: {
+      canViewReports: true,
+      canManageProducts: true,
+      canStockIn: true,
+      canManageSuppliers: true,
+      canManageCustomers: true,
+      canAuditInventory: true,
+      canBalanceAudit: true,
+      canManageCashbook: true,
+      canAccessDataCenter: true,
+      canSellPOS: true,
+      canViewInvoices: true,
+      canDeleteInvoices: true,
+      canEditSystemSettings: true,
+      canManageUsers: true,
+      canImportData: true,
+    },
+  },
+  {
+    id: 'user-manager-01',
+    name: 'Phan Minh Sơn',
+    username: 'son',
+    password: 'minhson318vuquang',
+    role: 'MANAGER',
+    roleTitle: 'Quản lý cửa hàng (Store Manager)',
+    email: 'son.phanminh@nganson.vn',
+    phone: '0977.334.455',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
+    bio: 'Quản lý cửa hàng - Giám sát vận hành, Báo cáo tài chính, Kiểm kê kho hàng',
+    status: 'ACTIVE',
+    permissions: {
+      canViewReports: true,
+      canManageProducts: true,
+      canStockIn: true,
+      canManageSuppliers: true,
+      canManageCustomers: true,
+      canAuditInventory: true,
+      canBalanceAudit: true,
+      canManageCashbook: true,
+      canAccessDataCenter: true,
+      canSellPOS: true,
+      canViewInvoices: true,
+      canDeleteInvoices: false,
+      canEditSystemSettings: false,
+      canManageUsers: false,
+      canImportData: false,
+    },
+  },
+  {
+    id: 'user-manager-02',
+    name: 'Nguyễn Thị Ngân',
+    username: 'ngan',
+    password: 'ngan318vuquang',
+    role: 'MANAGER',
+    roleTitle: 'Quản lý cửa hàng (Store Manager)',
+    email: 'ngan.nguyen@nganson.vn',
+    phone: '0988.112.233',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
+    bio: 'Quản lý cửa hàng - Phụ trách Báo cáo doanh thu, Kiểm kê kho, Sổ quỹ & Nhà cung cấp',
+    status: 'ACTIVE',
+    permissions: {
+      canViewReports: true,
+      canManageProducts: true,
+      canStockIn: true,
+      canManageSuppliers: true,
+      canManageCustomers: true,
+      canAuditInventory: true,
+      canBalanceAudit: true,
+      canManageCashbook: true,
+      canAccessDataCenter: true,
+      canSellPOS: true,
+      canViewInvoices: true,
+      canDeleteInvoices: false,
+      canEditSystemSettings: false,
+      canManageUsers: false,
+      canImportData: false,
+    },
+  },
+  {
+    id: 'user-staff-01',
+    name: 'Phan Minh Nhật',
+    username: 'nhat',
+    password: 'minhnhat318vuquang',
+    role: 'STAFF',
+    roleTitle: 'Nhân viên bán hàng (Cashier / POS)',
+    email: 'nhat.phanminh@nganson.vn',
+    phone: '0966.556.677',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
+    bio: 'Nhân viên bán hàng tại quầy - Thực hiện giao dịch POS, thu tiền và in hóa đơn',
+    status: 'ACTIVE',
+    permissions: {
+      canViewReports: false,
+      canManageProducts: false,
+      canStockIn: false,
+      canManageSuppliers: false,
+      canManageCustomers: false,
+      canAuditInventory: false,
+      canBalanceAudit: false,
+      canManageCashbook: false,
+      canAccessDataCenter: false,
+      canSellPOS: true,
+      canViewInvoices: true,
+      canDeleteInvoices: false,
+      canEditSystemSettings: false,
+      canManageUsers: false,
+      canImportData: false,
+    },
+  },
+];
+
 const DEFAULT_DB: DatabaseSchema = {
   version: 1,
   lastUpdated: Date.now(),
   settings: DEFAULT_SETTINGS,
   branches: [],
   categories: [],
-  users: [],
+  users: DEFAULT_USERS,
   products: [],
   orders: [],
   suppliers: [],
@@ -163,6 +286,35 @@ class DatabaseManager {
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
+
+        // Normalize users to guarantee passwords, usernames, and statuses exist
+        const rawUsers: AppUser[] = Array.isArray(parsed.users) && parsed.users.length > 0 ? parsed.users : DEFAULT_USERS;
+        const normalizedUsers = rawUsers.map((u: AppUser) => {
+          let username = u.username;
+          let password = u.password;
+          const status = u.status || 'ACTIVE';
+          if (!username) {
+            if (u.id === 'user-admin-01' || u.name?.toLowerCase().includes('tài')) username = 'tai';
+            else if (u.id === 'user-manager-01' || u.name?.toLowerCase().includes('sơn')) username = 'son';
+            else if (u.id === 'user-manager-02' || u.name?.toLowerCase().includes('ngân')) username = 'ngan';
+            else if (u.id === 'user-staff-01' || u.name?.toLowerCase().includes('nhật')) username = 'nhat';
+            else username = u.email ? u.email.split('@')[0] : `user_${u.id}`;
+          }
+          if (!password) {
+            if (username === 'tai' || u.name?.toLowerCase().includes('tài')) password = 'admin123';
+            else if (username === 'son' || u.name?.toLowerCase().includes('sơn')) password = 'minhson318vuquang';
+            else if (username === 'ngan' || u.name?.toLowerCase().includes('ngân')) password = 'ngan318vuquang';
+            else if (username === 'nhat' || u.name?.toLowerCase().includes('nhật')) password = 'minhnhat318vuquang';
+            else password = '123456';
+          }
+          return {
+            ...u,
+            username,
+            password,
+            status,
+          };
+        });
+
         // Ensure all arrays and fields exist
         this.cache = {
           version: parsed.version || 1,
@@ -170,7 +322,7 @@ class DatabaseManager {
           settings: parsed.settings || DEFAULT_SETTINGS,
           branches: parsed.branches || [],
           categories: parsed.categories || [],
-          users: parsed.users || [],
+          users: normalizedUsers,
           products: parsed.products || [],
           orders: parsed.orders || [],
           suppliers: parsed.suppliers || [],
@@ -303,17 +455,24 @@ class DatabaseManager {
         this.cache.categories = categoriesRes.data;
       }
       if (usersRes.data && usersRes.data.length > 0) {
-        this.cache.users = usersRes.data.map((u: any) => ({
-          id: u.id,
-          name: u.name,
-          role: u.role || 'STAFF',
-          roleTitle: u.role_title || (u.role === 'ADMIN' ? 'Quản trị viên (Admin)' : 'Nhân viên bán hàng'),
-          email: u.email || '',
-          phone: u.phone || '',
-          avatar: u.avatar || '',
-          bio: u.bio || '',
-          permissions: u.permissions || {},
-        }));
+        const existingUsersMap = new Map((this.cache?.users || []).map((eu) => [eu.id, eu]));
+        this.cache.users = usersRes.data.map((u: any) => {
+          const existing = existingUsersMap.get(u.id);
+          return {
+            id: u.id,
+            name: u.name,
+            username: u.username || existing?.username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhat' : u.email?.split('@')[0]),
+            password: u.password || existing?.password || (u.id === 'user-admin-01' ? 'admin123' : u.id === 'user-manager-01' ? 'minhson318vuquang' : u.id === 'user-manager-02' ? 'ngan318vuquang' : u.id === 'user-staff-01' ? 'minhnhat318vuquang' : '123456'),
+            status: u.status || existing?.status || 'ACTIVE',
+            role: u.role || existing?.role || 'STAFF',
+            roleTitle: u.role_title || existing?.roleTitle || (u.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : 'Nhân viên bán hàng'),
+            email: u.email || existing?.email || '',
+            phone: u.phone || existing?.phone || '',
+            avatar: u.avatar || existing?.avatar || '',
+            bio: u.bio || existing?.bio || '',
+            permissions: u.permissions || existing?.permissions || {},
+          };
+        });
       }
       if (productsData && productsData.length > 0) {
         this.cache.products = productsData;
@@ -1243,9 +1402,140 @@ class DatabaseManager {
     return db.settings;
   }
 
-  // ==================== USERS ====================
+  // ==================== USERS & AUTH ====================
   public getUsers(): AppUser[] {
     return this.getDB().users;
+  }
+
+  public getUserById(id: string): AppUser | undefined {
+    return this.getDB().users.find((u) => u.id === id);
+  }
+
+  public getUserByUsernameOrEmail(identifier: string): AppUser | undefined {
+    const term = identifier.trim().toLowerCase();
+    return this.getDB().users.find(
+      (u) =>
+        u.username?.toLowerCase() === term ||
+        u.email?.toLowerCase() === term ||
+        u.phone?.trim() === term ||
+        u.name?.toLowerCase() === term
+    );
+  }
+
+  public saveUser(userData: Partial<AppUser> & { name: string }): AppUser {
+    const db = this.getDB();
+    const existingIndex = userData.id ? db.users.findIndex((u) => u.id === userData.id) : -1;
+
+    let userToSave: AppUser;
+    if (existingIndex >= 0) {
+      userToSave = {
+        ...db.users[existingIndex],
+        ...userData,
+        updatedAt: Date.now(),
+      };
+      db.users[existingIndex] = userToSave;
+    } else {
+      const newId = userData.id || `user-${Date.now()}`;
+      userToSave = {
+        id: newId,
+        name: userData.name,
+        username: userData.username || userData.email?.split('@')[0] || `user_${Date.now().toString().slice(-4)}`,
+        password: userData.password || '123456',
+        role: userData.role || 'STAFF',
+        roleTitle: userData.roleTitle || (userData.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : userData.role === 'MANAGER' ? 'Quản lý cửa hàng (Store Manager)' : 'Nhân viên bán hàng (Cashier / POS)'),
+        email: userData.email || '',
+        phone: userData.phone || '',
+        avatar: userData.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+        permissions: userData.permissions || {
+          canViewReports: false,
+          canManageProducts: false,
+          canStockIn: false,
+          canManageSuppliers: false,
+          canManageCustomers: false,
+          canAuditInventory: false,
+          canBalanceAudit: false,
+          canManageCashbook: false,
+          canAccessDataCenter: false,
+          canSellPOS: true,
+          canViewInvoices: true,
+          canDeleteInvoices: false,
+          canEditSystemSettings: false,
+          canManageUsers: false,
+          canImportData: false,
+        },
+        bio: userData.bio || '',
+        status: userData.status || 'ACTIVE',
+        updatedAt: Date.now(),
+      };
+      db.users.push(userToSave);
+    }
+
+    db.lastUpdated = Date.now();
+    this.schedulePersist();
+    this.syncToSupabase('app_users', 'upsert', {
+      id: userToSave.id,
+      name: userToSave.name,
+      role: userToSave.role,
+      role_title: userToSave.roleTitle,
+      email: userToSave.email,
+      phone: userToSave.phone,
+      avatar: userToSave.avatar,
+      bio: userToSave.bio,
+      permissions: userToSave.permissions,
+      updated_at: userToSave.updatedAt,
+    });
+    return userToSave;
+  }
+
+  public updateUserPassword(userId: string, newPass: string): boolean {
+    const db = this.getDB();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return false;
+    user.password = newPass;
+    user.updatedAt = Date.now();
+    db.lastUpdated = Date.now();
+    this.schedulePersist();
+    return true;
+  }
+
+  public updateUserStatus(userId: string, status: 'ACTIVE' | 'LOCKED'): boolean {
+    const db = this.getDB();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return false;
+    user.status = status;
+    user.updatedAt = Date.now();
+    db.lastUpdated = Date.now();
+    this.schedulePersist();
+    return true;
+  }
+
+  public updateUserProfile(userId: string, profile: Partial<AppUser>): AppUser | null {
+    const db = this.getDB();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) return null;
+    if (profile.name !== undefined) user.name = profile.name;
+    if (profile.email !== undefined) user.email = profile.email;
+    if (profile.phone !== undefined) user.phone = profile.phone;
+    if (profile.bio !== undefined) user.bio = profile.bio;
+    if (profile.avatar !== undefined) user.avatar = profile.avatar;
+    user.updatedAt = Date.now();
+    db.lastUpdated = Date.now();
+    this.schedulePersist();
+    return user;
+  }
+
+  public deleteUser(userId: string): boolean {
+    const db = this.getDB();
+    const idx = db.users.findIndex((u) => u.id === userId);
+    if (idx === -1) return false;
+    if (db.users[idx].role === 'ADMIN' || db.users[idx].id === 'user-admin-01') {
+      return false;
+    }
+    db.users.splice(idx, 1);
+    db.lastUpdated = Date.now();
+    this.schedulePersist();
+    this.syncToSupabase('app_users', 'delete', { id: userId });
+    return true;
   }
 
   // ==================== MOBILE & WEB DIFFERENTIAL SYNC ====================

@@ -24,6 +24,8 @@ import {
   Monitor,
   RefreshCw,
   ShieldAlert,
+  KeyRound,
+  LogOut,
 } from 'lucide-react';
 import { MobileCustomerModal } from './MobileCustomerModal';
 import { MobileSupplierModal } from './MobileSupplierModal';
@@ -53,7 +55,17 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
   isManualOverride,
   onResetAutoView,
 }) => {
-  const { storeSettings, currentUser, products, updateProduct, setIsUserSwitcherOpen, showToast } = useApp();
+  const {
+    storeSettings,
+    currentUser,
+    products,
+    updateProduct,
+    setIsUserSwitcherOpen,
+    setIsUserProfileOpen,
+    setIsChangePasswordOpen,
+    logout,
+    showToast,
+  } = useApp();
 
   // Role & Permissions checks
   const canManageProducts = currentUser.role === 'ADMIN' || currentUser.permissions.canManageProducts;
@@ -127,6 +139,43 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
           >
             <Edit2 className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Current User Bar */}
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+          <div
+            onClick={() => setIsUserProfileOpen(true)}
+            className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1"
+          >
+            <div className="relative shrink-0">
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                className="w-10 h-10 rounded-full object-cover border border-slate-200"
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white"></span>
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold text-slate-800 truncate">{currentUser.name}</span>
+              <span className="text-[10px] text-slate-500 truncate">{currentUser.roleTitle}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setIsChangePasswordOpen(true)}
+              className="p-1.5 rounded-lg bg-white border border-slate-200 text-purple-600 hover:bg-purple-50 transition-colors cursor-pointer"
+              title="Đổi mật khẩu"
+            >
+              <KeyRound className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setIsUserSwitcherOpen(true)}
+              className="p-1.5 rounded-lg bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+              title="Đổi tài khoản"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div className="border-t border-slate-100 pt-2.5">
@@ -500,6 +549,21 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
               </button>
             )}
           </div>
+        </div>
+
+        {/* Logout Section */}
+        <div className="bg-white p-3 rounded-2xl border border-rose-100 shadow-2xs">
+          <button
+            onClick={() => {
+              if (window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc này?')) {
+                logout();
+              }
+            }}
+            className="w-full py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            <LogOut className="w-4 h-4 text-rose-500" />
+            <span>Đăng xuất tài khoản</span>
+          </button>
         </div>
       </div>
 

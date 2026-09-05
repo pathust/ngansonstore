@@ -14,6 +14,11 @@ import {
   Settings,
   X,
   Smartphone,
+  UserCheck,
+  KeyRound,
+  LogOut,
+  User,
+  ChevronUp,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -37,9 +42,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     orders,
     customers,
     products,
+    users,
     currentUser,
     setIsUserSwitcherOpen,
+    setIsUserProfileOpen,
+    setIsChangePasswordOpen,
+    logout,
   } = useApp();
+
+  const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
 
   const lowStockCount = products.filter((p) => p.stock <= p.min_stock).length;
 
@@ -120,6 +131,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Settings,
           badge: 'MỚI',
           isRestricted: !currentUser.permissions.canEditSystemSettings,
+        },
+        {
+          id: 'users',
+          label: 'Nhân sự & Phân quyền',
+          icon: UserCheck,
+          badge: users.length > 0 ? `${users.length}` : undefined,
+          isRestricted: !currentUser.permissions.canManageUsers && currentUser.role !== 'ADMIN',
         },
       ],
     },
@@ -275,34 +293,115 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* User Card Footer - Click to Switch User */}
-        <div
-          onClick={() => setIsUserSwitcherOpen(true)}
-          className="p-3 border-t border-slate-200 bg-slate-50 hover:bg-slate-100/90 transition-all cursor-pointer group"
-          title="Bấm để chuyển đổi tài khoản nhân sự"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="relative shrink-0">
+        {/* User Card Footer with Dropdown Actions */}
+        <div className="relative border-t border-slate-200 bg-slate-50">
+          {isUserMenuOpen && (
+            <div className="absolute bottom-full left-2 right-2 mb-1 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2">
+              <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2.5">
                 <img
                   src={currentUser.avatar}
                   alt={currentUser.name}
-                  className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs"
+                  className="w-8 h-8 rounded-full object-cover border border-slate-200"
                 />
-                <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${roleInfo.dot}`}></span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-slate-800 truncate">{currentUser.name}</span>
+                  <span className="text-[10px] text-slate-500 truncate">{currentUser.roleTitle}</span>
+                </div>
               </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
-                  {currentUser.name}
-                </span>
-                <span className="text-[10px] text-slate-500 truncate flex items-center gap-1">
-                  {roleInfo.title}
-                </span>
+
+              <div className="py-1">
+                <button
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    setIsUserProfileOpen(true);
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Hồ sơ cá nhân</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    setIsChangePasswordOpen(true);
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-purple-600 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Đổi mật khẩu</span>
+                </button>
+
+                {(currentUser.role === 'ADMIN' || currentUser.permissions.canManageUsers) && (
+                  <button
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      setCurrentView('users');
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <UserCheck className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Quản lý nhân viên</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    setIsUserSwitcherOpen(true);
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-cyan-600 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Đổi tài khoản trực ca</span>
+                </button>
+              </div>
+
+              <div className="pt-1 border-t border-slate-100">
+                <button
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    if (window.confirm('Bạn có chắc chắn muốn đăng xuất?')) {
+                      logout();
+                    }
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Đăng xuất</span>
+                </button>
               </div>
             </div>
+          )}
 
-            <div className="p-1 rounded bg-white border border-slate-200 text-slate-400 group-hover:text-blue-600 group-hover:border-blue-300 transition-all shrink-0">
-              <ArrowRightLeft className="w-3.5 h-3.5" />
+          <div
+            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+            className="p-3 hover:bg-slate-100/90 transition-all cursor-pointer group"
+            title="Tùy chọn tài khoản người dùng"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="relative shrink-0">
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs"
+                  />
+                  <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${roleInfo.dot}`}></span>
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
+                    {currentUser.name}
+                  </span>
+                  <span className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                    {roleInfo.title}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-1 rounded bg-white border border-slate-200 text-slate-400 group-hover:text-blue-600 group-hover:border-blue-300 transition-all shrink-0">
+                <ChevronUp className={`w-3.5 h-3.5 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+              </div>
             </div>
           </div>
         </div>

@@ -1024,13 +1024,156 @@ apiRouter.delete('/categories/:id', (req: Request, res: Response) => {
   }
 });
 
-// ==================== USERS API ====================
+// ==================== AUTH & USERS API ====================
+apiRouter.post('/auth/login', (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!' });
+    }
+
+    const user = dbManager.getUserByUsernameOrEmail(username);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Tên đăng nhập hoặc tài khoản không tồn tại trên hệ thống!' });
+    }
+
+    if (user.status === 'LOCKED') {
+      return res.status(403).json({ success: false, error: 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Quản trị viên!' });
+    }
+
+    if (user.password && user.password !== password) {
+      return res.status(401).json({ success: false, error: 'Mật khẩu không chính xác! Vui lòng thử lại.' });
+    }
+
+    const { password: _, ...sanitizedUser } = user;
+    const token = `ns_token_${user.id}_${Date.now()}`;
+    return res.json({
+      success: true,
+      user: sanitizedUser,
+      token,
+      message: `Đăng nhập thành công! Chào mừng ${user.name}.`,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi hệ thống';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+apiRouter.post('/auth/change-password', (req: Request, res: Response) => {
+  try {
+    const { userId, oldPassword, newPassword } = req.body;
+    if (!userId || !oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Vui lòng điền đầy đủ mật khẩu cũ và mật khẩu mới!' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'Mật khẩu mới phải có tối thiểu 6 ký tự!' });
+    }
+
+    const user = dbManager.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy người dùng!' });
+    }
+
+    if (user.password && user.password !== oldPassword) {
+      return res.status(400).json({ success: false, error: 'Mật khẩu hiện tại không đúng!' });
+    }
+
+    const ok = dbManager.updateUserPassword(userId, newPassword);
+    if (!ok) {
+      return res.status(500).json({ success: false, error: 'Không thể cập nhật mật khẩu!' });
+    }
+
+    return res.json({ success: true, message: 'Đổi mật khẩu thành công!' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi hệ thống';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
 apiRouter.get('/users', (req: Request, res: Response) => {
   try {
     const users = dbManager.getUsers();
+    // Return sanitized users or keep password for offline client if needed
     res.json({ success: true, data: users });
   } catch (err: unknown) {
-  const message = err instanceof Error ? err.message : 'Unknown error';
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+apiRouter.post('/users', (req: Request, res: Response) => {
+  try {
+    if (!req.body.name || !req.body.name.trim()) {
+      return res.status(400).json({ success: false, error: 'Tên người dùng không được để trống!' });
+    }
+    const saved = dbManager.saveUser(req.body);
+    res.json({ success: true, data: saved, message: 'Lưu thông tin tài khoản thành công!' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi hệ thống';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+apiRouter.post('/users/:id/reset-password', (req: Request, res: Response) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'Mật khẩu mới phải có tối thiểu 6 ký tự!' });
+    }
+    const ok = dbManager.updateUserPassword(req.params.id, newPassword);
+    if (!ok) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản để đặt lại mật khẩu!' });
+    }
+    res.json({ success: true, message: 'Đặt lại mật khẩu cho nhân viên thành công!' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi hệ thống';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+apiRouter.patch('/users/:id/status', (req: Request, res: Response) => {
+  try {
+    const { status } = req.body;
+    if (status !== 'ACTIVE' && status !== 'LOCKED') {
+      return res.status(400).json({ success: false, error: 'Trạng thái không hợp lệ!' });
+    }
+    const ok = dbManager.updateUserStatus(req.params.id, status);
+    if (!ok) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản!' });
+    }
+    res.json({
+      success: true,
+      message: status === 'ACTIVE' ? 'Đã kích hoạt lại tài khoản thành công!' : 'Đã khóa tài khoản thành công!',
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi hệ thống';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+apiRouter.put('/users/:id/profile', (req: Request, res: Response) => {
+  try {
+    const updated = dbManager.updateUserProfile(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản!' });
+    }
+    res.json({ success: true, data: updated, message: 'Cập nhật hồ sơ cá nhân thành công!' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi hệ thống';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+apiRouter.delete('/users/:id', (req: Request, res: Response) => {
+  try {
+    const ok = dbManager.deleteUser(req.params.id);
+    if (!ok) {
+      return res.status(400).json({ success: false, error: 'Không thể xóa tài khoản Quản trị viên (Admin) hoặc tài khoản không tồn tại!' });
+    }
+    res.json({ success: true, message: 'Đã xóa tài khoản thành công!' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Lỗi hệ thống';
     res.status(500).json({ success: false, error: message });
   }
 });

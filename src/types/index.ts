@@ -241,6 +241,8 @@ export interface UserPermissions {
 export interface AppUser {
   id: string;
   name: string;
+  username?: string;
+  password?: string;
   role: UserRole;
   roleTitle: string;
   email: string;
@@ -248,6 +250,8 @@ export interface AppUser {
   avatar: string;
   permissions: UserPermissions;
   bio?: string;
+  status?: 'ACTIVE' | 'LOCKED';
+  updatedAt?: number;
 }
 
 export type SyncState = 'IDLE' | 'SYNCING' | 'ERROR' | 'OFFLINE';
