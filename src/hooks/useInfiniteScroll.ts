@@ -7,7 +7,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  * Nếu không tìm thấy, fallback về viewport (root: null).
  *
  * @param total       Tổng số items trong list
- * @param pageSize    Số items hiện ban đầu và mỗi lần load thêm (default: 20)
+ * @param initialSize Số items hiện ngay khi mount (default: 40)
+ * @param chunkSize   Số items load thêm mỗi lần chạm đáy (default: 20)
  * @param deps        Reset về page 1 khi bất kỳ dep nào thay đổi
  *
  * Returns: { visibleCount, sentinelRef, hasMore }
