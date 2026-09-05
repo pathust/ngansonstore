@@ -78,6 +78,15 @@ export const createSpeechRecognition = (
     recognition.interimResults = true;
     recognition.maxAlternatives = 3;
 
+    // Android's SpeechRecognition (esp. inside embedded WebViews like Zalo's) is known to
+    // sometimes re-deliver already-finalized result entries in a later onresult event instead
+    // of only appending new ones. Blindly re-summing event.results[0..length] every time then
+    // re-commits old segments on top of the transcript, producing a repeating-prefix mess
+    // ("Xin Xin chào Xin chào Xin chào..."). Guard against that by committing each result index
+    // into our own accumulator at most once, regardless of how many times it reappears.
+    let accumulatedFinal = '';
+    let finalizedUpTo = 0;
+
     recognition.onresult = (event: any) => {
       try {
         // Prevent acoustic echo feedback loop if system TTS is speaking
@@ -85,22 +94,28 @@ export const createSpeechRecognition = (
           return;
         }
 
-        let finalTranscript = '';
         let interimTranscript = '';
 
         for (let i = 0; i < event.results.length; ++i) {
-          const item = event.results[i][0];
+          const result = event.results[i];
+          const item = result[0];
           if (!item) continue;
-          if (event.results[i].isFinal) {
-            finalTranscript += (finalTranscript ? ' ' : '') + item.transcript.trim();
-          } else {
-            interimTranscript += (interimTranscript ? ' ' : '') + item.transcript.trim();
+          const text = item.transcript.trim();
+          if (!text) continue;
+
+          if (result.isFinal) {
+            if (i >= finalizedUpTo) {
+              accumulatedFinal = accumulatedFinal ? `${accumulatedFinal} ${text}` : text;
+              finalizedUpTo = i + 1;
+            }
+          } else if (i >= finalizedUpTo) {
+            interimTranscript = interimTranscript ? `${interimTranscript} ${text}` : text;
           }
         }
 
-        const currentTranscript = [finalTranscript, interimTranscript].filter(Boolean).join(' ').trim();
+        const currentTranscript = [accumulatedFinal, interimTranscript].filter(Boolean).join(' ').trim();
         if (currentTranscript) {
-          onResult(currentTranscript, Boolean(finalTranscript));
+          onResult(currentTranscript, Boolean(accumulatedFinal));
         }
       } catch (err) {
         console.warn('Error parsing speech recognition results:', err);

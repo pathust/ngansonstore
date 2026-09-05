@@ -255,12 +255,19 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
         setTranscript(newTranscript);
         if (analyzeTimeoutRef.current) clearTimeout(analyzeTimeoutRef.current);
 
+        // Defense-in-depth: a real voice command is rarely this long. If the transcript keeps
+        // growing well past that (device-quirk duplication we haven't anticipated, or someone
+        // genuinely rambling), analyze immediately instead of letting it keep growing while
+        // waiting for a silence gap that may never come.
+        const MAX_TRANSCRIPT_CHARS = 220;
+        const delayMs = newTranscript.length > MAX_TRANSCRIPT_CHARS ? 0 : 1200;
+
         // Wait for a short pause before auto-analyzing so natural speech isn't cut mid-sentence,
         // but shorter than before so the assistant feels snappier.
         analyzeTimeoutRef.current = setTimeout(() => {
           if (mySession !== recognitionSessionRef.current) return; // stale/superseded session
           executeAnalysis(newTranscript);
-        }, 1200);
+        }, delayMs);
       },
       (error) => {
         if (mySession !== recognitionSessionRef.current) return;
