@@ -7,6 +7,8 @@ mobile/node_modules/
 .vscode/
 .idea/
 .claude/
+.agents/
+.codex/
 
 # Local database & data files (already migrated to Supabase)
 .data/
