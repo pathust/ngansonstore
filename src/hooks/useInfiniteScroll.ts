@@ -3,6 +3,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 /**
  * useInfiniteScroll — tải thêm items khi scroll đến cuối danh sách.
  *
+ * Tự động tìm scroll container qua id="mobile-scroll-root" (MobileAppContainer).
+ * Nếu không tìm thấy, fallback về viewport (root: null).
+ *
  * @param total       Tổng số items trong list
  * @param pageSize    Số items hiện ban đầu và mỗi lần load thêm (default: 20)
  * @param deps        Reset về page 1 khi bất kỳ dep nào thay đổi
@@ -30,9 +33,13 @@ export function useInfiniteScroll(
 
   useEffect(() => {
     observerRef.current?.disconnect();
+
+    // Tìm scroll container — MobileAppContainer dùng id="mobile-scroll-root"
+    const scrollRoot = document.getElementById('mobile-scroll-root') ?? null;
+
     observerRef.current = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) loadMore(); },
-      { rootMargin: '200px' }
+      { root: scrollRoot, rootMargin: '300px' }
     );
     if (sentinelRef.current) observerRef.current.observe(sentinelRef.current);
     return () => observerRef.current?.disconnect();
@@ -40,3 +47,4 @@ export function useInfiniteScroll(
 
   return { visibleCount, sentinelRef, hasMore: visibleCount < total };
 }
+

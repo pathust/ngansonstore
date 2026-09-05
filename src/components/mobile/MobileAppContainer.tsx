@@ -40,7 +40,7 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F5F6F8] font-sans antialiased text-slate-800 select-none">
       {/* Active Screen View */}
-      <div className="flex-1 overflow-y-auto scroll-hide relative">
+      <div id="mobile-scroll-root" className="flex-1 overflow-y-auto scroll-hide relative">
         {activeTab === 'OVERVIEW' && <MobileOverviewScreen onNavigateTab={(tab) => setActiveTab(tab)} />}
         {activeTab === 'PRODUCTS' && <MobileProductsScreen />}
         {activeTab === 'POS' && <MobilePosScreen />}
