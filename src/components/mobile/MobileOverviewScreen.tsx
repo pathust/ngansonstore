@@ -118,27 +118,100 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
       filteredReturns.reduce((sum: number, r: any) => sum + (r.totalRefund || r.refundAmount || 0), 0) +
       cancelledOrders.reduce((sum: number, o: any) => sum + (o.final_amount || 0), 0);
 
-    // Calculate last 7 days daily revenue for chart
+    // Chart granularity adapts to the selected period instead of always showing daily bars —
+    // a full month as 31 daily bars doesn't fit a small dashboard card, and "all time" has no
+    // natural day range at all. Each case picks whatever bucket size keeps the bar count small
+    // and the trend still readable: single day -> 1 bar, a week -> daily, a month -> daily while
+    // short (early in the month) else weekly, all time -> yearly.
     const pad = (n: number) => n.toString().padStart(2, '0');
-    const sevenDaysData: { dayLabel: string; revenue: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-      const dStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
-      const dEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
-      const dRev = completedOrders
+    const todayAtMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sumRevenueInRange = (startTs: number, endTs: number) =>
+      completedOrders
         .filter((o) => {
           const ts = parseDateToTimestamp(o.created_at);
-          return ts >= dStart && ts <= dEnd;
+          return ts >= startTs && ts <= endTs;
         })
         .reduce((sum, o) => sum + (o.final_amount || 0), 0);
+    const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
+    const isSameDay = (a: Date, b: Date) => a.getTime() === b.getTime();
 
-      sevenDaysData.push({
-        dayLabel: pad(d.getDate()),
-        revenue: dRev,
-      });
+    const pushDailyBuckets = (buckets: { dayLabel: string; revenue: number; isToday: boolean }[], start: Date, endInclusive: Date) => {
+      const count = Math.round((endInclusive.getTime() - start.getTime()) / 86400000) + 1;
+      for (let i = 0; i < count; i++) {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        buckets.push({
+          dayLabel: pad(d.getDate()),
+          revenue: sumRevenueInRange(d.getTime(), endOfDay(d)),
+          isToday: isSameDay(d, todayAtMidnight),
+        });
+      }
+    };
+
+    const pushHourlyBuckets = (buckets: { dayLabel: string; revenue: number; isToday: boolean }[], day: Date, isCurrentDay: boolean) => {
+      const bucketSizeHours = 3; // a handful of hours per bar, not all 24 individually
+      const nowHour = now.getHours();
+      for (let h = 0; h < 24; h += bucketSizeHours) {
+        const bucketEndHourExclusive = Math.min(h + bucketSizeHours, 24);
+        const bucketStartTs = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, 0, 0, 0).getTime();
+        const bucketEndTs = new Date(day.getFullYear(), day.getMonth(), day.getDate(), bucketEndHourExclusive - 1, 59, 59, 999).getTime();
+        buckets.push({
+          dayLabel: `${h}h`,
+          revenue: sumRevenueInRange(bucketStartTs, bucketEndTs),
+          isToday: isCurrentDay && nowHour >= h && nowHour < bucketEndHourExclusive,
+        });
+      }
+    };
+
+    const pushWeeklyBuckets = (buckets: { dayLabel: string; revenue: number; isToday: boolean }[], monthStart: Date, monthEndInclusive: Date) => {
+      let weekIndex = 1;
+      let cursor = monthStart;
+      while (cursor.getTime() <= monthEndInclusive.getTime()) {
+        const weekEndCandidate = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 6);
+        const weekEnd = weekEndCandidate.getTime() < monthEndInclusive.getTime() ? weekEndCandidate : monthEndInclusive;
+        const weekEndTs = endOfDay(weekEnd);
+        const containsToday = todayAtMidnight.getTime() >= cursor.getTime() && todayAtMidnight.getTime() <= weekEndTs;
+        buckets.push({
+          dayLabel: `Tuần ${weekIndex}`,
+          revenue: sumRevenueInRange(cursor.getTime(), weekEndTs),
+          isToday: containsToday,
+        });
+        weekIndex++;
+        cursor = new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate() + 1);
+      }
+    };
+
+    const chartDaysData: { dayLabel: string; revenue: number; isToday: boolean }[] = [];
+
+    if (timeRange === 'today' || timeRange === 'yesterday') {
+      const d = timeRange === 'today' ? todayAtMidnight : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      pushHourlyBuckets(chartDaysData, d, timeRange === 'today');
+    } else if (timeRange === 'this_month' || timeRange === 'last_month') {
+      const monthStart = timeRange === 'this_month' ? new Date(now.getFullYear(), now.getMonth(), 1) : new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const monthEndInclusive = timeRange === 'this_month' ? todayAtMidnight : new Date(now.getFullYear(), now.getMonth(), 0);
+      const daysSoFar = Math.round((monthEndInclusive.getTime() - monthStart.getTime()) / 86400000) + 1;
+      if (daysSoFar <= 10) {
+        // Early in the month (or viewing a short partial month) — daily is still the clearest view.
+        pushDailyBuckets(chartDaysData, monthStart, monthEndInclusive);
+      } else {
+        pushWeeklyBuckets(chartDaysData, monthStart, monthEndInclusive);
+      }
+    } else if (timeRange === 'all') {
+      // Aggregate by year across the actual span of order data (falls back to the current year
+      // alone if there's no data yet, rather than an arbitrary/empty range).
+      const orderTimestamps = completedOrders.map((o) => parseDateToTimestamp(o.created_at)).filter((ts) => ts > 0);
+      const minYear = orderTimestamps.length > 0 ? new Date(Math.min(...orderTimestamps)).getFullYear() : now.getFullYear();
+      const maxYear = now.getFullYear();
+      for (let y = minYear; y <= maxYear; y++) {
+        const yStart = new Date(y, 0, 1).getTime();
+        const yEnd = new Date(y, 11, 31, 23, 59, 59, 999).getTime();
+        chartDaysData.push({ dayLabel: `${y}`, revenue: sumRevenueInRange(yStart, yEnd), isToday: y === now.getFullYear() });
+      }
+    } else {
+      // 'last_7_days' (and any unrecognized value) — the original, still-appropriate 7-day daily view.
+      pushDailyBuckets(chartDaysData, new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6), todayAtMidnight);
     }
 
-    const maxChartRev = Math.max(...sevenDaysData.map((d) => d.revenue), 1000000);
+    const maxChartRev = Math.max(...chartDaysData.map((d) => d.revenue), 1000000);
 
     return {
       orderCount,
@@ -146,7 +219,7 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
       profit,
       returnCount,
       returnTotal,
-      chartDays: sevenDaysData,
+      chartDays: chartDaysData,
       maxChartRev,
     };
   }, [orders, timeRange, returnsData]);
@@ -371,45 +444,79 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
 
           {/* Bar Chart Canvas / SVG */}
           <div className="pt-2 pb-1">
-            <div className="h-44 w-full flex flex-col justify-between relative">
-              {/* Y Axis Grid lines — ticks are computed straight from the actual max revenue
-                  (in đ) and formatted with formatShortCurrency (K/M/tỷ), instead of forcing
-                  everything into whole "triệu" units. The old version rounded to whole millions
-                  first, so any day under 1.000.000đ (the common case for a small store) rounded
-                  every tick up to the same "1Tr" label. */}
-              {(() => {
-                const maxRev = Math.max(0, metrics.maxChartRev);
-                const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => maxRev * fraction);
-                return ticks.map((val, idx) => (
-                  <div key={idx} className="flex items-center gap-2 w-full text-[10px] text-slate-400">
-                    <span className="w-12 text-right font-mono">{val > 0 ? formatShortCurrency(val) : '0'}</span>
-                    <div className="flex-1 border-b border-slate-100" />
-                  </div>
-                ));
-              })()}
+            {(() => {
+              // Ticks are computed straight from the actual max revenue (in đ) and formatted
+              // with formatShortCurrency (K/M/tỷ), instead of forcing everything into whole
+              // "triệu" units first — the old version rounded to whole millions before taking
+              // any fraction, so any day under 1.000.000đ (the common case for a small store)
+              // rounded every tick up to the same "1Tr" label.
+              const maxRev = Math.max(0, metrics.maxChartRev);
+              const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => maxRev * fraction);
+              const dayCount = metrics.chartDays.length;
+              // A week or so of bars fits and spreads evenly across the card as before. A full
+              // month (up to 31 bars, e.g. "Tháng trước") does not — instead of squeezing them
+              // down to illegibility or clipping days off the edge, give each column a fixed
+              // minimum width and let that area scroll horizontally, while the Y-axis stays put.
+              const needsScroll = dayCount > 10;
+              const columnMinWidthPx = 30;
 
-              {/* Bar Columns Container */}
-              <div className="absolute inset-x-8 bottom-4 top-2 flex items-end justify-around pl-4">
-                {metrics.chartDays.map((d, index) => {
-                  const percent = metrics.maxChartRev > 0 ? Math.min(100, Math.round((d.revenue / metrics.maxChartRev) * 100)) : 0;
-                  const isToday = index === metrics.chartDays.length - 1;
-                  return (
-                    <div key={d.dayLabel} className="flex flex-col items-center gap-1.5 h-full justify-end flex-1 max-w-[36px]">
+              return (
+                <div className="h-44 w-full flex">
+                  {/* Fixed Y-axis labels — never scrolls */}
+                  <div className="w-12 shrink-0 h-full flex flex-col justify-between text-[10px] text-slate-400 font-mono text-right pr-2 pb-4">
+                    {ticks.map((val, idx) => (
+                      <span key={idx}>{val > 0 ? formatShortCurrency(val) : '0'}</span>
+                    ))}
+                  </div>
+
+                  {/* Scrollable chart area: grid lines + bars share the same (possibly wider than
+                      the card) width so they always line up regardless of day count. */}
+                  <div className="flex-1 min-w-0 h-full overflow-x-auto">
+                    <div
+                      className="relative h-full"
+                      style={needsScroll ? { minWidth: `${dayCount * columnMinWidthPx}px` } : undefined}
+                    >
+                      {/* Grid lines */}
+                      <div className="absolute inset-0 flex flex-col justify-between pb-4">
+                        {ticks.map((_, idx) => (
+                          <div key={idx} className="border-b border-slate-100" />
+                        ))}
+                      </div>
+
+                      {/* Bars */}
                       <div
-                        className={`w-5 rounded-t-xs transition-all hover:brightness-110 ${
-                          d.revenue > 0 ? 'bg-[#0066FF]' : 'bg-slate-200'
+                        className={`absolute inset-x-0 bottom-4 top-2 flex items-end ${
+                          needsScroll ? 'justify-start gap-1 px-1' : 'justify-around pl-4'
                         }`}
-                        style={{ height: `${Math.max(4, percent)}%` }}
-                        title={`Ngày ${d.dayLabel}: ${formatCurrency(d.revenue)}`}
-                      />
-                      <span className={`text-[10px] ${isToday ? 'font-bold text-[#0066FF]' : 'font-medium text-slate-500'}`}>
-                        {d.dayLabel}
-                      </span>
+                      >
+                        {metrics.chartDays.map((d, index) => {
+                          const percent = metrics.maxChartRev > 0 ? Math.min(100, Math.round((d.revenue / metrics.maxChartRev) * 100)) : 0;
+                          return (
+                            <div
+                              key={index}
+                              className={`flex flex-col items-center gap-1.5 h-full justify-end ${
+                                needsScroll ? 'w-6 shrink-0' : 'flex-1 max-w-[48px]'
+                              }`}
+                            >
+                              <div
+                                className={`w-5 rounded-t-xs transition-all hover:brightness-110 ${
+                                  d.revenue > 0 ? 'bg-[#0066FF]' : 'bg-slate-200'
+                                }`}
+                                style={{ height: `${Math.max(4, percent)}%` }}
+                                title={`Ngày ${d.dayLabel}: ${formatCurrency(d.revenue)}`}
+                              />
+                              <span className={`text-[10px] whitespace-nowrap ${d.isToday ? 'font-bold text-[#0066FF]' : 'font-medium text-slate-500'}`}>
+                                {d.dayLabel}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
