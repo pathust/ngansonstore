@@ -208,6 +208,34 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
 
     setIsCheckingOut(true);
     try {
+      if (posMode === 'PRE_ORDER') {
+        const preOrderCode = `DH${Date.now().toString().slice(-6)}`;
+        const itemsSummary = activeTab.items
+          .map((i) => `${i.name} (x${i.quantity})`)
+          .join(', ');
+        const newPreOrder = {
+          id: `pre-${Date.now()}`,
+          code: preOrderCode,
+          customerName: currentCustomerName || 'Khách lẻ',
+          phone: activeTab.customer_phone || '',
+          itemsSummary: itemsSummary || 'Hàng đặt',
+          totalAmount: cartSubtotal,
+          depositAmount: cartSubtotal,
+          deliveryDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString('vi-VN'),
+          status: 'PENDING' as const,
+          createdAt: Date.now(),
+        };
+        const saved = localStorage.getItem('nganson_preorders');
+        const list = saved ? JSON.parse(saved) : [];
+        localStorage.setItem('nganson_preorders', JSON.stringify([newPreOrder, ...list]));
+
+        clearActiveCart();
+        setIsPaymentModalOpen(false);
+        setIsCartDrawerOpen(false);
+        showToast(`Đã lưu đơn đặt hàng ${preOrderCode} thành công!`, 'success');
+        return;
+      }
+
       const order = completeCheckout(paymentMethod, cartSubtotal);
       if (order) {
         setIsPaymentModalOpen(false);
@@ -226,12 +254,24 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Bán hàng</h1>
           {posMode === 'PRE_ORDER' && (
-            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black">
-              ĐẶT HÀNG
-            </span>
+            <button
+              onClick={() => {
+                setPosMode('SALE');
+                showToast('Đã chuyển về chế độ Bán hàng lẻ', 'info');
+              }}
+              className="px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-black flex items-center gap-1 active:scale-95 transition-all shadow-2xs cursor-pointer"
+              title="Chạm để chuyển về Bán hàng lẻ"
+            >
+              <span>ĐẶT HÀNG</span>
+              <span className="text-amber-600 font-bold ml-0.5">✕</span>
+            </button>
           )}
         </div>
-        <button aria-label="Xem giỏ hàng" onClick={() => setIsCartDrawerOpen(true)} className="relative p-1.5 text-slate-600 hover:text-[#0066FF] transition-colors" title="Xem giỏ hàng"
+        <button
+          aria-label="Xem giỏ hàng"
+          onClick={() => setIsCartDrawerOpen(true)}
+          className="relative p-1.5 text-slate-600 hover:text-[#0066FF] transition-colors"
+          title="Xem giỏ hàng"
         >
           <Clock className="w-5 h-5" />
           {cartTotalItems > 0 && (
@@ -241,6 +281,25 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
           )}
         </button>
       </div>
+
+      {/* Top Banner when in PRE_ORDER mode */}
+      {posMode === 'PRE_ORDER' && (
+        <div className="bg-amber-50 border-b border-amber-200/80 px-4 py-2 flex items-center justify-between text-xs text-amber-900 animate-in fade-in">
+          <div className="flex items-center gap-1.5 font-bold">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span>Chế độ: Đặt hàng / Nhận cọc</span>
+          </div>
+          <button
+            onClick={() => {
+              setPosMode('SALE');
+              showToast('Đã chuyển về chế độ Bán hàng lẻ', 'info');
+            }}
+            className="px-2.5 py-0.5 bg-white border border-amber-300 rounded-lg font-bold text-amber-700 active:scale-95 shadow-2xs hover:bg-amber-100/50 cursor-pointer"
+          >
+            Quay lại Bán hàng
+          </button>
+        </div>
+      )}
 
       {/* Search Bar Row (Image 5) */}
       <div className="p-3 bg-white border-b border-slate-100 flex items-center gap-2">
@@ -411,42 +470,59 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
       {/* Floating Bottom Pill: Đặt hàng | Bán hàng | ... (Image 5) */}
       <div className="fixed bottom-20 inset-x-0 flex items-center justify-center z-30 px-4">
         <div className="bg-white rounded-full p-1 shadow-xl border border-slate-200/90 flex items-center gap-1">
+          {/* Nút Đặt hàng */}
+          <button
+            onClick={() => {
+              if (posMode === 'PRE_ORDER') {
+                setIsCartDrawerOpen(true);
+              } else {
+                setPosMode('PRE_ORDER');
+                showToast('Đã chuyển sang chế độ Đặt hàng / Nhận cọc', 'info');
+              }
+            }}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer ${
+              posMode === 'PRE_ORDER'
+                ? 'bg-amber-500 text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>Đặt hàng</span>
+            {posMode === 'PRE_ORDER' && cartTotalItems > 0 && (
+              <span className="bg-white text-amber-600 rounded-full px-1.5 py-0.2 text-[10px] font-black">
+                {cartTotalItems}
+              </span>
+            )}
+          </button>
+
+          {/* Nút Bán hàng */}
           <button
             onClick={() => {
               if (posMode === 'SALE') {
-                setPosMode('PRE_ORDER');
-                showToast('Đã chuyển sang chế độ Đặt hàng / Nhận cọc', 'info');
+                setIsCartDrawerOpen(true);
               } else {
                 setPosMode('SALE');
                 showToast('Đã chuyển về chế độ Bán hàng lẻ', 'info');
               }
             }}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-              posMode === 'PRE_ORDER'
-                ? 'bg-amber-500 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Đặt hàng
-          </button>
-
-          <button
-            onClick={() => setIsCartDrawerOpen(true)}
-            className={`px-5 py-2 rounded-full text-xs font-bold shadow-md flex items-center gap-1.5 active:scale-95 transition-all ${
+            className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer ${
               posMode === 'SALE'
-                ? 'bg-[#0066FF] text-white'
+                ? 'bg-[#0066FF] text-white shadow-md'
                 : 'text-slate-600 hover:text-slate-900 bg-slate-100'
             }`}
           >
             <span>Bán hàng</span>
-            {cartTotalItems > 0 && (
+            {posMode === 'SALE' && cartTotalItems > 0 && (
               <span className="bg-white text-[#0066FF] rounded-full px-1.5 py-0.2 text-[10px] font-black">
                 {cartTotalItems}
               </span>
             )}
           </button>
 
-          <button aria-label="Thao tác khác" onClick={() => setIsActionSheetOpen(true)} className="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors" title="Thao tác khác"
+          <button
+            aria-label="Thao tác khác"
+            onClick={() => setIsActionSheetOpen(true)}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Thao tác khác"
           >
             <span className="text-base font-black leading-none mb-1">•••</span>
           </button>
@@ -518,7 +594,9 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
             {/* Header */}
             <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-slate-100">
               <div>
-                <h3 className="font-extrabold text-base text-slate-900">Giỏ hàng ({cartTotalItems} món)</h3>
+                <h3 className="font-extrabold text-base text-slate-900">
+                  {posMode === 'PRE_ORDER' ? 'Đơn đặt hàng' : 'Giỏ hàng'} ({cartTotalItems} món)
+                </h3>
                 <span className="text-xs text-slate-500 font-medium">Khách: {currentCustomerName}</span>
               </div>
               <button aria-label="Đóng giỏ hàng" onClick={() => setIsCartDrawerOpen(false)} className="p-1 text-slate-400">
