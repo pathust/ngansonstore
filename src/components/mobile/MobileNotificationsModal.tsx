@@ -49,6 +49,23 @@ function relativeTime(msAgo: number): string {
   return `${day} ngày trước`;
 }
 
+const NOTIF_READ_KEY = 'nganson_notif_read';
+
+function getReadIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(NOTIF_READ_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistReadIds(ids: Set<string>) {
+  try {
+    localStorage.setItem(NOTIF_READ_KEY, JSON.stringify([...ids]));
+  } catch {}
+}
+
 export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> = ({
   isOpen,
   onClose,
@@ -127,7 +144,13 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
     }
 
     items.sort((a, b) => b.timestamp - a.timestamp);
-    setNotifications(items.map(({ timestamp, ...rest }) => rest));
+    const readIds = getReadIds();
+    setNotifications(
+      items.map(({ timestamp, ...rest }) => ({
+        ...rest,
+        isRead: rest.isRead || readIds.has(rest.id),
+      }))
+    );
   }, [products, customers, orders]);
 
   if (!isOpen) return null;
@@ -136,13 +159,23 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
     filter === 'ALL' ? notifications : notifications.filter((n) => n.type === filter);
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  const handleMarkAllRead = () =>
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => {
+      const updated = prev.map((n) => ({ ...n, isRead: true }));
+      const readIds = getReadIds();
+      updated.forEach((n) => readIds.add(n.id));
+      persistReadIds(readIds);
+      return updated;
+    });
+  };
 
   const handleItemClick = (n: NotificationItem) => {
     setNotifications((prev) =>
       prev.map((item) => (item.id === n.id ? { ...item, isRead: true } : item))
     );
+    const readIds = getReadIds();
+    readIds.add(n.id);
+    persistReadIds(readIds);
     onClose();
     if (n.type === 'STOCK' && onNavigateTab) onNavigateTab('PRODUCTS');
     else if (n.type === 'ORDER' && onNavigateTab) onNavigateTab('INVOICES');
