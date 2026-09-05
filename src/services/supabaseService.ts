@@ -152,17 +152,47 @@ export class SupabaseService {
     try {
       const { data, error } = await supabase.from('app_users').select('*');
       if (error || !data) return [];
-      return data.map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        role: u.role || 'STAFF',
-        roleTitle: u.role_title || (u.role === 'ADMIN' ? 'Quản trị viên (Admin)' : 'Nhân viên bán hàng'),
-        email: u.email || '',
-        phone: u.phone || '',
-        avatar: u.avatar || '',
-        bio: u.bio || '',
-        permissions: u.permissions || {},
-      }));
+      return data.map((u: any) => {
+        const perms = u.permissions || {};
+        const username = perms._username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhatphan' : u.email ? u.email.split('@')[0] : 'user');
+        let password = perms._password;
+        if (!password || password === '123456') {
+          if (username === 'tai' || u.id === 'user-admin-01') password = 'admin123';
+          else if (username === 'son' || u.id === 'user-manager-01') password = 'minhson318vuquang';
+          else if (username === 'ngan' || u.id === 'user-manager-02') password = 'ngan318vuquang';
+          else if (username === 'nhat' || username === 'nhatphan' || u.id === 'user-staff-01') password = 'minhnhat318vuquang';
+          else password = '123456';
+        }
+
+        let email = u.email || '';
+        if (u.id === 'user-admin-01' || username === 'tai' || u.name?.toLowerCase().includes('tài')) {
+          email = 'taiphananh28@gmail.com';
+        } else if (u.id === 'user-manager-01' || username === 'son' || u.name?.toLowerCase().includes('sơn')) {
+          email = 'sn.phanminh@gmail.com';
+        } else if (u.id === 'user-manager-02' || username === 'ngan' || u.name?.toLowerCase().includes('ngân')) {
+          email = 'ngansonlv@gmail.com';
+        } else if (u.id === 'user-staff-01' || username === 'nhat' || username === 'nhatphan' || u.name?.toLowerCase().includes('nhật')) {
+          email = 'nhatphanminh2711@gmail.com';
+        }
+
+        return {
+          id: u.id,
+          name: u.name,
+          username,
+          password,
+          role: u.role || 'STAFF',
+          roleTitle: u.role_title || (u.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : u.role === 'MANAGER' ? 'Quản lý cửa hàng (Store Manager)' : 'Nhân viên bán hàng (Cashier / POS)'),
+          email,
+          phone: u.phone || '',
+          avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+          bio: u.bio || '',
+          status: u.is_active === false ? 'LOCKED' : 'ACTIVE',
+          permissions: {
+            ...perms,
+            canImportData: u.can_import_data ?? perms.canImportData ?? false,
+          },
+        };
+      });
     } catch {
       return [];
     }
@@ -179,9 +209,15 @@ export class SupabaseService {
         phone: user.phone || '',
         avatar: user.avatar || '',
         bio: user.bio || '',
-        permissions: user.permissions || {},
+        is_active: user.status !== 'LOCKED',
+        can_import_data: Boolean(user.permissions?.canImportData),
+        permissions: {
+          ...(user.permissions || {}),
+          _username: user.username,
+          _password: user.password,
+        },
       };
-      const { error } = await supabase.from('app_users').upsert(payload);
+      const { error } = await supabase.from('app_users').upsert(payload, { onConflict: 'id' });
       return !error;
     } catch {
       return false;

@@ -470,13 +470,14 @@ class DatabaseManager {
         const existingUsersMap = new Map((this.cache?.users || []).map((eu) => [eu.id, eu]));
         this.cache.users = usersRes.data.map((u: any) => {
           const existing = existingUsersMap.get(u.id);
-          const username = u.username || existing?.username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhat' : u.email?.split('@')[0]);
-          let password = u.password || existing?.password;
+          const perms = u.permissions || {};
+          const username = perms._username || u.username || existing?.username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhatphan' : u.email ? u.email.split('@')[0] : 'user');
+          let password = perms._password || u.password || existing?.password;
           if (!password || password === '123456') {
             if (username === 'tai' || u.id === 'user-admin-01') password = 'admin123';
             else if (username === 'son' || u.id === 'user-manager-01') password = 'minhson318vuquang';
             else if (username === 'ngan' || u.id === 'user-manager-02') password = 'ngan318vuquang';
-            else if (username === 'nhat' || u.id === 'user-staff-01') password = 'minhnhat318vuquang';
+            else if (username === 'nhat' || username === 'nhatphan' || u.id === 'user-staff-01') password = 'minhnhat318vuquang';
             else password = '123456';
           }
 
@@ -487,23 +488,28 @@ class DatabaseManager {
             email = 'sn.phanminh@gmail.com';
           } else if (u.id === 'user-manager-02' || username === 'ngan' || u.name?.toLowerCase().includes('ngân')) {
             email = 'ngansonlv@gmail.com';
-          } else if (u.id === 'user-staff-01' || username === 'nhat' || u.name?.toLowerCase().includes('nhật')) {
+          } else if (u.id === 'user-staff-01' || username === 'nhat' || username === 'nhatphan' || u.name?.toLowerCase().includes('nhật')) {
             email = 'nhatphanminh2711@gmail.com';
           }
+
+          const status = u.is_active === false ? 'LOCKED' : (u.status || existing?.status || 'ACTIVE');
 
           return {
             id: u.id,
             name: u.name,
             username,
             password,
-            status: u.status || existing?.status || 'ACTIVE',
+            status,
             role: u.role || existing?.role || 'STAFF',
-            roleTitle: u.role_title || existing?.roleTitle || (u.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : 'Nhân viên bán hàng'),
+            roleTitle: u.role_title || existing?.roleTitle || (u.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : u.role === 'MANAGER' ? 'Quản lý cửa hàng (Store Manager)' : 'Nhân viên bán hàng'),
             email,
             phone: u.phone || existing?.phone || '',
-            avatar: u.avatar || existing?.avatar || '',
+            avatar: u.avatar || existing?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
             bio: u.bio || existing?.bio || '',
-            permissions: u.permissions || existing?.permissions || {},
+            permissions: {
+              ...perms,
+              canImportData: u.can_import_data ?? perms.canImportData ?? false,
+            },
           };
         });
       }
@@ -550,6 +556,20 @@ class DatabaseManager {
   private formatForSupabase(table: string, item: any): any {
     if (!item || typeof item !== 'object') return item;
     const clean = { ...item };
+    if (table === 'app_users') {
+      delete clean.updated_at;
+      delete clean.username;
+      delete clean.password;
+      delete clean.status;
+      clean.is_active = item.status !== 'LOCKED';
+      clean.can_import_data = Boolean(item.permissions?.canImportData);
+      clean.permissions = {
+        ...(item.permissions || {}),
+        _username: item.username,
+        _password: item.password,
+      };
+      return clean;
+    }
     if (table === 'customers') {
       if (clean.customer_type && !clean.type) clean.type = clean.customer_type;
       delete clean.customer_type;
@@ -568,11 +588,13 @@ class DatabaseManager {
       if (action === 'delete') {
         const id = typeof data === 'string' ? data : data?.id;
         if (id) {
-          await supabase.from(table).delete().eq('id', id);
+          const { error } = await supabase.from(table).delete().eq('id', id);
+          if (error) console.error(`[SUPABASE] Delete error on ${table}:`, error);
         }
       } else {
         const formatted = this.formatForSupabase(table, data);
-        await supabase.from(table).upsert(formatted, { onConflict: 'id' });
+        const { error } = await supabase.from(table).upsert(formatted, { onConflict: 'id' });
+        if (error) console.error(`[SUPABASE] Upsert error on ${table}:`, error);
       }
     } catch (err) {
       console.warn(`[SUPABASE] Mutation sync warning (${action} ${table}):`, err);
@@ -1461,9 +1483,12 @@ class DatabaseManager {
 
     let userToSave: AppUser;
     if (existingIndex >= 0) {
+      const existing = db.users[existingIndex];
       userToSave = {
-        ...db.users[existingIndex],
+        ...existing,
         ...userData,
+        username: userData.username?.trim() || existing.username || userData.email?.split('@')[0] || existing.email?.split('@')[0] || (existing.id === 'user-admin-01' ? 'tai' : existing.id === 'user-manager-01' ? 'son' : existing.id === 'user-manager-02' ? 'ngan' : existing.id === 'user-staff-01' ? 'nhatphan' : 'user'),
+        password: userData.password?.trim() ? userData.password : existing.password,
         updatedAt: Date.now(),
       };
       db.users[existingIndex] = userToSave;
@@ -1472,8 +1497,8 @@ class DatabaseManager {
       userToSave = {
         id: newId,
         name: userData.name,
-        username: userData.username || userData.email?.split('@')[0] || `user_${Date.now().toString().slice(-4)}`,
-        password: userData.password || '123456',
+        username: userData.username?.trim() || userData.email?.split('@')[0] || `user_${Date.now().toString().slice(-4)}`,
+        password: userData.password?.trim() || '123456',
         role: userData.role || 'STAFF',
         roleTitle: userData.roleTitle || (userData.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : userData.role === 'MANAGER' ? 'Quản lý cửa hàng (Store Manager)' : 'Nhân viên bán hàng (Cashier / POS)'),
         email: userData.email || '',
@@ -1508,6 +1533,8 @@ class DatabaseManager {
     this.syncToSupabase('app_users', 'upsert', {
       id: userToSave.id,
       name: userToSave.name,
+      username: userToSave.username,
+      password: userToSave.password,
       role: userToSave.role,
       role_title: userToSave.roleTitle,
       email: userToSave.email,
@@ -1515,7 +1542,7 @@ class DatabaseManager {
       avatar: userToSave.avatar,
       bio: userToSave.bio,
       permissions: userToSave.permissions,
-      updated_at: userToSave.updatedAt,
+      status: userToSave.status,
     });
     return userToSave;
   }
@@ -1528,6 +1555,20 @@ class DatabaseManager {
     user.updatedAt = Date.now();
     db.lastUpdated = Date.now();
     this.schedulePersist();
+    this.syncToSupabase('app_users', 'upsert', {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      password: user.password,
+      role: user.role,
+      role_title: user.roleTitle,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      bio: user.bio,
+      permissions: user.permissions,
+      status: user.status,
+    });
     return true;
   }
 
@@ -1539,6 +1580,20 @@ class DatabaseManager {
     user.updatedAt = Date.now();
     db.lastUpdated = Date.now();
     this.schedulePersist();
+    this.syncToSupabase('app_users', 'upsert', {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      password: user.password,
+      role: user.role,
+      role_title: user.roleTitle,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      bio: user.bio,
+      permissions: user.permissions,
+      status: user.status,
+    });
     return true;
   }
 
@@ -1547,6 +1602,7 @@ class DatabaseManager {
     const user = db.users.find((u) => u.id === userId);
     if (!user) return null;
     if (profile.name !== undefined) user.name = profile.name;
+    if (profile.username !== undefined) user.username = profile.username;
     if (profile.email !== undefined) user.email = profile.email;
     if (profile.phone !== undefined) user.phone = profile.phone;
     if (profile.bio !== undefined) user.bio = profile.bio;
@@ -1554,6 +1610,20 @@ class DatabaseManager {
     user.updatedAt = Date.now();
     db.lastUpdated = Date.now();
     this.schedulePersist();
+    this.syncToSupabase('app_users', 'upsert', {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      password: user.password,
+      role: user.role,
+      role_title: user.roleTitle,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      bio: user.bio,
+      permissions: user.permissions,
+      status: user.status,
+    });
     return user;
   }
 
@@ -1650,6 +1720,13 @@ class DatabaseManager {
         else db.cashbook.unshift(c);
       });
     }
+    if (payload.users) {
+      payload.users.forEach((u) => {
+        const idx = db.users.findIndex((x) => x.id === u.id);
+        if (idx >= 0) db.users[idx] = { ...db.users[idx], ...u };
+        else db.users.push(u);
+      });
+    }
 
     this.schedulePersist();
     if (payload.orders?.length) this.syncBatchToSupabase('orders', payload.orders);
@@ -1657,6 +1734,11 @@ class DatabaseManager {
     if (payload.customers?.length) this.syncBatchToSupabase('customers', payload.customers);
     if (payload.inventory_audits?.length) this.syncBatchToSupabase('inventory_audits', payload.inventory_audits);
     if (payload.cashbook?.length) this.syncBatchToSupabase('cashbook', payload.cashbook);
+    if (payload.users?.length) {
+      for (const u of payload.users) {
+        this.syncToSupabase('app_users', 'upsert', u);
+      }
+    }
 
     return { success: true, serverTimestamp: db.lastUpdated };
   }

@@ -141,7 +141,7 @@ export const DEFAULT_APP_USERS: AppUser[] = [
   {
     id: 'user-staff-01',
     name: 'Phan Minh Nhật',
-    username: 'nhat',
+    username: 'nhatphan',
     password: 'minhnhat318vuquang',
     role: 'STAFF',
     roleTitle: 'Nhân viên bán hàng (Cashier / POS)',
@@ -377,7 +377,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (Array.isArray(parsed) && parsed.length > 0) {
           return DEFAULT_APP_USERS.map((du) => {
             const f = parsed.find((p: AppUser) => p.id === du.id);
-            return f ? { ...du, ...f, email: du.email, password: f.password || du.password } : du;
+            return f
+              ? {
+                  ...du,
+                  ...f,
+                  username: f.username || du.username,
+                  email: du.email,
+                  password: f.password || du.password,
+                }
+              : du;
           });
         }
       } catch (e) {}
@@ -489,11 +497,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
 
     try {
-      await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, oldPassword, newPassword }),
-      });
+      await Promise.allSettled([
+        fetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id, oldPassword, newPassword }),
+        }),
+        supabaseService.upsertUser(updatedUser),
+      ]);
     } catch (e) {}
 
     showToast('Đổi mật khẩu thành công!', 'success');
@@ -514,11 +525,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
 
     try {
-      await fetch(`/api/users/${userId}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword }),
-      });
+      const target = updatedUsers.find((u) => u.id === userId);
+      await Promise.allSettled([
+        fetch(`/api/users/${userId}/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newPassword }),
+        }),
+        target ? supabaseService.upsertUser(target) : Promise.resolve(),
+      ]);
     } catch (e) {}
 
     showToast('Đã đặt lại mật khẩu cho nhân viên thành công!', 'success');
@@ -533,9 +548,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let savedUser: AppUser;
     const existingIndex = userData.id ? users.findIndex((u) => u.id === userData.id) : -1;
     if (existingIndex >= 0) {
+      const existing = users[existingIndex];
       savedUser = {
-        ...users[existingIndex],
+        ...existing,
         ...userData,
+        username: userData.username?.trim() || existing.username || userData.email?.split('@')[0] || existing.email?.split('@')[0] || (existing.id === 'user-admin-01' ? 'tai' : existing.id === 'user-manager-01' ? 'son' : existing.id === 'user-manager-02' ? 'ngan' : existing.id === 'user-staff-01' ? 'nhatphan' : 'user'),
+        password: userData.password?.trim() ? userData.password : existing.password,
         updatedAt: Date.now(),
       };
       const updatedList = [...users];
@@ -550,8 +568,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       savedUser = {
         id: newId,
         name: userData.name,
-        username: userData.username || userData.email?.split('@')[0] || `user_${Date.now().toString().slice(-4)}`,
-        password: userData.password || '123456',
+        username: userData.username?.trim() || userData.email?.split('@')[0] || `user_${Date.now().toString().slice(-4)}`,
+        password: userData.password?.trim() || '123456',
         role: userData.role || 'STAFF',
         roleTitle: userData.roleTitle || (userData.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : userData.role === 'MANAGER' ? 'Quản lý cửa hàng (Store Manager)' : 'Nhân viên bán hàng (Cashier / POS)'),
         email: userData.email || '',
@@ -584,11 +602,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     try {
-      await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(savedUser),
-      });
+      await Promise.allSettled([
+        fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(savedUser),
+        }),
+        supabaseService.upsertUser(savedUser),
+      ]);
     } catch (e) {}
 
     showToast('Lưu thông tin người dùng thành công!', 'success');
@@ -611,11 +632,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
 
     try {
-      await fetch(`/api/users/${userId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      const updatedTarget = updatedUsers.find((u) => u.id === userId);
+      await Promise.allSettled([
+        fetch(`/api/users/${userId}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        }),
+        updatedTarget ? supabaseService.upsertUser(updatedTarget) : Promise.resolve(),
+      ]);
     } catch (e) {}
 
     showToast(newStatus === 'ACTIVE' ? `Đã mở khóa tài khoản ${target.name}` : `Đã khóa tài khoản ${target.name}`, 'info');
@@ -637,7 +662,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
 
     try {
-      await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      await Promise.allSettled([
+        fetch(`/api/users/${userId}`, { method: 'DELETE' }),
+        supabaseService.deleteUser(userId),
+      ]);
     } catch (e) {}
 
     showToast(`Đã xóa tài khoản ${target.name} thành công!`, 'success');
@@ -653,11 +681,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', updatedUsers);
 
     try {
-      await fetch(`/api/users/${currentUser.id}/profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileData),
-      });
+      await Promise.allSettled([
+        fetch(`/api/users/${currentUser.id}/profile`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(profileData),
+        }),
+        supabaseService.upsertUser(updated),
+      ]);
     } catch (e) {}
 
     showToast('Cập nhật hồ sơ cá nhân thành công!', 'success');
@@ -945,13 +976,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
         if (payload.users && payload.users.length > 0) {
           setUsers((prev) => {
-            if (isDataEqual(prev, payload.users)) return prev;
-            safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', payload.users);
-            return payload.users!;
+            const merged = payload.users!.map((pu) => {
+              const prevUser = prev.find((p) => p.id === pu.id);
+              const username = pu.username || prevUser?.username || (pu.id === 'user-admin-01' ? 'tai' : pu.id === 'user-manager-01' ? 'son' : pu.id === 'user-manager-02' ? 'ngan' : pu.id === 'user-staff-01' ? 'nhatphan' : pu.email ? pu.email.split('@')[0] : 'user');
+              const password = pu.password || prevUser?.password || (username === 'tai' ? 'admin123' : username === 'son' ? 'minhson318vuquang' : username === 'ngan' ? 'ngan318vuquang' : 'minhnhat318vuquang');
+              return {
+                ...prevUser,
+                ...pu,
+                username,
+                password,
+              };
+            });
+            if (isDataEqual(prev, merged)) return prev;
+            safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', merged);
+            return merged;
           });
           setCurrentUser((prev) => {
             const found = payload.users!.find((u) => u.id === prev?.id);
-            const target = found || payload.users![0];
+            const target = found ? { ...prev, ...found, username: found.username || prev?.username } : (prev || payload.users![0]);
             if (prev && target && prev.id === target.id && isDataEqual(prev, target)) return prev;
             return target;
           });
