@@ -105,6 +105,10 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
   const analyzeTimeoutRef = useRef<any>(null);
   const lastAnalyzedTextRef = useRef<string>('');
   const isSpeakingRef = useRef<boolean>(false);
+  // Synchronous guard against overlapping analyses — `isAnalyzing` state is async/can be stale
+  // inside closures, so continuous recognition could otherwise fire a new analysis on every
+  // growing transcript chunk while a previous one is still in flight.
+  const isAnalyzingRef = useRef<boolean>(false);
 
   const resetDraftState = () => {
     setParseResult(null);
@@ -313,12 +317,32 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
     const clean = text.trim();
     if (!clean) return;
 
+    // Never start a second analysis while one is still in flight — continuous recognition can
+    // keep growing/repeating the transcript (e.g. background noise), and without this guard each
+    // debounce firing would kick off another overlapping request.
+    if (isAnalyzingRef.current) return;
+
     // Deduplication check: Do not re-analyze the exact same transcript!
     if (clean.toLowerCase() === lastAnalyzedTextRef.current.toLowerCase()) {
       return;
     }
     lastAnalyzedTextRef.current = clean;
 
+    // Pause the mic while analyzing: prevents it from capturing more audio into an
+    // ever-growing/garbled transcript, and removes the trigger for a second overlapping call.
+    const wasListeningBeforeAnalysis = isListening;
+    if (wasListeningBeforeAnalysis) stopListening();
+
+    // Resume the mic only once BOTH the analysis promise has settled AND TTS (if any) has
+    // finished speaking — these two async things can finish in either order, so this is called
+    // from both places and only actually resumes once neither is still pending.
+    const maybeResumeListening = () => {
+      if (wasListeningBeforeAnalysis && isOpen && !isAnalyzingRef.current && !isSpeakingRef.current) {
+        startListening();
+      }
+    };
+
+    isAnalyzingRef.current = true;
     setIsAnalyzing(true);
     try {
       const result = await analyzeVoiceOrderIntentWithAI(
@@ -332,12 +356,10 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
           // Fires as soon as the streamed response has spoken_feedback decodable — long before
           // the full JSON (items, discount, etc.) has finished arriving.
           if (!enableTts) return;
-          const wasListening = isListening;
-          if (wasListening) stopListening();
           isSpeakingRef.current = true;
           speakVietnameseFeedback(earlySpeech, () => {
             isSpeakingRef.current = false;
-            if (wasListening && isOpen) startListening();
+            maybeResumeListening();
           });
         }
       );
@@ -353,7 +375,10 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
       const message = err instanceof Error ? err.message : 'Unknown error';
       console.warn('Analysis error:', err);
     } finally {
+      isAnalyzingRef.current = false;
       setIsAnalyzing(false);
+      setTranscript('');
+      maybeResumeListening();
     }
   };
 
