@@ -90,7 +90,7 @@ const MainLayout: React.FC = () => {
   // Authentication Guard: Require login if not authenticated
   if (!isAuthenticated) {
     return (
-      <div className="h-screen w-screen overflow-hidden font-sans antialiased text-slate-800 relative">
+      <div className="min-h-[100dvh] w-full overflow-y-auto font-sans antialiased text-slate-800 relative">
         <LoginScreen />
         <ToastContainer />
       </div>

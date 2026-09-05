@@ -9,7 +9,10 @@ import {
   ShieldCheck,
   AlertCircle,
   X,
+  Phone,
+  Store,
 } from 'lucide-react';
+import logoImg from '../../assets/logo.png';
 
 export const LoginScreen: React.FC = () => {
   const { login, storeSettings } = useApp();
@@ -57,193 +60,205 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
+  const storeName = storeSettings?.name || 'CỬA HÀNG ĐIỆN NƯỚC & KIM KHÍ NGÂN SƠN';
+  const storeAddress = storeSettings?.address || '318 Vũ Quang, TP. Hà Tĩnh';
+
   return (
-    <div className="min-h-[100dvh] w-full bg-gradient-to-b from-slate-950 via-slate-900 to-[#0A192F] flex flex-col justify-between sm:justify-center items-center sm:p-6 relative overflow-x-hidden font-sans select-none">
-      {/* Background ambient lighting */}
-      <div className="absolute top-[-10%] left-[-10%] w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full bg-blue-600/20 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full bg-indigo-600/20 blur-[100px] pointer-events-none" />
+    <div className="min-h-[100dvh] w-full bg-slate-50 md:bg-gradient-to-br md:from-slate-100 md:via-blue-50/40 md:to-indigo-50/50 flex flex-col justify-start md:justify-center items-center md:p-6 select-none font-sans overflow-x-hidden">
+      {/* Main Container: Full viewport height and edge-to-edge on Mobile, Centered Elegant Card on Tablet/Desktop */}
+      <div className="w-full md:max-w-[440px] min-h-[100dvh] md:min-h-0 flex flex-col justify-between bg-white md:rounded-3xl md:shadow-2xl md:border md:border-slate-200/80 overflow-y-auto md:overflow-hidden">
+        
+        {/* Top Hero Brand Header */}
+        <div className="bg-gradient-to-br from-[#0B63E5] via-[#155DFC] to-[#1E40AF] px-6 pt-10 pb-8 md:pt-8 md:pb-7 text-white text-center relative overflow-hidden shrink-0 shadow-sm">
+          {/* Subtle Ambient Shapes */}
+          <div className="absolute top-[-50%] left-[-20%] w-60 h-60 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute bottom-[-30%] right-[-20%] w-52 h-52 bg-indigo-900/30 rounded-full blur-2xl pointer-events-none" />
 
-      {/* Mobile Top Brand Hero (Visible on Mobile) */}
-      <div className="w-full pt-10 pb-6 px-4 text-center text-white sm:hidden z-10 shrink-0">
-        <div className="flex justify-center mb-3">
-          <div className="w-16 h-16 rounded-2xl bg-white p-2 shadow-2xl flex items-center justify-center ring-4 ring-white/20">
-            <img
-              src="/logo.png"
-              alt="Ngân Sơn"
-              className="w-full h-full object-contain"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-          </div>
-        </div>
-        <h1 className="text-xl font-black tracking-tight uppercase">
-          {storeSettings?.name || 'Cửa hàng Ngân Sơn'}
-        </h1>
-        <p className="text-xs text-blue-200 font-medium mt-1">
-          318 Vũ Quang, TP. Hà Tĩnh
-        </p>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs font-semibold text-blue-100 mt-3">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Hệ thống Quản lý Bán hàng & Kho</span>
-        </div>
-      </div>
-
-      {/* Main Login Card: Expands gracefully on Mobile, Elegant Modal on Desktop */}
-      <div className="relative w-full sm:max-w-md bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 overflow-hidden z-10 flex-1 sm:flex-initial flex flex-col justify-between transition-all">
-        {/* Desktop Top Header Banner (Hidden on Mobile) */}
-        <div className="hidden sm:block bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 px-6 pt-8 pb-7 text-white text-center relative">
-          <div className="flex justify-center mb-3">
-            <div className="w-16 h-16 rounded-2xl bg-white p-2 shadow-lg flex items-center justify-center ring-4 ring-white/20">
+          {/* Logo */}
+          <div className="relative z-10 flex justify-center mb-3.5">
+            <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-white p-2.5 shadow-xl ring-4 ring-white/20 flex items-center justify-center transition-transform duration-200 active:scale-95">
               <img
-                src="/logo.png"
-                alt="Cửa hàng Ngân Sơn"
+                src={logoImg}
+                alt="Ngân Sơn Store"
                 className="w-full h-full object-contain"
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
+              <div className="hidden only:flex w-full h-full rounded-xl bg-blue-600 text-white font-black text-xl items-center justify-center">
+                NS
+              </div>
             </div>
           </div>
-          <h1 className="text-xl font-extrabold tracking-tight uppercase">
-            {storeSettings?.name || 'Cửa hàng Ngân Sơn'}
-          </h1>
-          <p className="text-xs text-blue-100 font-medium mt-1">
-            Hệ thống Quản lý Bán hàng & Kho vật tư • 318 Vũ Quang
-          </p>
+
+          {/* Store Name & Subtitle */}
+          <div className="relative z-10 space-y-1">
+            <h1 className="text-lg sm:text-xl font-black tracking-tight uppercase leading-snug drop-shadow-xs">
+              {storeName}
+            </h1>
+            <p className="text-xs text-blue-100 font-medium">
+              {storeAddress}
+            </p>
+            <div className="pt-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-[11px] font-semibold text-white backdrop-blur-xs">
+                <Store className="w-3.5 h-3.5 text-blue-200" />
+                <span>Hệ thống Quản lý Bán hàng & Kho</span>
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Form Body */}
-        <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-6">
-          <div className="space-y-1">
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-              Đăng nhập
-            </h2>
-            <p className="text-xs text-slate-500 font-medium">
-              Vui lòng nhập tài khoản và mật khẩu được cấp để truy cập hệ thống.
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Account / Username / Email */}
+        {/* Form Body - Overlapping rounded card on mobile, integrated on desktop */}
+        <div className="flex-1 bg-white rounded-t-[28px] md:rounded-t-none -mt-4 md:mt-0 px-6 pt-7 pb-8 md:p-8 flex flex-col justify-between shadow-xs relative z-10">
+          <div className="space-y-6">
+            {/* Form Title & Instruction */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Tài khoản hoặc Email:
-              </label>
-              <div className="relative flex items-center">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <User className="w-5 h-5 text-slate-400" />
-                </div>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-                    setErrorMessage('');
-                  }}
-                  placeholder="Nhập username hoặc email..."
-                  className="w-full pl-11 pr-9 h-12 sm:h-12 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium"
-                  autoComplete="username"
-                  required
-                />
-                {username && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUsername('');
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                Đăng nhập
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+                Nhập tài khoản nhân viên hoặc quản lý để bắt đầu ca làm việc.
+              </p>
+            </div>
+
+            {/* Form Fields */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Username Input */}
+              <div>
+                <label
+                  htmlFor="login-username-input"
+                  className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5"
+                >
+                  Tài khoản hoặc Email:
+                </label>
+                <div className="relative w-full">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-5 h-5 text-slate-400" />
+                  </div>
+                  <input
+                    id="login-username-input"
+                    type="text"
+                    value={username}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
                       setErrorMessage('');
                     }}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-slate-700">
-                  Mật khẩu:
-                </label>
-                {capsLockActive && (
-                  <span className="text-[11px] text-amber-600 font-semibold animate-pulse">
-                    ⚠️ CapsLock đang bật
-                  </span>
-                )}
-              </div>
-              <div className="relative flex items-center">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-5 h-5 text-slate-400" />
+                    placeholder="Nhập username hoặc email..."
+                    className="w-full box-border block pl-11 pr-10 h-13 bg-slate-50 border border-slate-200 rounded-2xl text-base text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    required
+                  />
+                  {username && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUsername('');
+                        setErrorMessage('');
+                      }}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                      aria-label="Xóa"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
-                <input
-                  id="login-password-input"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setErrorMessage('');
-                  }}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Nhập mật khẩu..."
-                  className="w-full pl-11 pr-11 h-12 sm:h-12 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium"
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5 sm:w-4 sm:h-4" /> : <Eye className="w-5 h-5 sm:w-4 sm:h-4" />}
-                </button>
               </div>
-            </div>
 
-            {/* Error Message */}
-            {errorMessage && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-700 text-xs animate-in fade-in font-medium">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{errorMessage}</span>
+              {/* Password Input */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label
+                    htmlFor="login-password-input"
+                    className="block text-xs font-bold text-slate-700 uppercase tracking-wider"
+                  >
+                    Mật khẩu:
+                  </label>
+                  {capsLockActive && (
+                    <span className="text-[11px] text-amber-600 font-semibold animate-pulse">
+                      ⚠️ CapsLock bật
+                    </span>
+                  )}
+                </div>
+                <div className="relative w-full">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-5 h-5 text-slate-400" />
+                  </div>
+                  <input
+                    id="login-password-input"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setErrorMessage('');
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Nhập mật khẩu..."
+                    className="w-full box-border block pl-11 pr-12 h-13 bg-slate-50 border border-slate-200 rounded-2xl text-base text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium"
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 active:text-blue-600 cursor-pointer p-1"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
-            )}
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 sm:h-12 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] text-white font-black text-base sm:text-sm rounded-xl shadow-md hover:shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-3"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Đang xác thực...</span>
-                </>
-              ) : (
-                <>
-                  <LogIn className="w-4 h-4 stroke-[2.5]" />
-                  <span>Đăng nhập hệ thống</span>
-                </>
+              {/* Error Message */}
+              {errorMessage && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-rose-700 text-xs animate-in fade-in font-medium leading-relaxed">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                  <span>{errorMessage}</span>
+                </div>
               )}
-            </button>
-          </form>
 
-          {/* Clean Security Note */}
-          <div className="pt-4 border-t border-slate-100 text-center">
-            <p className="text-[11px] text-slate-400 font-medium">
-              Hệ thống xác thực bảo mật nội bộ • Cửa hàng Ngân Sơn
+              {/* Big Thumb-Friendly Submit Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-13 px-4 bg-gradient-to-r from-[#0B63E5] to-[#1D4ED8] hover:from-[#0952C4] hover:to-[#1E40AF] active:scale-[0.99] text-white font-black text-base rounded-2xl shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Đang xác thực...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-5 h-5 stroke-[2.5]" />
+                    <span>Đăng nhập hệ thống</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Bottom Security & Help Footer */}
+          <div className="mt-8 pt-5 border-t border-slate-100 text-center space-y-2 pb-6 md:pb-0">
+            <p className="text-xs text-slate-500 font-medium">
+              Quên thông tin tài khoản?{' '}
+              <a
+                href="tel:0912345678"
+                className="text-blue-600 font-bold hover:underline inline-flex items-center gap-1"
+              >
+                <Phone className="w-3 h-3" />
+                <span>0912.345.678</span>
+              </a>
             </p>
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium pt-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Bảo mật nội bộ • Cửa hàng Ngân Sơn POS v4.3</span>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Security & Copyright Footer */}
-      <div className="py-4 text-center text-xs text-slate-400/80 flex items-center justify-center gap-1.5 z-10 shrink-0">
-        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-        <span>Bản quyền © 2026 Ngân Sơn Store POS</span>
       </div>
     </div>
   );
