@@ -649,7 +649,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                 <th className="py-2 px-3 text-right whitespace-nowrap">Giá bán lẻ (VNĐ)</th>
                 <th className="py-2 px-3 text-center whitespace-nowrap">Tồn kho</th>
                 <th className="py-2 px-2.5 text-center whitespace-nowrap">Trạng thái</th>
-                <th className="py-2 px-3 text-center whitespace-nowrap">Thao tác</th>
+                <th className="py-2 px-3 text-center whitespace-nowrap sticky right-0 bg-slate-50 z-20 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -789,7 +789,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                       </td>
 
                       {/* Actions */}
-                      <td className="py-2 px-3 text-center whitespace-nowrap">
+                      <td className="py-2 px-3 text-center whitespace-nowrap sticky right-0 bg-white hover:bg-slate-50/80 transition-colors z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleOpenStockIn(p)}

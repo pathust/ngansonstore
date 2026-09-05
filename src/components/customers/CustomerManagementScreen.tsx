@@ -33,6 +33,13 @@ import {
   Building,
   User as UserIcon,
   DollarSign,
+  MapPin,
+  SlidersHorizontal,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 
 export const CustomerManagementScreen: React.FC = () => {
@@ -73,6 +80,61 @@ export const CustomerManagementScreen: React.FC = () => {
 
   // Customer Detail Drawer
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+
+  // Table Density & Column Visibility
+  const [tableDensity, setTableDensity] = useState<'COMFORTABLE' | 'COMPACT'>(() => {
+    return (localStorage.getItem('customer_table_density') as 'COMFORTABLE' | 'COMPACT') || 'COMFORTABLE';
+  });
+  const [isColumnConfigOpen, setIsColumnConfigOpen] = useState(false);
+  const DEFAULT_COLUMNS: Record<string, boolean> = {
+    code: true,
+    name: true,
+    customer_type: true,
+    phone: true,
+    address: true,
+    group: true,
+    debt: true,
+    total_purchased: true,
+    status: true,
+    actions: true,
+  };
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('customer_table_columns');
+      if (saved) return { ...DEFAULT_COLUMNS, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_COLUMNS;
+  });
+
+  const toggleColumn = (key: string) => {
+    setVisibleColumns((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem('customer_table_columns', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const resetColumns = () => {
+    setVisibleColumns(DEFAULT_COLUMNS);
+    try {
+      localStorage.setItem('customer_table_columns', JSON.stringify(DEFAULT_COLUMNS));
+    } catch {}
+  };
+
+  const handleDensityChange = (density: 'COMFORTABLE' | 'COMPACT') => {
+    setTableDensity(density);
+    try {
+      localStorage.setItem('customer_table_density', density);
+    } catch {}
+  };
+
+  // Quick Address Preview Modal
+  const [addressDetailModal, setAddressDetailModal] = useState<{
+    customer: Customer;
+    fullAddress: string;
+  } | null>(null);
 
   // Dedicated Excel Import Modal with Schema
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -705,50 +767,171 @@ export const CustomerManagementScreen: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
-          <span>
-            Hiển thị <strong className="text-slate-800">{filteredCustomers.length}</strong> / {customers.length} khách hàng
-          </span>
-          {(searchTerm || selectedGroup !== 'ALL' || selectedType !== 'ALL' || debtFilter !== 'ALL' || statusFilter !== 'ALL') && (
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedGroup('ALL');
-                setSelectedType('ALL');
-                setDebtFilter('ALL');
-                setStatusFilter('ALL');
-              }}
-              className="text-[#0B63E5] hover:underline font-medium text-xs cursor-pointer flex items-center gap-1"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>Xóa bộ lọc</span>
-            </button>
-          )}
+        <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span>
+              Hiển thị <strong className="text-slate-800">{filteredCustomers.length}</strong> / {customers.length} khách hàng
+            </span>
+            {(searchTerm || selectedGroup !== 'ALL' || selectedType !== 'ALL' || debtFilter !== 'ALL' || statusFilter !== 'ALL') && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedGroup('ALL');
+                  setSelectedType('ALL');
+                  setDebtFilter('ALL');
+                  setStatusFilter('ALL');
+                }}
+                className="text-[#0B63E5] hover:underline font-medium text-xs cursor-pointer flex items-center gap-1 ml-1"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Xóa bộ lọc</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Table Density Toggle */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => handleDensityChange('COMFORTABLE')}
+                className={`px-2 py-1 rounded-md font-medium text-[11px] transition-colors cursor-pointer ${
+                  tableDensity === 'COMFORTABLE'
+                    ? 'bg-white text-slate-800 shadow-2xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                title="Khoảng cách dòng tiêu chuẩn"
+              >
+                Tiêu chuẩn
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDensityChange('COMPACT')}
+                className={`px-2 py-1 rounded-md font-medium text-[11px] transition-colors cursor-pointer ${
+                  tableDensity === 'COMPACT'
+                    ? 'bg-white text-[#0B63E5] shadow-2xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                title="Khoảng cách dòng gọn gàng, xem được nhiều hơn"
+              >
+                Gọn gàng
+              </button>
+            </div>
+
+            {/* Column Toggler */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsColumnConfigOpen(!isColumnConfigOpen)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  isColumnConfigOpen
+                    ? 'bg-blue-50 text-[#0B63E5] border-blue-200'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+                title="Tùy chỉnh các cột hiển thị trong bảng"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>Cột hiển thị</span>
+                <ChevronDown className="w-3 h-3" />
+              </button>
+
+              {isColumnConfigOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setIsColumnConfigOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1.5 z-30 w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-2.5 space-y-1 animate-in fade-in duration-100 text-xs">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 mb-1 px-1">
+                      <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Chọn cột hiển thị</span>
+                      <button
+                        type="button"
+                        onClick={resetColumns}
+                        className="text-[10px] text-[#0B63E5] hover:underline cursor-pointer"
+                      >
+                        Mặc định
+                      </button>
+                    </div>
+                    {[
+                      { key: 'code', label: 'Mã KH' },
+                      { key: 'name', label: 'Tên Khách Hàng', disabled: true },
+                      { key: 'customer_type', label: 'Loại Khách' },
+                      { key: 'phone', label: 'Điện Thoại' },
+                      { key: 'address', label: 'Địa Chỉ / Khu Vực' },
+                      { key: 'group', label: 'Nhóm Khách' },
+                      { key: 'debt', label: 'Nợ Hiện Tại' },
+                      { key: 'total_purchased', label: 'Tổng Mua' },
+                      { key: 'status', label: 'Trạng Thái' },
+                      { key: 'actions', label: 'Thao Tác', disabled: true },
+                    ].map((col) => (
+                      <label
+                        key={col.key}
+                        className={`flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-slate-50 cursor-pointer ${
+                          col.disabled ? 'opacity-70 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <span className="text-slate-700">{col.label}</span>
+                        <input
+                          type="checkbox"
+                          disabled={col.disabled}
+                          checked={visibleColumns[col.key] !== false}
+                          onChange={() => !col.disabled && toggleColumn(col.key)}
+                          className="rounded text-[#0B63E5] focus:ring-0 cursor-pointer"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Main Customers Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[950px]">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px]">
+          <table className="w-full text-left text-xs border-collapse min-w-[850px]">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] sticky top-0 z-10">
               <tr>
-                <th className="py-3 px-3.5 whitespace-nowrap">Mã KH</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Tên Khách Hàng</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Loại Khách</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Điện Thoại</th>
-                <th className="py-3 px-3.5 min-w-[180px]">Địa Chỉ / Khu Vực</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Nhóm Khách</th>
-                <th className="py-3 px-3.5 text-right whitespace-nowrap">Nợ Hiện Tại</th>
-                <th className="py-3 px-3.5 text-right whitespace-nowrap">Tổng Mua</th>
-                <th className="py-3 px-3.5 text-center whitespace-nowrap">Trạng Thái</th>
-                <th className="py-3 px-3.5 text-center whitespace-nowrap">Thao Tác</th>
+                {visibleColumns.code !== false && (
+                  <th className="py-2.5 px-3 whitespace-nowrap">Mã KH</th>
+                )}
+                {visibleColumns.name !== false && (
+                  <th className="py-2.5 px-3 min-w-[140px]">Tên Khách Hàng</th>
+                )}
+                {visibleColumns.customer_type !== false && (
+                  <th className="py-2.5 px-3 whitespace-nowrap">Loại Khách</th>
+                )}
+                {visibleColumns.phone !== false && (
+                  <th className="py-2.5 px-3 whitespace-nowrap">Điện Thoại</th>
+                )}
+                {visibleColumns.address !== false && (
+                  <th className="py-2.5 px-3 min-w-[150px] max-w-[220px]">Địa Chỉ / Khu Vực</th>
+                )}
+                {visibleColumns.group !== false && (
+                  <th className="py-2.5 px-3 whitespace-nowrap">Nhóm Khách</th>
+                )}
+                {visibleColumns.debt !== false && (
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Nợ Hiện Tại</th>
+                )}
+                {visibleColumns.total_purchased !== false && (
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Tổng Mua</th>
+                )}
+                {visibleColumns.status !== false && (
+                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Trạng Thái</th>
+                )}
+                {visibleColumns.actions !== false && (
+                  <th className="py-2.5 px-3 text-center whitespace-nowrap sticky right-0 bg-slate-50 z-20 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">
+                    Thao Tác
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
+                  <td colSpan={Object.values(visibleColumns).filter(Boolean).length || 10} className="py-12 text-center text-slate-400">
                     <Users className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                     <p className="text-sm font-medium text-slate-600">Không tìm thấy khách hàng nào</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -760,6 +943,8 @@ export const CustomerManagementScreen: React.FC = () => {
                 paginatedCustomers.map((c) => {
                   const custType = c.customer_type || c.type || 'Cá nhân';
                   const isActive = c.status === 1 || c.status === 'ACTIVE';
+                  const fullAddress = [c.address, c.ward, c.district_city].filter(Boolean).join(', ');
+                  const rowPadding = tableDensity === 'COMPACT' ? 'py-1.5 px-2.5' : 'py-2.5 px-3';
 
                   return (
                     <tr
@@ -767,136 +952,187 @@ export const CustomerManagementScreen: React.FC = () => {
                       className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
                       onClick={() => setDetailCustomer(c)}
                     >
-                      <td className="py-3 px-3.5 font-bold text-[#0B63E5] whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span>{c.code}</span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopy(c.code, 'Mã KH');
-                            }}
-                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 p-0.5 rounded transition-opacity"
-                            title="Sao chép mã"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3.5 font-semibold text-slate-900 whitespace-nowrap">
-                        <div>{c.name}</div>
-                        {c.email && <div className="text-[11px] text-slate-400 font-normal">{c.email}</div>}
-                      </td>
-
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${
-                            custType === 'Công ty'
-                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
-                          }`}
-                        >
-                          {custType === 'Công ty' ? <Building className="w-2.5 h-2.5" /> : <UserIcon className="w-2.5 h-2.5" />}
-                          <span>{custType}</span>
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-3.5 font-medium text-slate-700 whitespace-nowrap">
-                        {c.phone ? (
-                          <div className="flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-slate-400" />
-                            <span>{c.phone}</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3.5 text-slate-600 max-w-xs min-w-[180px]">
-                        <div className="truncate">{c.address || '—'}</div>
-                        {(c.ward || c.district_city) && (
-                          <div className="text-[10px] text-slate-400 truncate">
-                            {[c.ward, c.district_city].filter(Boolean).join(', ')}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-medium shrink-0">
-                          {c.group || 'Khách lẻ'}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-3.5 text-right font-mono whitespace-nowrap">
-                        {c.debt > 0 ? (
-                          <span className="inline-flex items-center whitespace-nowrap font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 shrink-0">
-                            {formatCurrency(c.debt)}
-                          </span>
-                        ) : c.debt < 0 ? (
-                          <span className="inline-flex items-center whitespace-nowrap font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
-                            +{formatCurrency(Math.abs(c.debt))}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-medium">0đ</span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-800 whitespace-nowrap">
-                        {formatCurrency(c.total_purchased || 0)}
-                      </td>
-
-                      <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center justify-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                            isActive
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-slate-100 text-slate-500'
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full mr-1 shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                          {isActive ? 'Hoạt động' : 'Ngừng'}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                        <div
-                          className="flex items-center justify-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {c.debt > 0 && (
+                      {/* Mã KH */}
+                      {visibleColumns.code !== false && (
+                        <td className={`${rowPadding} font-bold text-[#0B63E5] whitespace-nowrap`}>
+                          <div className="flex items-center gap-1.5">
+                            <span>{c.code}</span>
                             <button
                               type="button"
-                              onClick={() => handleOpenCollectDebt(c)}
-                              className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-                              title="Lập phiếu thu nợ"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopy(c.code, 'Mã KH');
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 p-0.5 rounded transition-opacity cursor-pointer"
+                              title="Sao chép mã"
                             >
-                              <DollarSign className="w-3.5 h-3.5" />
+                              <Copy className="w-3 h-3" />
                             </button>
+                          </div>
+                        </td>
+                      )}
+
+                      {/* Tên KH */}
+                      {visibleColumns.name !== false && (
+                        <td className={`${rowPadding} font-semibold text-slate-900 whitespace-nowrap`}>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{c.name}</span>
+                            {custType === 'Công ty' && visibleColumns.customer_type === false && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
+                                Công ty
+                              </span>
+                            )}
+                          </div>
+                          {c.email && <div className="text-[10px] text-slate-400 font-normal">{c.email}</div>}
+                        </td>
+                      )}
+
+                      {/* Loại Khách */}
+                      {visibleColumns.customer_type !== false && (
+                        <td className={`${rowPadding} whitespace-nowrap`}>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${
+                              custType === 'Công ty'
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {custType === 'Công ty' ? <Building className="w-2.5 h-2.5" /> : <UserIcon className="w-2.5 h-2.5" />}
+                            <span>{custType}</span>
+                          </span>
+                        </td>
+                      )}
+
+                      {/* Điện Thoại */}
+                      {visibleColumns.phone !== false && (
+                        <td className={`${rowPadding} font-medium text-slate-700 whitespace-nowrap`}>
+                          {c.phone ? (
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              <span>{c.phone}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">—</span>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(c)}
-                            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-[#0B63E5] transition-colors"
-                            title="Sửa thông tin"
+                        </td>
+                      )}
+
+                      {/* Địa Chỉ / Khu Vực: Gọn gàng 1 dòng + ...Xem */}
+                      {visibleColumns.address !== false && (
+                        <td className={`${rowPadding} text-slate-600 max-w-[220px]`}>
+                          {fullAddress ? (
+                            <div className="flex items-center gap-1.5 min-w-0" title={fullAddress}>
+                              <span className="text-slate-700 truncate max-w-[140px]">{fullAddress}</span>
+                              {fullAddress.length > 16 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAddressDetailModal({ customer: c, fullAddress });
+                                  }}
+                                  className="text-[10px] font-bold text-[#0B63E5] hover:bg-blue-100 bg-blue-50 border border-blue-200/60 px-1.5 py-0.5 rounded shrink-0 transition-colors cursor-pointer"
+                                  title="Nhấn để xem địa chỉ đầy đủ"
+                                >
+                                  ...Xem
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Nhóm Khách */}
+                      {visibleColumns.group !== false && (
+                        <td className={`${rowPadding} whitespace-nowrap`}>
+                          <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-medium shrink-0">
+                            {c.group || 'Khách lẻ'}
+                          </span>
+                        </td>
+                      )}
+
+                      {/* Nợ Hiện Tại */}
+                      {visibleColumns.debt !== false && (
+                        <td className={`${rowPadding} text-right font-mono whitespace-nowrap`}>
+                          {c.debt > 0 ? (
+                            <span className="inline-flex items-center whitespace-nowrap font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 shrink-0">
+                              {formatCurrency(c.debt)}
+                            </span>
+                          ) : c.debt < 0 ? (
+                            <span className="inline-flex items-center whitespace-nowrap font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                              +{formatCurrency(Math.abs(c.debt))}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-medium">0đ</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Tổng Mua */}
+                      {visibleColumns.total_purchased !== false && (
+                        <td className={`${rowPadding} text-right font-mono font-bold text-slate-800 whitespace-nowrap`}>
+                          {formatCurrency(c.total_purchased || 0)}
+                        </td>
+                      )}
+
+                      {/* Trạng Thái */}
+                      {visibleColumns.status !== false && (
+                        <td className={`${rowPadding} text-center whitespace-nowrap`}>
+                          <span
+                            className={`inline-flex items-center justify-center whitespace-nowrap px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                              isActive
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (confirm(`Bạn có chắc muốn xóa khách hàng "${c.name}"?`)) {
-                                deleteCustomer(c.id);
-                                showToast(`Đã xóa khách hàng "${c.name}"!`, 'info');
-                              }
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                            title="Xóa khách hàng"
+                            <span className={`w-1.5 h-1.5 rounded-full mr-1 shrink-0 ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                            {isActive ? 'Hoạt động' : 'Ngừng'}
+                          </span>
+                        </td>
+                      )}
+
+                      {/* Thao Tác (Sticky Right Column: Never Cut Off!) */}
+                      {visibleColumns.actions !== false && (
+                        <td className={`${rowPadding} text-center whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50 transition-colors z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]`}>
+                          <div
+                            className="flex items-center justify-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
+                            {c.debt > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCollectDebt(c)}
+                                className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                                title="Lập phiếu thu nợ"
+                              >
+                                <DollarSign className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(c)}
+                              className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-[#0B63E5] transition-colors cursor-pointer"
+                              title="Sửa thông tin"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Bạn có chắc muốn xóa khách hàng "${c.name}"?`)) {
+                                  deleteCustomer(c.id);
+                                  showToast(`Đã xóa khách hàng "${c.name}"!`, 'info');
+                                }
+                              }}
+                              className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
+                              title="Xóa khách hàng"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })
@@ -1669,6 +1905,113 @@ export const CustomerManagementScreen: React.FC = () => {
                   Đóng
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Address View Modal */}
+      {addressDetailModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setAddressDetailModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#0B63E5] flex items-center justify-center shrink-0">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Thông tin địa chỉ giao nhận</h3>
+                  <p className="text-[11px] text-slate-500">Khách hàng: <span className="font-semibold text-slate-700">{addressDetailModal.customer.name}</span></p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddressDetailModal(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs">
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 space-y-2">
+                <div className="flex justify-between items-start">
+                  <span className="text-slate-500 text-[11px] uppercase font-semibold">Địa chỉ đầy đủ</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(addressDetailModal.fullAddress);
+                      showToast('Đã sao chép địa chỉ vào bộ nhớ tạm!', 'success');
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0B63E5] hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded transition-colors"
+                  >
+                    <Copy className="w-3 h-3" />
+                    Sao chép
+                  </button>
+                </div>
+                <p className="text-slate-800 font-medium text-sm leading-relaxed select-all">
+                  {addressDetailModal.fullAddress}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] uppercase text-slate-400 font-semibold block mb-0.5">Điện thoại</span>
+                  <span className="font-semibold text-slate-800 font-mono">
+                    {addressDetailModal.customer.phone || 'Chưa cập nhật'}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] uppercase text-slate-400 font-semibold block mb-0.5">Mã khách hàng</span>
+                  <span className="font-semibold text-slate-800 font-mono">
+                    {addressDetailModal.customer.code}
+                  </span>
+                </div>
+                {addressDetailModal.customer.ward && (
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] uppercase text-slate-400 font-semibold block mb-0.5">Phường / Xã</span>
+                    <span className="font-medium text-slate-700">
+                      {addressDetailModal.customer.ward}
+                    </span>
+                  </div>
+                )}
+                {addressDetailModal.customer.district_city && (
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="text-[10px] uppercase text-slate-400 font-semibold block mb-0.5">Quận / Huyện / Tỉnh</span>
+                    <span className="font-medium text-slate-700">
+                      {addressDetailModal.customer.district_city}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  const cust = addressDetailModal.customer;
+                  setAddressDetailModal(null);
+                  setDetailCustomer(cust);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B63E5] hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Xem hồ sơ đầy đủ
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddressDetailModal(null)}
+                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow-2xs"
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

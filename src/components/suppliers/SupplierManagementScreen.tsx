@@ -660,7 +660,7 @@ export const SupplierManagementScreen: React.FC = () => {
                 <th className="py-3 px-3.5 text-right whitespace-nowrap">Tổng Mua</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Nhóm NCC</th>
                 <th className="py-3 px-3.5 text-center whitespace-nowrap">Trạng thái</th>
-                <th className="py-3 px-3.5 text-center whitespace-nowrap">Thao tác</th>
+                <th className="py-3 px-3.5 text-center whitespace-nowrap sticky right-0 bg-slate-50 z-20 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -734,12 +734,31 @@ export const SupplierManagementScreen: React.FC = () => {
 
                     {/* Địa chỉ / Khu vực */}
                     <td className="py-2.5 px-3.5 max-w-[200px]">
-                      <div className="text-slate-700 truncate">{s.address || '—'}</div>
-                      {(s.district_city || s.ward) && (
-                        <div className="text-[10px] text-slate-400 truncate">
-                          {[s.ward, s.district_city].filter(Boolean).join(', ')}
-                        </div>
-                      )}
+                      {(() => {
+                        const fullAddr = [s.address, s.ward, s.district_city].filter(Boolean).join(', ');
+                        return fullAddr ? (
+                          <div className="flex items-center gap-1.5 min-w-0" title={fullAddr}>
+                            <span className="text-slate-700 truncate max-w-[130px]">{fullAddr}</span>
+                            {fullAddr.length > 16 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(fullAddr).then(() => {
+                                    showToast('Đã sao chép địa chỉ NCC!', 'success');
+                                  });
+                                }}
+                                className="text-[10px] font-bold text-[#0B63E5] hover:bg-blue-100 bg-blue-50 border border-blue-200/60 px-1.5 py-0.5 rounded shrink-0 transition-colors cursor-pointer"
+                                title="Nhấn để sao chép địa chỉ"
+                              >
+                                ...Xem
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        );
+                      })()}
                     </td>
 
                     {/* Nợ Cần Trả */}
@@ -795,7 +814,7 @@ export const SupplierManagementScreen: React.FC = () => {
                     </td>
 
                     {/* Thao tác */}
-                    <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 text-center whitespace-nowrap sticky right-0 bg-white group-hover:bg-blue-50/40 transition-colors z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">
                       <div className="flex items-center justify-center gap-1.5">
                         {s.debt > 0 && (
                           <button

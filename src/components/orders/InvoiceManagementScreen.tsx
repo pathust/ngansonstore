@@ -969,7 +969,7 @@ export const InvoiceManagementScreen: React.FC = () => {
                 <th className="py-3 px-4 text-right whitespace-nowrap">Lợi Nhuận</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">Thanh Toán</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap">Trạng Thái</th>
-                <th className="py-3 px-4 text-right whitespace-nowrap">Thao Tác</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-slate-50 z-20 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1102,7 +1102,7 @@ export const InvoiceManagementScreen: React.FC = () => {
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <td className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-white hover:bg-slate-50/70 transition-colors z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">
                         <div className="flex items-center justify-end gap-1">
                           {/* Export PDF Button */}
                           <button
