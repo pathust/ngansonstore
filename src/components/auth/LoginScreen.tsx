@@ -237,21 +237,33 @@ export const LoginScreen: React.FC = () => {
                 <span>Danh sách tài khoản trực ca</span>
               </summary>
               <div className="mt-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-left text-[11px] text-slate-600 space-y-1.5 font-mono">
-                <div className="flex justify-between">
-                  <span>👑 Tài (Admin):</span>
-                  <span className="font-semibold text-slate-800">tai / admin123</span>
+                <div className="flex flex-col border-b border-slate-200/60 pb-1">
+                  <div className="flex justify-between">
+                    <span className="font-bold text-slate-800">👑 Tài (Admin):</span>
+                    <span className="font-semibold text-blue-600">tai / admin123</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Email: taiphananh28@gmail.com</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>👔 Sơn (Quản lý):</span>
-                  <span className="font-semibold text-slate-800">son / minhson318vuquang</span>
+                <div className="flex flex-col border-b border-slate-200/60 pb-1">
+                  <div className="flex justify-between">
+                    <span className="font-bold text-slate-800">👔 Sơn (Quản lý):</span>
+                    <span className="font-semibold text-blue-600">son / minhson318vuquang</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Email: sn.phanminh@gmail.com</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>💼 Ngân (Quản lý):</span>
-                  <span className="font-semibold text-slate-800">ngan / ngan318vuquang</span>
+                <div className="flex flex-col border-b border-slate-200/60 pb-1">
+                  <div className="flex justify-between">
+                    <span className="font-bold text-slate-800">💼 Ngân (Quản lý):</span>
+                    <span className="font-semibold text-blue-600">ngan / ngan318vuquang</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Email: ngansonlv@gmail.com</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>🛒 Nhật (Thu ngân):</span>
-                  <span className="font-semibold text-slate-800">nhat / minhnhat318vuquang</span>
+                <div className="flex flex-col pb-0.5">
+                  <div className="flex justify-between">
+                    <span className="font-bold text-slate-800">🛒 Nhật (Thu ngân):</span>
+                    <span className="font-semibold text-blue-600">nhat / minhnhat318vuquang</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Email: nhatphanminh2711@gmail.com</span>
                 </div>
               </div>
             </details>

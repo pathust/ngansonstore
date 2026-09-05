@@ -92,10 +92,10 @@ Hệ thống được khởi tạo sẵn với 4 tài khoản nghiệp vụ:
 
 | Tên người dùng | Username / Email | Mật khẩu | Vai trò | Quyền hạn mặc định |
 | :--- | :--- | :--- | :--- | :--- |
-| **Phan Anh Tài** | `tai`<br>`sn.phanminh@gmail.com` | `admin123` | **ADMIN** (Quản trị viên) | **Toàn quyền 15/15 phân hệ**: Quản trị nhân sự, cài đặt hệ thống, xóa hóa đơn, cấu hình, sổ quỹ, bán hàng... |
-| **Phan Minh Sơn** | `son`<br>`son.phanminh@nganson.vn` | `minhson318vuquang` | **MANAGER** (Quản lý) | Quản lý vận hành, bán hàng POS, báo cáo doanh thu, kiểm kê kho, sổ quỹ, nhà cung cấp. |
-| **Nguyễn Thị Ngân** | `ngan`<br>`ngan.nguyen@nganson.vn` | `ngan318vuquang` | **MANAGER** (Quản lý) | Quản lý báo cáo doanh thu, thu chi, kho hàng, khách hàng & nhà cung cấp. |
-| **Phan Minh Nhật** | `nhat`<br>`nhat.phanminh@nganson.vn` | `minhnhat318vuquang` | **STAFF** (Thu ngân) | Chuyên trách bán lẻ POS, tra cứu hóa đơn cá nhân, in biên lai K80. Khóa các mục quản trị nhạy cảm. |
+| **Phan Anh Tài** | `tai`<br>`taiphananh28@gmail.com` | `admin123` | **ADMIN** (Quản trị viên) | **Toàn quyền 15/15 phân hệ**: Quản trị nhân sự, cài đặt hệ thống, xóa hóa đơn, cấu hình, sổ quỹ, bán hàng... |
+| **Phan Minh Sơn** | `son`<br>`sn.phanminh@gmail.com` | `minhson318vuquang` | **MANAGER** (Quản lý) | Quản lý vận hành, bán hàng POS, báo cáo doanh thu, kiểm kê kho, sổ quỹ, nhà cung cấp. |
+| **Nguyễn Thị Ngân** | `ngan`<br>`ngansonlv@gmail.com` | `ngan318vuquang` | **MANAGER** (Quản lý) | Quản lý báo cáo doanh thu, thu chi, kho hàng, khách hàng & nhà cung cấp. |
+| **Phan Minh Nhật** | `nhat`<br>`nhatphanminh2711@gmail.com` | `minhnhat318vuquang` | **STAFF** (Thu ngân) | Chuyên trách bán lẻ POS, tra cứu hóa đơn cá nhân, in biên lai K80. Khóa các mục quản trị nhạy cảm. |
 
 ---
 

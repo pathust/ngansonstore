@@ -123,7 +123,7 @@ export const DEFAULT_USERS: AppUser[] = [
     password: 'admin123',
     role: 'ADMIN',
     roleTitle: 'Full Access Admin (Toàn quyền hệ thống)',
-    email: 'sn.phanminh@gmail.com',
+    email: 'taiphananh28@gmail.com',
     phone: '0912.345.678',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
     bio: 'Chủ sở hữu & Quản trị viên cấp cao nhất - Cửa hàng Ngân Sơn',
@@ -153,7 +153,7 @@ export const DEFAULT_USERS: AppUser[] = [
     password: 'minhson318vuquang',
     role: 'MANAGER',
     roleTitle: 'Quản lý cửa hàng (Store Manager)',
-    email: 'son.phanminh@nganson.vn',
+    email: 'sn.phanminh@gmail.com',
     phone: '0977.334.455',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
     bio: 'Quản lý cửa hàng - Giám sát vận hành, Báo cáo tài chính, Kiểm kê kho hàng',
@@ -183,7 +183,7 @@ export const DEFAULT_USERS: AppUser[] = [
     password: 'ngan318vuquang',
     role: 'MANAGER',
     roleTitle: 'Quản lý cửa hàng (Store Manager)',
-    email: 'ngan.nguyen@nganson.vn',
+    email: 'ngansonlv@gmail.com',
     phone: '0988.112.233',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
     bio: 'Quản lý cửa hàng - Phụ trách Báo cáo doanh thu, Kiểm kê kho, Sổ quỹ & Nhà cung cấp',
@@ -213,7 +213,7 @@ export const DEFAULT_USERS: AppUser[] = [
     password: 'minhnhat318vuquang',
     role: 'STAFF',
     roleTitle: 'Nhân viên bán hàng (Cashier / POS)',
-    email: 'nhat.phanminh@nganson.vn',
+    email: 'nhatphanminh2711@gmail.com',
     phone: '0966.556.677',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
     bio: 'Nhân viên bán hàng tại quầy - Thực hiện giao dịch POS, thu tiền và in hóa đơn',
@@ -307,10 +307,22 @@ class DatabaseManager {
             else if (username === 'nhat' || u.name?.toLowerCase().includes('nhật')) password = 'minhnhat318vuquang';
             else password = '123456';
           }
+          let email = u.email;
+          if (username === 'tai' || u.id === 'user-admin-01' || u.name?.toLowerCase().includes('tài')) {
+            email = 'taiphananh28@gmail.com';
+          } else if (username === 'son' || u.id === 'user-manager-01' || u.name?.toLowerCase().includes('sơn')) {
+            email = 'sn.phanminh@gmail.com';
+          } else if (username === 'ngan' || u.id === 'user-manager-02' || u.name?.toLowerCase().includes('ngân')) {
+            email = 'ngansonlv@gmail.com';
+          } else if (username === 'nhat' || u.id === 'user-staff-01' || u.name?.toLowerCase().includes('nhật')) {
+            email = 'nhatphanminh2711@gmail.com';
+          }
+
           return {
             ...u,
             username,
             password,
+            email,
             status,
           };
         });
@@ -458,15 +470,36 @@ class DatabaseManager {
         const existingUsersMap = new Map((this.cache?.users || []).map((eu) => [eu.id, eu]));
         this.cache.users = usersRes.data.map((u: any) => {
           const existing = existingUsersMap.get(u.id);
+          const username = u.username || existing?.username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhat' : u.email?.split('@')[0]);
+          let password = u.password || existing?.password;
+          if (!password || password === '123456') {
+            if (username === 'tai' || u.id === 'user-admin-01') password = 'admin123';
+            else if (username === 'son' || u.id === 'user-manager-01') password = 'minhson318vuquang';
+            else if (username === 'ngan' || u.id === 'user-manager-02') password = 'ngan318vuquang';
+            else if (username === 'nhat' || u.id === 'user-staff-01') password = 'minhnhat318vuquang';
+            else password = '123456';
+          }
+
+          let email = u.email || existing?.email || '';
+          if (u.id === 'user-admin-01' || username === 'tai' || u.name?.toLowerCase().includes('tài')) {
+            email = 'taiphananh28@gmail.com';
+          } else if (u.id === 'user-manager-01' || username === 'son' || u.name?.toLowerCase().includes('sơn')) {
+            email = 'sn.phanminh@gmail.com';
+          } else if (u.id === 'user-manager-02' || username === 'ngan' || u.name?.toLowerCase().includes('ngân')) {
+            email = 'ngansonlv@gmail.com';
+          } else if (u.id === 'user-staff-01' || username === 'nhat' || u.name?.toLowerCase().includes('nhật')) {
+            email = 'nhatphanminh2711@gmail.com';
+          }
+
           return {
             id: u.id,
             name: u.name,
-            username: u.username || existing?.username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhat' : u.email?.split('@')[0]),
-            password: u.password || existing?.password || (u.id === 'user-admin-01' ? 'admin123' : u.id === 'user-manager-01' ? 'minhson318vuquang' : u.id === 'user-manager-02' ? 'ngan318vuquang' : u.id === 'user-staff-01' ? 'minhnhat318vuquang' : '123456'),
+            username,
+            password,
             status: u.status || existing?.status || 'ACTIVE',
             role: u.role || existing?.role || 'STAFF',
             roleTitle: u.role_title || existing?.roleTitle || (u.role === 'ADMIN' ? 'Full Access Admin (Toàn quyền hệ thống)' : 'Nhân viên bán hàng'),
-            email: u.email || existing?.email || '',
+            email,
             phone: u.phone || existing?.phone || '',
             avatar: u.avatar || existing?.avatar || '',
             bio: u.bio || existing?.bio || '',

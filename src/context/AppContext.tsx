@@ -55,7 +55,7 @@ export const DEFAULT_APP_USERS: AppUser[] = [
     password: 'admin123',
     role: 'ADMIN',
     roleTitle: 'Full Access Admin (Toàn quyền hệ thống)',
-    email: 'sn.phanminh@gmail.com',
+    email: 'taiphananh28@gmail.com',
     phone: '0912.345.678',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
     bio: 'Chủ sở hữu & Quản trị viên cấp cao nhất - Cửa hàng Ngân Sơn',
@@ -85,7 +85,7 @@ export const DEFAULT_APP_USERS: AppUser[] = [
     password: 'minhson318vuquang',
     role: 'MANAGER',
     roleTitle: 'Quản lý cửa hàng (Store Manager)',
-    email: 'son.phanminh@nganson.vn',
+    email: 'sn.phanminh@gmail.com',
     phone: '0977.334.455',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
     bio: 'Quản lý cửa hàng - Giám sát vận hành, Báo cáo tài chính, Kiểm kê kho hàng',
@@ -115,7 +115,7 @@ export const DEFAULT_APP_USERS: AppUser[] = [
     password: 'ngan318vuquang',
     role: 'MANAGER',
     roleTitle: 'Quản lý cửa hàng (Store Manager)',
-    email: 'ngan.nguyen@nganson.vn',
+    email: 'ngansonlv@gmail.com',
     phone: '0988.112.233',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
     bio: 'Quản lý cửa hàng - Phụ trách Báo cáo doanh thu, Kiểm kê kho, Sổ quỹ & Nhà cung cấp',
@@ -145,7 +145,7 @@ export const DEFAULT_APP_USERS: AppUser[] = [
     password: 'minhnhat318vuquang',
     role: 'STAFF',
     roleTitle: 'Nhân viên bán hàng (Cashier / POS)',
-    email: 'nhat.phanminh@nganson.vn',
+    email: 'nhatphanminh2711@gmail.com',
     phone: '0966.556.677',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
     bio: 'Nhân viên bán hàng tại quầy - Thực hiện giao dịch POS, thu tiền và in hóa đơn',
@@ -377,7 +377,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (Array.isArray(parsed) && parsed.length > 0) {
           return DEFAULT_APP_USERS.map((du) => {
             const f = parsed.find((p: AppUser) => p.id === du.id);
-            return f ? { ...du, ...f, password: f.password || du.password } : du;
+            return f ? { ...du, ...f, email: du.email, password: f.password || du.password } : du;
           });
         }
       } catch (e) {}
