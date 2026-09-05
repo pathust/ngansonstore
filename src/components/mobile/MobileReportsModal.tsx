@@ -30,30 +30,41 @@ export const MobileReportsModal: React.FC<MobileReportsModalProps> = ({
   reportType = 'SALES',
 }) => {
   const { orders } = useApp();
-  const [timeRange, setTimeRange] = useState<'TODAY' | 'MONTH' | 'ALL'>('TODAY');
+  const [timeRange, setTimeRange] = useState<'TODAY' | 'YESTERDAY' | 'MONTH' | 'LAST_MONTH' | 'ALL'>('TODAY');
 
   if (!isOpen) return null;
 
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
   const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
+
+  const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).getTime();
+  const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).getTime();
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+  const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0).getTime();
+  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
 
   const completedOrders = orders.filter((o) => o.status === 'COMPLETED');
 
   const filteredOrders = completedOrders.filter((o) => {
     const orderTs = parseDateToTimestamp(o.created_at);
-    if (timeRange === 'TODAY') {
-      return orderTs >= startOfToday && orderTs <= endOfToday;
-    }
-    if (timeRange === 'MONTH') {
-      return orderTs >= startOfMonth && orderTs <= endOfToday;
-    }
+    if (timeRange === 'ALL') return true;
+    if (orderTs === 0) return false;
+    if (timeRange === 'TODAY') return orderTs >= startOfToday && orderTs <= endOfToday;
+    if (timeRange === 'YESTERDAY') return orderTs >= startOfYesterday && orderTs <= endOfYesterday;
+    if (timeRange === 'MONTH') return orderTs >= startOfMonth && orderTs <= endOfThisMonth;
+    if (timeRange === 'LAST_MONTH') return orderTs >= startOfLastMonth && orderTs <= endOfLastMonth;
     return true;
   });
 
   const totalRevenue = filteredOrders.reduce((sum, o) => sum + (o.final_amount || 0), 0);
-  const totalProfit = filteredOrders.reduce((sum, o) => sum + (o.profit || 0), 0);
+  const totalProfit = filteredOrders.reduce(
+    (sum, o) => sum + (o.profit ?? ((o.final_amount || 0) - (o.total_cost || 0))),
+    0
+  );
   const totalOrdersCount = filteredOrders.length;
   const avgOrderValue = totalOrdersCount > 0 ? Math.round(totalRevenue / totalOrdersCount) : 0;
 
@@ -137,26 +148,42 @@ export const MobileReportsModal: React.FC<MobileReportsModalProps> = ({
         </button>
 
         {/* Time range pills */}
-        <div className="flex items-center gap-1 bg-white/20 p-1 rounded-xl">
+        <div className="flex items-center gap-1 bg-white/20 p-1 rounded-xl overflow-x-auto max-w-[65%]">
           <button
             onClick={() => setTimeRange('TODAY')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-black transition-colors ${
+            className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap transition-colors ${
               timeRange === 'TODAY' ? 'bg-white text-[#0066FF]' : 'text-white'
             }`}
           >
             Hôm nay
           </button>
           <button
+            onClick={() => setTimeRange('YESTERDAY')}
+            className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap transition-colors ${
+              timeRange === 'YESTERDAY' ? 'bg-white text-[#0066FF]' : 'text-white'
+            }`}
+          >
+            Hôm qua
+          </button>
+          <button
             onClick={() => setTimeRange('MONTH')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-black transition-colors ${
+            className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap transition-colors ${
               timeRange === 'MONTH' ? 'bg-white text-[#0066FF]' : 'text-white'
             }`}
           >
             Tháng này
           </button>
           <button
+            onClick={() => setTimeRange('LAST_MONTH')}
+            className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap transition-colors ${
+              timeRange === 'LAST_MONTH' ? 'bg-white text-[#0066FF]' : 'text-white'
+            }`}
+          >
+            Tháng trước
+          </button>
+          <button
             onClick={() => setTimeRange('ALL')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-black transition-colors ${
+            className={`px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap transition-colors ${
               timeRange === 'ALL' ? 'bg-white text-[#0066FF]' : 'text-white'
             }`}
           >

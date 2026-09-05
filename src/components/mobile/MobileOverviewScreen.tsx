@@ -30,7 +30,7 @@ interface MobileOverviewScreenProps {
 
 export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNavigateTab }) => {
   const { orders } = useApp();
-  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'this_month' | 'last_month'>('this_month');
+  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'last_7_days' | 'this_month' | 'last_month' | 'all'>('this_month');
   const [showProfit, setShowProfit] = useState(false);
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
 
@@ -43,66 +43,87 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
   const [isReturnsOpen, setIsReturnsOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
 
+  // Return vouchers from localStorage
+  const returnsData = useMemo(() => {
+    let returnVouchers: any[] = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('nganson_returns');
+        if (saved) returnVouchers = JSON.parse(saved);
+      } catch {
+        returnVouchers = [];
+      }
+    }
+    return returnVouchers;
+  }, [isReturnsOpen]);
+
   // Dynamic time filter labels
   const timeLabels = useMemo(() => {
     const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
     const pad = (n: number) => n.toString().padStart(2, '0');
-    const formatShortDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const formatShortDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+    const prevMonthNumber = today.getMonth() === 0 ? 12 : today.getMonth();
 
     return {
-      today: `Hôm nay, ${formatShortDate(today)}`,
-      yesterday: `Hôm qua, ${formatShortDate(yesterday)}`,
+      today: `Hôm nay (${formatShortDate(today)})`,
+      yesterday: `Hôm qua (${formatShortDate(yesterday)})`,
+      last_7_days: '7 ngày qua',
       this_month: `Tháng này (T${today.getMonth() + 1})`,
-      last_month: `Tháng trước (T${today.getMonth() === 0 ? 12 : today.getMonth()})`,
+      last_month: `Tháng trước (T${prevMonthNumber})`,
+      all: 'Tất cả thời gian',
     };
   }, []);
 
   // Calculate metrics based on actual orders for selected timeRange
   const metrics = useMemo(() => {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
-    const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
-    const endOfYesterday = startOfToday - 1;
+    const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).getTime();
+    const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).getTime();
 
-    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
+    const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0).getTime();
 
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0).getTime();
-    const endOfLastMonth = startOfThisMonth - 1;
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+    const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0).getTime();
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
+
+    const isInRange = (ts: number) => {
+      if (timeRange === 'all') return true;
+      if (ts === 0) return false;
+      if (timeRange === 'today') return ts >= startOfToday && ts <= endOfToday;
+      if (timeRange === 'yesterday') return ts >= startOfYesterday && ts <= endOfYesterday;
+      if (timeRange === 'last_7_days') return ts >= startOf7Days && ts <= endOfToday;
+      if (timeRange === 'this_month') return ts >= startOfThisMonth && ts <= endOfThisMonth;
+      if (timeRange === 'last_month') return ts >= startOfLastMonth && ts <= endOfLastMonth;
+      return true;
+    };
 
     const completedOrders = orders.filter((o) => o.status === 'COMPLETED');
-
-    const filtered = completedOrders.filter((o) => {
-      const ts = parseDateToTimestamp(o.created_at);
-      if (timeRange === 'today') {
-        return ts >= startOfToday && ts <= endOfToday;
-      }
-      if (timeRange === 'yesterday') {
-        return ts >= startOfYesterday && ts <= endOfYesterday;
-      }
-      if (timeRange === 'this_month') {
-        return ts >= startOfThisMonth && ts <= endOfToday;
-      }
-      if (timeRange === 'last_month') {
-        return ts >= startOfLastMonth && ts <= endOfLastMonth;
-      }
-      return true;
-    });
+    const filtered = completedOrders.filter((o) => isInRange(parseDateToTimestamp(o.created_at)));
 
     const orderCount = filtered.length;
     const revenue = filtered.reduce((sum, o) => sum + (o.final_amount || 0), 0);
-    const profit = filtered.reduce((sum, o) => sum + (o.profit || 0), 0);
+    const profit = filtered.reduce((sum, o) => sum + (o.profit ?? ((o.final_amount || 0) - (o.total_cost || 0))), 0);
+
+    // Calculate return vouchers and cancelled orders in selected period
+    const filteredReturns = returnsData.filter((r: any) => isInRange(parseDateToTimestamp(r.createdAt || r.created_at)));
+    const cancelledOrders = orders.filter((o) => o.status === 'CANCELLED' && isInRange(parseDateToTimestamp(o.created_at)));
+    const returnCount = filteredReturns.length + cancelledOrders.length;
+    const returnTotal =
+      filteredReturns.reduce((sum: number, r: any) => sum + (r.totalRefund || r.refundAmount || 0), 0) +
+      cancelledOrders.reduce((sum: number, o: any) => sum + (o.final_amount || 0), 0);
 
     // Calculate last 7 days daily revenue for chart
     const pad = (n: number) => n.toString().padStart(2, '0');
     const sevenDaysData: { dayLabel: string; revenue: number }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      const dStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
       const dEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
       const dRev = completedOrders
         .filter((o) => {
@@ -123,11 +144,12 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
       orderCount,
       revenue,
       profit,
-      returnCount: orders.filter((o) => o.status === 'CANCELLED').length,
+      returnCount,
+      returnTotal,
       chartDays: sevenDaysData,
       maxChartRev,
     };
-  }, [orders, timeRange]);
+  }, [orders, timeRange, returnsData]);
 
   const formatShortMillion = (amount: number) => {
     if (amount >= 1000000) {
@@ -200,64 +222,71 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isTimeDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {isTimeDropdownOpen && (
-            <div className="absolute top-9 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-30 py-1.5 w-48 text-xs font-medium animate-in fade-in zoom-in-95">
-              {(['today', 'yesterday', 'this_month', 'last_month'] as const).map((key) => (
-                <button
-                  key={key}
-                  onClick={() => {
-                    setTimeRange(key);
-                    setIsTimeDropdownOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between ${
-                    timeRange === key ? 'text-[#0066FF] font-bold bg-blue-50/50' : 'text-slate-700'
-                  }`}
-                >
-                  <span>{timeLabels[key]}</span>
-                  {timeRange === key && <span className="text-[#0066FF]">✓</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Revenue & Profit Summary Card */}
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-4">
-            {/* Orders & Revenue */}
-            <div>
-              <div className="text-xs text-slate-500 font-medium mb-1">{metrics.orderCount} hoá đơn</div>
-              <div className="text-2xl font-black text-[#0066FF] tracking-tight">
-                {formatShortMillion(metrics.revenue)}
+            {isTimeDropdownOpen && (
+              <div className="absolute top-9 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-30 py-1.5 w-52 text-xs font-medium animate-in fade-in zoom-in-95">
+                {(['today', 'yesterday', 'last_7_days', 'this_month', 'last_month', 'all'] as const).map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setTimeRange(key);
+                      setIsTimeDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between ${
+                      timeRange === key ? 'text-[#0066FF] font-bold bg-blue-50/50' : 'text-slate-700'
+                    }`}
+                  >
+                    <span>{timeLabels[key]}</span>
+                    {timeRange === key && <span className="text-[#0066FF]">✓</span>}
+                  </button>
+                ))}
               </div>
-            </div>
-
-            {/* Profit */}
-            <div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-1">
-                <span>Lợi nhuận</span>
-                <button
-                  onClick={() => setShowProfit(!showProfit)}
-                  className="text-slate-400 hover:text-slate-600 p-0.5"
-                  title={showProfit ? 'Ẩn lợi nhuận' : 'Hiện lợi nhuận'}
-                >
-                  {showProfit ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-              <div className="text-2xl font-black text-emerald-600 tracking-tight">
-                {showProfit ? formatShortMillion(metrics.profit) : '*** ***'}
-              </div>
-            </div>
+            )}
           </div>
 
-          <div
-            onClick={() => setIsReturnsOpen(true)}
-            className="border-t border-slate-100 pt-2.5 flex items-center gap-2 text-xs text-slate-500 font-medium cursor-pointer hover:text-[#0066FF] transition-colors"
-          >
-            <Package className="w-4 h-4 text-slate-400" />
-            <span>0 đơn trả hàng - 0 ›</span>
+          {/* Revenue & Profit Summary Card */}
+          <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Orders & Revenue */}
+              <div>
+                <div className="text-xs text-slate-500 font-medium mb-1">{metrics.orderCount} hoá đơn</div>
+                <div className="text-2xl font-black text-[#0066FF] tracking-tight">
+                  {formatShortMillion(metrics.revenue)}
+                </div>
+              </div>
+
+              {/* Profit */}
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-1">
+                  <span>Lợi nhuận</span>
+                  <button
+                    onClick={() => setShowProfit(!showProfit)}
+                    className="text-slate-400 hover:text-slate-600 p-0.5"
+                    title={showProfit ? 'Ẩn lợi nhuận' : 'Hiện lợi nhuận'}
+                  >
+                    {showProfit ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <div className="text-2xl font-black text-emerald-600 tracking-tight">
+                  {showProfit ? formatShortMillion(metrics.profit) : '*** ***'}
+                </div>
+              </div>
+            </div>
+
+            <div
+              onClick={() => setIsReturnsOpen(true)}
+              className="border-t border-slate-100 pt-2.5 flex items-center justify-between text-xs text-slate-500 font-medium cursor-pointer hover:text-[#0066FF] transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-slate-400" />
+                <span>
+                  {metrics.returnCount > 0
+                    ? `${metrics.returnCount} đơn trả hàng - ${formatCurrency(metrics.returnTotal)}`
+                    : '0 đơn trả hàng - 0 đ'}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+            </div>
           </div>
-        </div>
 
         {/* 5 Quick Action Shortcuts (Bán hàng, Hàng hóa, Hóa đơn, Sổ quỹ, Báo cáo) */}
         <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-100 grid grid-cols-5 gap-1 text-center">

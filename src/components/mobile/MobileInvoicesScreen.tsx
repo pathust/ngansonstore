@@ -23,7 +23,7 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'this_month' | 'last_month'>('this_month');
+  const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'last_7_days' | 'this_month' | 'last_month' | 'all'>('this_month');
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -34,12 +34,22 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'CASH' | 'TRANSFER'>('ALL');
   const [summaryMetric, setSummaryMetric] = useState<'REVENUE' | 'PROFIT' | 'ITEMS'>('REVENUE');
 
-  const timeLabels: Record<string, string> = {
-    today: 'Hôm nay',
-    yesterday: 'Hôm qua',
-    this_month: 'Tháng này',
-    last_month: 'Tháng trước',
-  };
+  const timeLabels = useMemo(() => {
+    const today = new Date();
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const formatShortDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+    const prevMonthNumber = today.getMonth() === 0 ? 12 : today.getMonth();
+
+    return {
+      today: `Hôm nay (${formatShortDate(today)})`,
+      yesterday: `Hôm qua (${formatShortDate(yesterday)})`,
+      last_7_days: '7 ngày qua',
+      this_month: `Tháng này (T${today.getMonth() + 1})`,
+      last_month: `Tháng trước (T${prevMonthNumber})`,
+      all: 'Tất cả thời gian',
+    };
+  }, []);
 
   // Filtered and sorted orders
   const filteredOrders = useMemo(() => {
@@ -47,22 +57,28 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
 
     // Time filter
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
-    const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
-    const endOfYesterday = startOfToday - 1;
+    const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).getTime();
+    const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).getTime();
 
-    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
+    const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0).getTime();
 
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0).getTime();
-    const endOfLastMonth = startOfThisMonth - 1;
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+    const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0).getTime();
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
 
     result = result.filter((o) => {
       const ts = parseDateToTimestamp(o.created_at);
+      if (timeRange === 'all') return true;
+      if (ts === 0) return false;
       if (timeRange === 'today') return ts >= startOfToday && ts <= endOfToday;
       if (timeRange === 'yesterday') return ts >= startOfYesterday && ts <= endOfYesterday;
-      if (timeRange === 'this_month') return ts >= startOfThisMonth && ts <= endOfToday;
+      if (timeRange === 'last_7_days') return ts >= startOf7Days && ts <= endOfToday;
+      if (timeRange === 'this_month') return ts >= startOfThisMonth && ts <= endOfThisMonth;
       if (timeRange === 'last_month') return ts >= startOfLastMonth && ts <= endOfLastMonth;
       return true;
     });
@@ -127,7 +143,10 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
       return { label: 'Tổng tiền hàng', value: `${rev.toLocaleString('vi-VN')}` };
     }
     if (summaryMetric === 'PROFIT') {
-      const profit = filteredOrders.reduce((sum, o) => sum + ((o.final_amount || 0) - (o.total_cost || 0)), 0);
+      const profit = filteredOrders.reduce(
+        (sum, o) => sum + (o.profit ?? ((o.final_amount || 0) - (o.total_cost || 0))),
+        0
+      );
       return { label: 'Tổng lợi nhuận', value: `${profit.toLocaleString('vi-VN')}` };
     }
     const totalItems = filteredOrders.reduce(
@@ -220,19 +239,20 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
           </button>
 
           {isTimeDropdownOpen && (
-            <div className="absolute top-9 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-30 py-1 w-36 text-xs font-medium">
-              {(['today', 'yesterday', 'this_month', 'last_month'] as const).map((key) => (
+            <div className="absolute top-9 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-30 py-1 w-48 text-xs font-medium animate-in fade-in zoom-in-95">
+              {(['today', 'yesterday', 'last_7_days', 'this_month', 'last_month', 'all'] as const).map((key) => (
                 <button
                   key={key}
                   onClick={() => {
                     setTimeRange(key);
                     setIsTimeDropdownOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-2 hover:bg-blue-50 ${
+                  className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between ${
                     timeRange === key ? 'text-[#0066FF] font-bold bg-blue-50/50' : 'text-slate-700'
                   }`}
                 >
-                  {timeLabels[key]}
+                  <span>{timeLabels[key]}</span>
+                  {timeRange === key && <span className="text-[#0066FF]">✓</span>}
                 </button>
               ))}
             </div>

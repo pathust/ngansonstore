@@ -35,7 +35,7 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
   const setModalOpen = setExternalModalOpen || setInternalModalOpen;
 
   const [filterType, setFilterType] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
-  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH' | 'CUSTOM'>('ALL');
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH' | 'LAST_MONTH' | 'CUSTOM'>('ALL');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [search, setSearch] = useState('');
@@ -73,15 +73,20 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
           if (dateFilter === 'TODAY') {
             if (entryTs < startOfToday || entryTs > endOfToday) return false;
           } else if (dateFilter === 'YESTERDAY') {
-            const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
-            const endOfYesterday = startOfToday - 1;
+            const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).getTime();
+            const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).getTime();
             if (entryTs < startOfYesterday || entryTs > endOfYesterday) return false;
           } else if (dateFilter === 'LAST7') {
-            const sevenDaysAgo = startOfToday - 6 * 24 * 60 * 60 * 1000;
+            const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0).getTime();
             if (entryTs < sevenDaysAgo || entryTs > endOfToday) return false;
           } else if (dateFilter === 'MONTH') {
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).getTime();
-            if (entryTs < startOfMonth || entryTs > endOfToday) return false;
+            const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+            if (entryTs < startOfMonth || entryTs > endOfThisMonth) return false;
+          } else if (dateFilter === 'LAST_MONTH') {
+            const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0).getTime();
+            const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
+            if (entryTs < startOfLastMonth || entryTs > endOfLastMonth) return false;
           } else if (dateFilter === 'CUSTOM') {
             if (customStartDate) {
               const [sy, sm, sd] = customStartDate.split('-').map(Number);
@@ -307,6 +312,7 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
             <option value="YESTERDAY">📅 Hôm qua</option>
             <option value="LAST7">📅 7 ngày qua</option>
             <option value="MONTH">📅 Tháng này</option>
+            <option value="LAST_MONTH">📅 Tháng trước</option>
             <option value="CUSTOM">📅 Tùy chọn ngày...</option>
           </select>
 
