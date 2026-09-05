@@ -732,9 +732,27 @@ export const analyzeVoiceOrderIntentWithAIStreaming = async (
     // and keeps emitting tokens until it hits its output cap. A normal voice-order JSON response
     // is at most a few thousand chars, so bail out early instead of waiting out the whole cap.
     const MAX_STREAM_CHARS = 8000;
+    // A stalled connection (dropped mobile data, dead proxy) can leave reader.read() pending
+    // forever with no error — the connect-time timeout on the initial fetch doesn't cover this,
+    // since fetch() already resolved once headers arrived. Race each read against a stall timeout.
+    const STALL_TIMEOUT_MS = 8000;
 
     while (true) {
-      const { done, value } = await reader.read();
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      const stallTimeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Stream stalled — no data received in time')), STALL_TIMEOUT_MS);
+      });
+      let done: boolean, value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await Promise.race([reader.read(), stallTimeout]));
+      } catch (stallErr) {
+        try {
+          await reader.cancel();
+        } catch {}
+        throw stallErr;
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (done) break;
       sseBuffer += decoder.decode(value, { stream: true });
 

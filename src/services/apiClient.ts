@@ -17,9 +17,13 @@ import { supabaseService } from './supabaseService';
 const API_BASE = '/api';
 
 class ApiClient {
+  // Fetch has no default timeout — on a flaky connection (mobile data drop, dead server) the
+  // request can hang indefinitely with no error and no data. Wrap with AbortController so a
+  // stalled request fails fast instead of leaving callers (e.g. the voice assistant) stuck.
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    timeoutMs?: number
   ): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
     const headers: Record<string, string> = {
@@ -28,10 +32,14 @@ class ApiClient {
       ...(options.headers as Record<string, string> || {}),
     };
 
+    const controller = timeoutMs ? new AbortController() : undefined;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller?.signal ?? options.signal,
       });
 
       if (!response.ok) {
@@ -45,9 +53,12 @@ class ApiClient {
 
       return await response.json();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const isTimeout = err instanceof Error && err.name === 'AbortError';
+      const message = isTimeout ? `Request timed out after ${timeoutMs}ms` : err instanceof Error ? err.message : 'Unknown error';
       console.warn(`[API] Error request to ${endpoint}:`, message);
-      throw err;
+      throw new Error(message);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -500,15 +511,21 @@ class ApiClient {
     explanation?: string;
     confidence?: number;
   }> {
-    const res = await this.request<{ success: boolean; source: string; data: any }>('/ai/parse-voice-order', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    const res = await this.request<{ success: boolean; source: string; data: any }>(
+      '/ai/parse-voice-order',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      12000
+    );
     return res.data;
   }
 
   // Raw SSE stream — caller reads response.body itself to consume chunks as they arrive.
   // Throws on any non-OK HTTP response so callers can fall back the same way as parseVoiceOrder.
+  // Timeout here only guards connection setup (fetch() resolves once headers arrive) — the
+  // caller reading the stream is responsible for its own per-chunk stall timeout.
   public async parseVoiceOrderStreamRaw(payload: {
     text: string;
     products?: Product[];
@@ -517,14 +534,25 @@ class ApiClient {
     mode?: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER';
     currentOrder?: Order;
   }): Promise<Response> {
-    const response = await fetch(`${API_BASE}/ai/parse-voice-order-stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Client-Version': '4.3-WEB',
-      },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/ai/parse-voice-order-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client-Version': '4.3-WEB',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (err: unknown) {
+      const isTimeout = err instanceof Error && err.name === 'AbortError';
+      throw new Error(isTimeout ? 'Connection timed out' : err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (!response.ok || !response.body) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
