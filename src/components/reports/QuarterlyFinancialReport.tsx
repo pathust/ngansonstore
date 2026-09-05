@@ -75,8 +75,8 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
   // Parse all real orders in the system
   const completedOrderStats = useMemo(() => {
-    return orders
-      .filter((o) => o.status === 'COMPLETED')
+    return (orders || [])
+      .filter((o) => o && o.status === 'COMPLETED')
       .map((ord) => {
         const parsed = parseOrderDate(ord.created_at);
         return {
@@ -298,13 +298,13 @@ export const QuarterlyFinancialReport: React.FC = () => {
   // --- Pre-index products and categories into O(1) Maps to avoid O(N^2) inner loop overhead ---
   const { productByIdOrSku, categoryById } = useMemo(() => {
     const pMap = new Map<string, (typeof products)[0]>();
-    for (const p of products) {
-      if (p.id) pMap.set(p.id, p);
-      if (p.sku) pMap.set(p.sku, p);
+    for (const p of products || []) {
+      if (p?.id) pMap.set(p.id, p);
+      if (p?.sku) pMap.set(p.sku, p);
     }
     const cMap = new Map<string, (typeof categories)[0]>();
-    for (const c of categories) {
-      if (c.id) cMap.set(c.id, c);
+    for (const c of categories || []) {
+      if (c?.id) cMap.set(c.id, c);
     }
     return { productByIdOrSku: pMap, categoryById: cMap };
   }, [products, categories]);
@@ -331,8 +331,8 @@ export const QuarterlyFinancialReport: React.FC = () => {
   const categoryData = useMemo(() => {
     const catRevenueMap = new Map<string, number>();
 
-    currentViewOrders.forEach((order) => {
-      order.items.forEach((item) => {
+    (currentViewOrders || []).forEach((order) => {
+      (order?.items || []).forEach((item) => {
         const prod = (item.product_id && productByIdOrSku.get(item.product_id)) || (item.sku && productByIdOrSku.get(item.sku));
         const catId = prod?.category || 'cat-fmcg';
         const catObj = categoryById.get(catId);
@@ -345,7 +345,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
     const totalCatRevenue = Array.from(catRevenueMap.values()).reduce((a, b) => a + b, 0);
 
     if (totalCatRevenue === 0) {
-      return categories.slice(0, 5).map((c) => ({
+      return (categories || []).slice(0, 5).map((c) => ({
         name: c.name,
         amount: 0,
         value: 0,
@@ -368,8 +368,8 @@ export const QuarterlyFinancialReport: React.FC = () => {
       { id: string; name: string; sku: string; qty: number; revenue: number; profit: number; img: string }
     >();
 
-    currentViewOrders.forEach((order) => {
-      order.items.forEach((item) => {
+    (currentViewOrders || []).forEach((order) => {
+      (order?.items || []).forEach((item) => {
         const prod = (item.product_id && productByIdOrSku.get(item.product_id)) || (item.sku && productByIdOrSku.get(item.sku));
         const key = item.sku || item.name;
         const current = itemMap.get(key) || {
@@ -405,7 +405,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
     if (viewMode === 'WEEK') {
       fileName = `Bao_cao_doanh_thu_tuan_${selectedYear}`;
-      exportRows = weeklyReportData.days.map((d) => ({
+      exportRows = (weeklyReportData?.days || []).map((d) => ({
         'Thứ / Ngày': d.day,
         'Số đơn hàng thực': d.orders,
         'Doanh thu thuần thực (đ)': d.revenue,
@@ -417,7 +417,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
     } else if (viewMode === 'MONTH') {
       fileName = `Bao_cao_doanh_thu_thang_${selectedMonth}_${selectedYear}`;
       if (monthlySubView === 'ALL_MONTHS') {
-        exportRows = monthlyReportData.allMonths.map((m) => ({
+        exportRows = (monthlyReportData?.allMonths || []).map((m) => ({
           'Kỳ (Tháng)': m.month,
           'Số đơn hàng thực': m.orders,
           'Doanh thu thuần thực (đ)': m.revenue,
@@ -427,7 +427,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
           'Doanh thu TB/đơn (AOV)': m.aov,
         }));
       } else {
-        exportRows = monthlyReportData.monthWeeks.map((w) => ({
+        exportRows = (monthlyReportData?.monthWeeks || []).map((w) => ({
           'Giai đoạn': `${w.week} - Tháng ${selectedMonth}/${selectedYear}`,
           'Số đơn hàng thực': w.orders,
           'Doanh thu thuần thực (đ)': w.revenue,
@@ -439,7 +439,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
       }
     } else {
       fileName = `Bao_cao_doanh_thu_${selectedQuarter}_${selectedYear}`;
-      exportRows = quarterlyReportData.months.map((m) => ({
+      exportRows = (quarterlyReportData?.months || []).map((m) => ({
         'Kỳ báo cáo': `${m.month} - ${selectedQuarter}/${selectedYear}`,
         'Số đơn hàng thực': m.orders,
         'Doanh thu thuần thực (đ)': m.revenue,
@@ -460,83 +460,83 @@ export const QuarterlyFinancialReport: React.FC = () => {
   // Get active numbers for cards
   const activeRevenue =
     viewMode === 'WEEK'
-      ? weeklyReportData.totalRevenue
+      ? weeklyReportData?.totalRevenue || 0
       : viewMode === 'MONTH'
       ? monthlySubView === 'ALL_MONTHS'
-        ? monthlyReportData.totalYearRevenue
-        : monthlyReportData.selectedMonthDetail.revenue
-      : quarterlyReportData.revenue;
+        ? monthlyReportData?.totalYearRevenue || 0
+        : monthlyReportData?.selectedMonthDetail?.revenue || 0
+      : quarterlyReportData?.revenue || 0;
 
   const activeCogs =
     viewMode === 'WEEK'
-      ? weeklyReportData.totalCogs
+      ? weeklyReportData?.totalCogs || 0
       : viewMode === 'MONTH'
       ? monthlySubView === 'ALL_MONTHS'
-        ? monthlyReportData.totalYearCogs
-        : monthlyReportData.selectedMonthDetail.cogs
-      : quarterlyReportData.cogs;
+        ? monthlyReportData?.totalYearCogs || 0
+        : monthlyReportData?.selectedMonthDetail?.cogs || 0
+      : quarterlyReportData?.cogs || 0;
 
   const activeProfit =
     viewMode === 'WEEK'
-      ? weeklyReportData.totalProfit
+      ? weeklyReportData?.totalProfit || 0
       : viewMode === 'MONTH'
       ? monthlySubView === 'ALL_MONTHS'
-        ? monthlyReportData.totalYearProfit
-        : monthlyReportData.selectedMonthDetail.profit
-      : quarterlyReportData.grossProfit;
+        ? monthlyReportData?.totalYearProfit || 0
+        : monthlyReportData?.selectedMonthDetail?.profit || 0
+      : quarterlyReportData?.grossProfit || 0;
 
   const activeOrdersCount =
     viewMode === 'WEEK'
-      ? weeklyReportData.totalOrders
+      ? weeklyReportData?.totalOrders || 0
       : viewMode === 'MONTH'
       ? monthlySubView === 'ALL_MONTHS'
-        ? monthlyReportData.totalYearOrders
-        : monthlyReportData.selectedMonthDetail.orders
-      : quarterlyReportData.orders;
+        ? monthlyReportData?.totalYearOrders || 0
+        : monthlyReportData?.selectedMonthDetail?.orders || 0
+      : quarterlyReportData?.orders || 0;
 
   const activeAov =
     viewMode === 'WEEK'
-      ? weeklyReportData.aov
+      ? weeklyReportData?.aov || 0
       : viewMode === 'MONTH'
       ? monthlySubView === 'ALL_MONTHS'
-        ? Math.round(monthlyReportData.totalYearRevenue / (monthlyReportData.totalYearOrders || 1))
-        : monthlyReportData.selectedMonthDetail.aov
-      : quarterlyReportData.aov;
+        ? Math.round((monthlyReportData?.totalYearRevenue || 0) / (monthlyReportData?.totalYearOrders || 1))
+        : monthlyReportData?.selectedMonthDetail?.aov || 0
+      : quarterlyReportData?.aov || 0;
 
   const activeMargin =
     viewMode === 'WEEK'
-      ? weeklyReportData.margin
+      ? weeklyReportData?.margin || 0
       : viewMode === 'MONTH'
       ? monthlySubView === 'ALL_MONTHS'
-        ? monthlyReportData.totalYearRevenue > 0
-          ? Number(((monthlyReportData.totalYearProfit / monthlyReportData.totalYearRevenue) * 100).toFixed(1))
+        ? (monthlyReportData?.totalYearRevenue || 0) > 0
+          ? Number((((monthlyReportData?.totalYearProfit || 0) / (monthlyReportData?.totalYearRevenue || 1)) * 100).toFixed(1))
           : 0
-        : monthlyReportData.selectedMonthDetail.margin
-      : quarterlyReportData.margin;
+        : monthlyReportData?.selectedMonthDetail?.margin || 0
+      : quarterlyReportData?.margin || 0;
 
   const chartData =
     viewMode === 'WEEK'
-      ? weeklyReportData.days
+      ? weeklyReportData?.days || []
       : viewMode === 'MONTH'
       ? monthlySubView === 'ALL_MONTHS'
-        ? monthlyReportData.allMonths
-        : monthlyReportData.monthWeeks
-      : quarterlyReportData.months;
+        ? monthlyReportData?.allMonths || []
+        : monthlyReportData?.monthWeeks || []
+      : quarterlyReportData?.months || [];
 
   const xDataKey = viewMode === 'WEEK' ? 'day' : viewMode === 'MONTH' ? (monthlySubView === 'ALL_MONTHS' ? 'month' : 'week') : 'month';
 
   // --- 6. PEAK SALES HOURS DISTRIBUTION (FROM ACTUAL ORDERS) ---
   const hourlySalesData = useMemo(() => {
     const timeSlots = [
-      { key: '06-09', label: '06h - 09h', fullLabel: '06h - 09h (Sáng sớm)', start: 6, end: 9, revenue: 0, orders: 0 },
-      { key: '09-12', label: '09h - 12h', fullLabel: '09h - 12h (Buổi sáng)', start: 9, end: 12, revenue: 0, orders: 0 },
-      { key: '12-14', label: '12h - 14h', fullLabel: '12h - 14h (Buổi trưa)', start: 12, end: 14, revenue: 0, orders: 0 },
-      { key: '14-17', label: '14h - 17h', fullLabel: '14h - 17h (Buổi chiều)', start: 14, end: 17, revenue: 0, orders: 0 },
-      { key: '17-20', label: '17h - 20h', fullLabel: '17h - 20h (Giờ vàng)', start: 17, end: 20, revenue: 0, orders: 0 },
-      { key: '20-23', label: '20h - 23h', fullLabel: '20h - 23h (Tối muộn)', start: 20, end: 23, revenue: 0, orders: 0 },
+      { key: '06-09', slot: '06h - 09h', label: '06h - 09h', fullLabel: '06h - 09h (Sáng sớm)', start: 6, end: 9, revenue: 0, orders: 0 },
+      { key: '09-12', slot: '09h - 12h', label: '09h - 12h', fullLabel: '09h - 12h (Buổi sáng)', start: 9, end: 12, revenue: 0, orders: 0 },
+      { key: '12-14', slot: '12h - 14h', label: '12h - 14h', fullLabel: '12h - 14h (Buổi trưa)', start: 12, end: 14, revenue: 0, orders: 0 },
+      { key: '14-17', slot: '14h - 17h', label: '14h - 17h', fullLabel: '14h - 17h (Buổi chiều)', start: 14, end: 17, revenue: 0, orders: 0 },
+      { key: '17-20', slot: '17h - 20h', label: '17h - 20h', fullLabel: '17h - 20h (Giờ vàng)', start: 17, end: 20, revenue: 0, orders: 0 },
+      { key: '20-23', slot: '20h - 23h', label: '20h - 23h', fullLabel: '20h - 23h (Tối muộn)', start: 20, end: 23, revenue: 0, orders: 0 },
     ];
 
-    currentViewOrders.forEach((order) => {
+    (currentViewOrders || []).forEach((order) => {
       const parsed = parseOrderDate(order.created_at);
       const h = parsed.date.getHours();
       const slot = timeSlots.find((s) => h >= s.start && h < s.end);
@@ -556,11 +556,16 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
     const maxSlotRev = Math.max(...timeSlots.map((s) => s.revenue), 1);
     const peakSlot = [...timeSlots].sort((a, b) => b.revenue - a.revenue)[0];
+    const enrichedSlots = timeSlots.map((s) => ({
+      ...s,
+      slot: s.label,
+      isPeak: Boolean(peakSlot && peakSlot.key === s.key && s.revenue > 0),
+    }));
 
     return {
-      slots: timeSlots,
+      slots: enrichedSlots,
       maxSlotRev,
-      peakSlot,
+      peakSlot: peakSlot ? { ...peakSlot, slot: peakSlot.label } : null,
     };
   }, [currentViewOrders]);
 
@@ -573,7 +578,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
     let transferCount = 0;
     let cardCount = 0;
 
-    currentViewOrders.forEach((order) => {
+    (currentViewOrders || []).forEach((order) => {
       const amount = order.final_amount || 0;
       if (order.payment_method === 'CASH') {
         cashRev += amount;
@@ -595,6 +600,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
         name: 'Tiền mặt',
         code: 'CASH',
         amount: cashRev,
+        value: cashRev,
         count: cashCount,
         percent: totalRev > 0 ? Number(((cashRev / totalRev) * 100).toFixed(1)) : 0,
         color: '#10B981', // Emerald
@@ -603,6 +609,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
         name: 'Chuyển khoản VietQR',
         code: 'TRANSFER',
         amount: transferRev,
+        value: transferRev,
         count: transferCount,
         percent: totalRev > 0 ? Number(((transferRev / totalRev) * 100).toFixed(1)) : 0,
         color: '#0B63E5', // Blue
@@ -611,6 +618,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
         name: 'Quẹt thẻ ATM/Visa',
         code: 'CARD',
         amount: cardRev,
+        value: cardRev,
         count: cardCount,
         percent: totalRev > 0 ? Number(((cardRev / totalRev) * 100).toFixed(1)) : 0,
         color: '#8B5CF6', // Purple
@@ -618,9 +626,15 @@ export const QuarterlyFinancialReport: React.FC = () => {
     ].filter((item) => item.count > 0 || totalCount === 0);
 
     const nonCashPercent = totalRev > 0 ? Number((((transferRev + cardRev) / totalRev) * 100).toFixed(1)) : 0;
+    const finalBreakdown = breakdown.length > 0 ? breakdown : [{ name: 'Tiền mặt', code: 'CASH', amount: 0, value: 0, count: 0, percent: 100, color: '#10B981' }];
+    const chartData = finalBreakdown.map((item) => ({
+      ...item,
+      value: item.amount,
+    }));
 
     return {
-      breakdown: breakdown.length > 0 ? breakdown : [{ name: 'Tiền mặt', code: 'CASH', amount: 0, count: 0, percent: 100, color: '#10B981' }],
+      breakdown: finalBreakdown,
+      chartData,
       cashRev,
       transferRev,
       cardRev,
@@ -632,14 +646,14 @@ export const QuarterlyFinancialReport: React.FC = () => {
   // --- 8. AUTOMATED BUSINESS EVALUATION & STRATEGIC INSIGHTS ---
   const businessEvaluation = useMemo(() => {
     // 1. Health Score calculation (0 to 100)
-    const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length;
-    const totalOrdersAll = orders.length;
+    const cancelledCount = (orders || []).filter((o) => o?.status === 'CANCELLED').length;
+    const totalOrdersAll = (orders || []).length;
     const completionRate = totalOrdersAll > 0 ? ((totalOrdersAll - cancelledCount) / totalOrdersAll) * 100 : 100;
 
-    let marginScore = Math.min(35, Math.round((activeMargin / 22) * 35));
+    let marginScore = Math.min(35, Math.round(((activeMargin || 0) / 22) * 35));
     let completionScore = Math.min(25, Math.round((completionRate / 98) * 25));
-    let digitalScore = Math.min(20, Math.round((paymentMethodData.nonCashPercent / 50) * 20));
-    let aovScore = Math.min(20, Math.round((activeAov / 150000) * 20));
+    let digitalScore = Math.min(20, Math.round(((paymentMethodData?.nonCashPercent || 0) / 50) * 20));
+    let aovScore = Math.min(20, Math.round(((activeAov || 0) / 150000) * 20));
 
     const totalScore = Math.min(100, Math.max(25, marginScore + completionScore + digitalScore + aovScore));
 
@@ -665,15 +679,15 @@ export const QuarterlyFinancialReport: React.FC = () => {
     // 2. Revenue & Trend commentary
     let revenueInsight = '';
     if (viewMode === 'WEEK') {
-      const sortedDays = [...weeklyReportData.days].sort((a, b) => b.revenue - a.revenue);
+      const sortedDays = [...(weeklyReportData?.days || [])].sort((a, b) => b.revenue - a.revenue);
       const topDay = sortedDays[0];
       const lowDay = sortedDays[sortedDays.length - 1];
       revenueInsight = `Doanh số tuần đạt đỉnh vào ${topDay?.day || 'Thứ 7'} (${formatCurrency(topDay?.revenue || 0)}), thấp nhất vào ${lowDay?.day || 'Đầu tuần'}. Nhịp độ mua sắm tăng vọt vào ngày cuối tuần.`;
     } else if (viewMode === 'MONTH') {
       if (monthlySubView === 'ALL_MONTHS') {
-        const sortedMonths = [...monthlyReportData.allMonths].sort((a, b) => b.revenue - a.revenue);
+        const sortedMonths = [...(monthlyReportData?.allMonths || [])].sort((a, b) => b.revenue - a.revenue);
         const topM = sortedMonths[0];
-        revenueInsight = `Tháng có doanh thu cao nhất năm ${selectedYear} là ${topM?.month} với ${formatCurrency(topM?.revenue || 0)} (${topM?.orders} đơn). Tốc độ bán hàng duy trì ổn định trung bình ${formatCurrency(Math.round(activeRevenue / 12))}/tháng.`;
+        revenueInsight = `Tháng có doanh thu cao nhất năm ${selectedYear} là ${topM?.month || 'N/A'} với ${formatCurrency(topM?.revenue || 0)} (${topM?.orders || 0} đơn). Tốc độ bán hàng duy trì ổn định trung bình ${formatCurrency(Math.round(activeRevenue / 12))}/tháng.`;
       } else {
         revenueInsight = `Tháng ${selectedMonth}/${selectedYear} đạt tổng doanh số ${formatCurrency(activeRevenue)} với ${activeOrdersCount} hóa đơn. Giá trị giỏ hàng trung bình mỗi khách chi tiêu đạt ${formatCurrency(activeAov)}.`;
       }
@@ -693,7 +707,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
     // 4. Category & Concentration Risk commentary
     let categoryInsight = '';
-    const topCat = categoryData[0];
+    const topCat = (categoryData || [])[0];
     if (topCat && topCat.value > 50) {
       categoryInsight = `Cơ cấu doanh thu phụ thuộc lớn vào ngành hàng "${topCat.name}" (chiếm ${topCat.value}% doanh số). Nên đẩy mạnh tiếp thị thêm các nhóm hàng khác để phân tán rủi ro.`;
     } else if (topCat) {
@@ -703,8 +717,8 @@ export const QuarterlyFinancialReport: React.FC = () => {
     }
 
     // 5. Strategic Action Recommendations
-    const topProd = topProducts[0];
-    const peakHour = hourlySalesData.peakSlot?.fullLabel || '17h - 20h (Giờ vàng)';
+    const topProd = (topProducts || [])[0];
+    const peakHour = hourlySalesData?.peakSlot?.fullLabel || '17h - 20h (Giờ vàng)';
 
     const recommendations = [
       {
@@ -729,7 +743,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
       },
       {
         title: 'Dòng tiền & Đối soát sổ quỹ',
-        desc: `Thanh toán VietQR & thẻ chiếm ${paymentMethodData.nonCashPercent}%. Dòng tiền vào tài khoản tốt, cần đối soát sao kê định kỳ với sổ quỹ để kiểm soát thất thoát.`,
+        desc: `Thanh toán VietQR & thẻ chiếm ${paymentMethodData?.nonCashPercent || 0}%. Dòng tiền vào tài khoản tốt, cần đối soát sao kê định kỳ với sổ quỹ để kiểm soát thất thoát.`,
         badge: 'Dòng tiền',
         badgeColor: 'bg-purple-100 text-purple-800 border border-purple-200',
       },
@@ -1162,10 +1176,10 @@ export const QuarterlyFinancialReport: React.FC = () => {
                       Cơ Cấu Ngành Hàng
                     </span>
                   </div>
-                  <span className="badge-gray text-[10px]">{categoryData.length} nhóm hàng</span>
+                  <span className="badge-gray text-[10px]">{(categoryData || []).length} nhóm hàng</span>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  {businessEvaluation.categoryInsight}
+                  {businessEvaluation?.categoryInsight}
                 </p>
               </div>
             </div>
@@ -1183,7 +1197,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {businessEvaluation.recommendations.map((rec, i) => (
+                {(businessEvaluation?.recommendations || []).map((rec, i) => (
                   <div key={i} className="p-3 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-slate-50 transition-colors flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between gap-1.5 mb-1.5">
@@ -1283,7 +1297,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={categoryData}
+                    data={categoryData || []}
                     cx="50%"
                     cy="50%"
                     innerRadius={48}
@@ -1291,7 +1305,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
                     paddingAngle={3}
                     dataKey="amount"
                   >
-                    {categoryData.map((_, index) => (
+                    {(categoryData || []).map((_, index) => (
                       <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
                     ))}
                   </Pie>
@@ -1314,7 +1328,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
           </div>
 
           <div className="space-y-1.5 mt-2 border-t border-slate-100 pt-2 text-xs">
-            {categoryData.slice(0, 4).map((cat, idx) => (
+            {(categoryData || []).slice(0, 4).map((cat, idx) => (
               <div key={cat.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
@@ -1387,7 +1401,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
                     radius={[4, 4, 0, 0]}
                     maxBarSize={40}
                   >
-                    {hourlySalesData.slots.map((entry, index) => (
+                    {(hourlySalesData?.slots || []).map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={entry.isPeak ? '#F59E0B' : '#0B63E5'}
@@ -1404,7 +1418,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
               <div className="text-[10px] text-slate-500">Giờ sáng (06-12h)</div>
               <div className="font-bold text-slate-800 mt-0.5">
                 {formatShortCurrency(
-                  (hourlySalesData.slots[0]?.revenue || 0) + (hourlySalesData.slots[1]?.revenue || 0)
+                  (hourlySalesData?.slots?.[0]?.revenue || 0) + (hourlySalesData?.slots?.[1]?.revenue || 0)
                 )}
               </div>
             </div>
@@ -1412,7 +1426,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
               <div className="text-[10px] text-slate-500">Giờ trưa - chiều (12-17h)</div>
               <div className="font-bold text-slate-800 mt-0.5">
                 {formatShortCurrency(
-                  (hourlySalesData.slots[2]?.revenue || 0) + (hourlySalesData.slots[3]?.revenue || 0)
+                  (hourlySalesData?.slots?.[2]?.revenue || 0) + (hourlySalesData?.slots?.[3]?.revenue || 0)
                 )}
               </div>
             </div>
@@ -1420,7 +1434,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
               <div className="text-[10px] text-amber-700 font-semibold">Giờ tối (17-23h)</div>
               <div className="font-bold text-amber-900 mt-0.5">
                 {formatShortCurrency(
-                  (hourlySalesData.slots[4]?.revenue || 0) + (hourlySalesData.slots[5]?.revenue || 0)
+                  (hourlySalesData?.slots?.[4]?.revenue || 0) + (hourlySalesData?.slots?.[5]?.revenue || 0)
                 )}
               </div>
             </div>
@@ -1443,7 +1457,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
                 </div>
               </div>
               <span className="badge-blue text-[10px]">
-                {paymentMethodData.nonCashPercent}% số hóa
+                {paymentMethodData?.nonCashPercent || 0}% số hóa
               </span>
             </div>
 
@@ -1454,7 +1468,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={paymentMethodData.chartData}
+                        data={paymentMethodData?.chartData || []}
                         cx="50%"
                         cy="50%"
                         innerRadius={42}
@@ -1462,7 +1476,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
                         paddingAngle={4}
                         dataKey="value"
                       >
-                        {paymentMethodData.chartData.map((entry, index) => (
+                        {(paymentMethodData?.chartData || []).map((entry, index) => (
                           <Cell key={`pay-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -1479,12 +1493,12 @@ export const QuarterlyFinancialReport: React.FC = () => {
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <span className="text-[10px] text-slate-400 font-medium">Không tiền mặt</span>
-                    <span className="text-xs font-bold text-[#0B63E5]">{paymentMethodData.nonCashPercent}%</span>
+                    <span className="text-xs font-bold text-[#0B63E5]">{paymentMethodData?.nonCashPercent || 0}%</span>
                   </div>
                 </div>
 
                 <div className="w-full space-y-1 mt-1 text-[11px]">
-                  {paymentMethodData.chartData.map((item) => (
+                  {(paymentMethodData?.chartData || []).map((item) => (
                     <div key={item.name} className="flex items-center justify-between text-slate-600">
                       <div className="flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
@@ -1598,7 +1612,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {viewMode === 'WEEK' &&
-                weeklyReportData.days.map((row) => (
+                (weeklyReportData?.days || []).map((row) => (
                   <tr key={row.day} className="hover:bg-slate-50 transition-colors">
                     <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{row.day}</td>
                     <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{row.orders.toLocaleString('vi-VN')} đơn</td>
@@ -1614,7 +1628,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
               {viewMode === 'MONTH' &&
                 monthlySubView === 'ALL_MONTHS' &&
-                monthlyReportData.allMonths.map((row) => (
+                (monthlyReportData?.allMonths || []).map((row) => (
                   <tr key={row.month} className="hover:bg-slate-50 transition-colors">
                     <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{row.month}</td>
                     <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{row.orders.toLocaleString('vi-VN')} đơn</td>
@@ -1630,7 +1644,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
 
               {viewMode === 'MONTH' &&
                 monthlySubView === 'SELECTED_MONTH' &&
-                monthlyReportData.monthWeeks.map((row) => (
+                (monthlyReportData?.monthWeeks || []).map((row) => (
                   <tr key={row.week} className="hover:bg-slate-50 transition-colors">
                     <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{row.week}</td>
                     <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{row.orders.toLocaleString('vi-VN')} đơn</td>
@@ -1645,7 +1659,7 @@ export const QuarterlyFinancialReport: React.FC = () => {
                 ))}
 
               {viewMode === 'QUARTER' &&
-                quarterlyReportData.months.map((row) => (
+                (quarterlyReportData?.months || []).map((row) => (
                   <tr key={row.month} className="hover:bg-slate-50 transition-colors">
                     <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">{row.month}</td>
                     <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">{row.orders.toLocaleString('vi-VN')} đơn</td>
@@ -1691,14 +1705,14 @@ export const QuarterlyFinancialReport: React.FC = () => {
             <span className="badge-blue text-[10px]">Cửa hàng Ngân Sơn</span>
           </div>
 
-          {topProducts.length === 0 ? (
+          {(topProducts || []).length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-xs">
               <ShoppingBag className="w-8 h-8 mx-auto mb-2 opacity-40" />
               Chưa có sản phẩm phát sinh doanh số bán hàng trong hệ thống.
             </div>
           ) : (
             <div className="space-y-2">
-              {topProducts.map((p, index) => (
+              {(topProducts || []).map((p, index) => (
                 <div
                   key={p.sku || index}
                   className="flex items-center justify-between p-2 rounded-lg bg-slate-50 hover:bg-blue-50/50 border border-slate-100 transition-colors"
