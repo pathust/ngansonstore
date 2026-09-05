@@ -154,8 +154,8 @@ export class SupabaseService {
       if (error || !data) return [];
       return data.map((u: any) => {
         const perms = u.permissions || {};
-        const username = perms._username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhatphan' : u.email ? u.email.split('@')[0] : 'user');
-        let password = perms._password;
+        const username = u.username || perms._username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhatphan' : u.email ? u.email.split('@')[0] : 'user');
+        let password = u.password || perms._password;
         if (!password || password === '123456') {
           if (username === 'tai' || u.id === 'user-admin-01') password = 'admin123';
           else if (username === 'son' || u.id === 'user-manager-01') password = 'minhson318vuquang';
@@ -175,6 +175,8 @@ export class SupabaseService {
           email = 'nhatphanminh2711@gmail.com';
         }
 
+        const status = u.status || (u.is_active === false ? 'LOCKED' : 'ACTIVE');
+
         return {
           id: u.id,
           name: u.name,
@@ -186,7 +188,7 @@ export class SupabaseService {
           phone: u.phone || '',
           avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
           bio: u.bio || '',
-          status: u.is_active === false ? 'LOCKED' : 'ACTIVE',
+          status,
           permissions: {
             ...perms,
             canImportData: u.can_import_data ?? perms.canImportData ?? false,
@@ -200,15 +202,19 @@ export class SupabaseService {
 
   public async upsertUser(user: AppUser): Promise<boolean> {
     try {
-      const payload = {
+      // 1. First attempt: Full modern schema with dedicated columns
+      const fullPayload = {
         id: user.id,
         name: user.name,
+        username: user.username,
+        password: user.password,
         role: user.role,
         role_title: user.roleTitle,
         email: user.email || '',
         phone: user.phone || '',
         avatar: user.avatar || '',
         bio: user.bio || '',
+        status: user.status || 'ACTIVE',
         is_active: user.status !== 'LOCKED',
         can_import_data: Boolean(user.permissions?.canImportData),
         permissions: {
@@ -216,10 +222,39 @@ export class SupabaseService {
           _username: user.username,
           _password: user.password,
         },
+        updated_at: new Date().toISOString(),
       };
-      const { error } = await supabase.from('app_users').upsert(payload, { onConflict: 'id' });
-      return !error;
-    } catch {
+
+      const { error: fullError } = await supabase.from('app_users').upsert(fullPayload, { onConflict: 'id' });
+      if (!fullError) return true;
+
+      // 2. If database has not yet been migrated (PGRST204 missing columns), fallback to legacy payload
+      if (fullError.code === 'PGRST204') {
+        const legacyPayload = {
+          id: user.id,
+          name: user.name,
+          role: user.role,
+          role_title: user.roleTitle,
+          email: user.email || '',
+          phone: user.phone || '',
+          avatar: user.avatar || '',
+          bio: user.bio || '',
+          is_active: user.status !== 'LOCKED',
+          can_import_data: Boolean(user.permissions?.canImportData),
+          permissions: {
+            ...(user.permissions || {}),
+            _username: user.username,
+            _password: user.password,
+          },
+        };
+        const { error: fallbackError } = await supabase.from('app_users').upsert(legacyPayload, { onConflict: 'id' });
+        return !fallbackError;
+      }
+
+      console.warn('[Supabase] Upsert user warning:', fullError);
+      return false;
+    } catch (err) {
+      console.warn('[Supabase] Upsert user exception:', err);
       return false;
     }
   }

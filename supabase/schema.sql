@@ -24,17 +24,24 @@ CREATE TABLE IF NOT EXISTS branches (
 CREATE TABLE IF NOT EXISTS app_users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    username TEXT UNIQUE,
+    password TEXT,
     role TEXT NOT NULL,
     role_title TEXT,
     email TEXT,
     phone TEXT,
     avatar TEXT,
     bio TEXT,
+    status TEXT DEFAULT 'ACTIVE',
     can_import_data BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     permissions JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_username ON app_users(username);
+CREATE INDEX IF NOT EXISTS idx_app_users_status ON app_users(status);
 
 -- 4. BẢNG DANH MỤC HÀNG HÓA (CATEGORIES)
 CREATE TABLE IF NOT EXISTS categories (

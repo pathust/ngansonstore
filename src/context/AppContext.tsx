@@ -375,18 +375,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return DEFAULT_APP_USERS.map((du) => {
+          const mergedDefaults = DEFAULT_APP_USERS.map((du) => {
             const f = parsed.find((p: AppUser) => p.id === du.id);
             return f
               ? {
                   ...du,
                   ...f,
                   username: f.username || du.username,
-                  email: du.email,
+                  email: f.email || du.email,
                   password: f.password || du.password,
                 }
               : du;
           });
+          const customUsers = parsed.filter((p: AppUser) => !DEFAULT_APP_USERS.some((du) => du.id === p.id));
+          return [...mergedDefaults, ...customUsers];
         }
       } catch (e) {}
     }
@@ -1048,6 +1050,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           });
         }
       }
+      // Direct pull from Supabase Cloud to ensure real-time multi-device user and avatar sync
+      try {
+        const supaUsers = await supabaseService.getUsers();
+        if (supaUsers && supaUsers.length > 0) {
+          setUsers((prev) => {
+            const merged = [...prev];
+            supaUsers.forEach((su) => {
+              const idx = merged.findIndex((u) => u.id === su.id);
+              if (idx >= 0) {
+                merged[idx] = { ...merged[idx], ...su };
+              } else {
+                merged.push(su);
+              }
+            });
+            if (isDataEqual(prev, merged)) return prev;
+            safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', merged);
+            return merged;
+          });
+          setCurrentUser((prev) => {
+            if (!prev) return prev;
+            const found = supaUsers.find((u) => u.id === prev.id);
+            if (!found) return prev;
+            const target = { ...prev, ...found };
+            if (isDataEqual(prev, target)) return prev;
+            return target;
+          });
+        }
+      } catch (supaErr) {
+        console.warn('[Sync] Direct Supabase users pull warning:', supaErr);
+      }
+
       setSyncState('IDLE');
       lastSyncTimeRef.current = Date.now();
     } catch (err: unknown) {

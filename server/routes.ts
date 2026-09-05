@@ -494,25 +494,27 @@ apiRouter.post('/system/clean-mock', (req: Request, res: Response) => {
 
 // ==================== MOBILE & WEB SYNC API ====================
 // Pull changes for mobile app & web client
-apiRouter.get('/sync/pull', (req: Request, res: Response) => {
+apiRouter.get('/sync/pull', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const since = parseInt(req.query.since as string) || 0;
     const data = dbManager.pullSync(since);
     res.json({ success: true, data });
   } catch (err: unknown) {
-  const message = err instanceof Error ? err.message : 'Unknown error';
+    const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ success: false, error: message });
   }
 });
 
 // Push client-side / mobile offline changes to server
-apiRouter.post('/sync/push', (req: Request, res: Response) => {
+apiRouter.post('/sync/push', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const payload = req.body;
     const result = dbManager.pushSync(payload);
     res.json({ success: true, result });
   } catch (err: unknown) {
-  const message = err instanceof Error ? err.message : 'Unknown error';
+    const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ success: false, error: message });
   }
 });
@@ -1025,8 +1027,9 @@ apiRouter.delete('/categories/:id', (req: Request, res: Response) => {
 });
 
 // ==================== AUTH & USERS API ====================
-apiRouter.post('/auth/login', (req: Request, res: Response) => {
+apiRouter.post('/auth/login', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ success: false, error: 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu!' });
@@ -1059,8 +1062,9 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/auth/change-password', (req: Request, res: Response) => {
+apiRouter.post('/auth/change-password', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const { userId, oldPassword, newPassword } = req.body;
     if (!userId || !oldPassword || !newPassword) {
       return res.status(400).json({ success: false, error: 'Vui lòng điền đầy đủ mật khẩu cũ và mật khẩu mới!' });
@@ -1091,10 +1095,10 @@ apiRouter.post('/auth/change-password', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.get('/users', (req: Request, res: Response) => {
+apiRouter.get('/users', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const users = dbManager.getUsers();
-    // Return sanitized users or keep password for offline client if needed
     res.json({ success: true, data: users });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -1102,8 +1106,9 @@ apiRouter.get('/users', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/users', (req: Request, res: Response) => {
+apiRouter.post('/users', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     if (!req.body.name || !req.body.name.trim()) {
       return res.status(400).json({ success: false, error: 'Tên người dùng không được để trống!' });
     }
@@ -1115,8 +1120,9 @@ apiRouter.post('/users', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/users/:id/reset-password', (req: Request, res: Response) => {
+apiRouter.post('/users/:id/reset-password', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const { newPassword } = req.body;
     if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({ success: false, error: 'Mật khẩu mới phải có tối thiểu 6 ký tự!' });
@@ -1132,8 +1138,9 @@ apiRouter.post('/users/:id/reset-password', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.patch('/users/:id/status', (req: Request, res: Response) => {
+apiRouter.patch('/users/:id/status', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const { status } = req.body;
     if (status !== 'ACTIVE' && status !== 'LOCKED') {
       return res.status(400).json({ success: false, error: 'Trạng thái không hợp lệ!' });
@@ -1152,8 +1159,9 @@ apiRouter.patch('/users/:id/status', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/users/:id/profile', (req: Request, res: Response) => {
+apiRouter.put('/users/:id/profile', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const updated = dbManager.updateUserProfile(req.params.id, req.body);
     if (!updated) {
       return res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản!' });
@@ -1165,8 +1173,9 @@ apiRouter.put('/users/:id/profile', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.delete('/users/:id', (req: Request, res: Response) => {
+apiRouter.delete('/users/:id', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const ok = dbManager.deleteUser(req.params.id);
     if (!ok) {
       return res.status(400).json({ success: false, error: 'Không thể xóa tài khoản Quản trị viên (Admin) hoặc tài khoản không tồn tại!' });

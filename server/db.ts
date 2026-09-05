@@ -557,18 +557,27 @@ class DatabaseManager {
     if (!item || typeof item !== 'object') return item;
     const clean = { ...item };
     if (table === 'app_users') {
-      delete clean.updated_at;
-      delete clean.username;
-      delete clean.password;
-      delete clean.status;
-      clean.is_active = item.status !== 'LOCKED';
-      clean.can_import_data = Boolean(item.permissions?.canImportData);
-      clean.permissions = {
-        ...(item.permissions || {}),
-        _username: item.username,
-        _password: item.password,
+      return {
+        id: item.id,
+        name: item.name,
+        username: item.username,
+        password: item.password,
+        role: item.role,
+        role_title: item.roleTitle || item.role_title,
+        email: item.email || '',
+        phone: item.phone || '',
+        avatar: item.avatar || '',
+        bio: item.bio || '',
+        status: item.status || 'ACTIVE',
+        is_active: item.status !== 'LOCKED',
+        can_import_data: Boolean(item.permissions?.canImportData),
+        permissions: {
+          ...(item.permissions || {}),
+          _username: item.username,
+          _password: item.password,
+        },
+        updated_at: new Date().toISOString(),
       };
-      return clean;
     }
     if (table === 'customers') {
       if (clean.customer_type && !clean.type) clean.type = clean.customer_type;
@@ -578,6 +587,30 @@ class DatabaseManager {
     if (clean.updated_at) clean.updated_at = toIsoDate(clean.updated_at);
     if (clean.balanced_at) clean.balanced_at = toIsoDate(clean.balanced_at);
     return clean;
+  }
+
+  private formatForSupabaseLegacy(table: string, item: any): any {
+    if (!item || typeof item !== 'object') return item;
+    if (table === 'app_users') {
+      return {
+        id: item.id,
+        name: item.name,
+        role: item.role,
+        role_title: item.roleTitle || item.role_title,
+        email: item.email || '',
+        phone: item.phone || '',
+        avatar: item.avatar || '',
+        bio: item.bio || '',
+        is_active: item.status !== 'LOCKED',
+        can_import_data: Boolean(item.permissions?.canImportData),
+        permissions: {
+          ...(item.permissions || {}),
+          _username: item.username,
+          _password: item.password,
+        },
+      };
+    }
+    return item;
   }
 
   public async syncToSupabase(table: string, action: 'upsert' | 'delete', data: any) {
@@ -594,7 +627,15 @@ class DatabaseManager {
       } else {
         const formatted = this.formatForSupabase(table, data);
         const { error } = await supabase.from(table).upsert(formatted, { onConflict: 'id' });
-        if (error) console.error(`[SUPABASE] Upsert error on ${table}:`, error);
+        if (error) {
+          if (table === 'app_users' && error.code === 'PGRST204') {
+            // Fallback for un-migrated schema
+            const legacy = this.formatForSupabaseLegacy(table, data);
+            await supabase.from(table).upsert(legacy, { onConflict: 'id' });
+          } else {
+            console.error(`[SUPABASE] Upsert error on ${table}:`, error);
+          }
+        }
       }
     } catch (err) {
       console.warn(`[SUPABASE] Mutation sync warning (${action} ${table}):`, err);

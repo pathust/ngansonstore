@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AppUser, UserRole, UserPermissions } from '../../types';
+import { AvatarUploader } from '../common/AvatarUploader';
 import {
   Users,
   UserPlus,
@@ -557,6 +558,23 @@ export const UserManagementScreen: React.FC = () => {
                       <span className="text-xs block">{r === 'ADMIN' ? '👑 Quản trị viên' : r === 'MANAGER' ? '👔 Quản lý' : '🛒 Nhân viên'}</span>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Avatar Uploader Section */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                <AvatarUploader
+                  currentAvatar={formData.avatar}
+                  userName={formData.name || 'Nhân viên'}
+                  onAvatarChange={(newAvatar) => setFormData((prev) => ({ ...prev, avatar: newAvatar }))}
+                  size="lg"
+                  editable={true}
+                />
+                <div className="text-center sm:text-left space-y-1">
+                  <h4 className="text-xs font-bold text-slate-800">Ảnh đại diện nhân sự</h4>
+                  <p className="text-[11px] text-slate-500">
+                    Chạm vào ảnh để chụp ảnh mới hoặc tải ảnh từ máy (hệ thống tự động cắt vuông và nén nhẹ).
+                  </p>
                 </div>
               </div>
 

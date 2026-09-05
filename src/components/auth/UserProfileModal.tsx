@@ -14,6 +14,8 @@ import {
   Lock,
 } from 'lucide-react';
 
+import { AvatarUploader } from '../common/AvatarUploader';
+
 interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -45,7 +47,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         phone: phone.trim(),
         email: email.trim(),
         bio: bio.trim(),
-        avatar: avatar.trim() || currentUser.avatar,
+        avatar: avatar.trim(),
       });
       onClose();
     } finally {
@@ -110,17 +112,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* Scrollable Content */}
         <div className="p-6 overflow-y-auto space-y-5 scroll-hide flex-1">
           {/* User Profile Card */}
-          <div className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-100">
-            <div className="relative">
-              <img
-                src={avatar || currentUser.avatar}
-                alt={currentUser.name}
-                className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-md"
-              />
-              <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full"></span>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-100">
+            <AvatarUploader
+              currentAvatar={avatar || currentUser.avatar}
+              userName={currentUser.name}
+              onAvatarChange={(newAvatar) => setAvatar(newAvatar)}
+              size="lg"
+              editable={true}
+            />
+            <div className="flex flex-col min-w-0 text-center sm:text-left flex-1">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
                 <span className="text-base font-extrabold text-slate-900 truncate">{currentUser.name}</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 uppercase">
                   {currentUser.role}
