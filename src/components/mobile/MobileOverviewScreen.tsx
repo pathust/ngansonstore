@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useOrdersData } from '../../context/slices/OrdersDataContext';
-import { formatCurrency, parseDateToTimestamp } from '../../utils/formatters';
+import { formatCurrency, formatShortCurrency, parseDateToTimestamp } from '../../utils/formatters';
 import {
   Phone,
   Bell,
@@ -372,13 +372,17 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
           {/* Bar Chart Canvas / SVG */}
           <div className="pt-2 pb-1">
             <div className="h-44 w-full flex flex-col justify-between relative">
-              {/* Y Axis Grid lines */}
+              {/* Y Axis Grid lines — ticks are computed straight from the actual max revenue
+                  (in đ) and formatted with formatShortCurrency (K/M/tỷ), instead of forcing
+                  everything into whole "triệu" units. The old version rounded to whole millions
+                  first, so any day under 1.000.000đ (the common case for a small store) rounded
+                  every tick up to the same "1Tr" label. */}
               {(() => {
-                const maxM = Math.max(1, Math.ceil(metrics.maxChartRev / 1000000));
-                const ticks = [maxM, Math.round(maxM * 0.75), Math.round(maxM * 0.5), Math.round(maxM * 0.25), 0];
+                const maxRev = Math.max(0, metrics.maxChartRev);
+                const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => maxRev * fraction);
                 return ticks.map((val, idx) => (
                   <div key={idx} className="flex items-center gap-2 w-full text-[10px] text-slate-400">
-                    <span className="w-8 text-right font-mono">{val > 0 ? `${val}Tr` : '0'}</span>
+                    <span className="w-12 text-right font-mono">{val > 0 ? formatShortCurrency(val) : '0'}</span>
                     <div className="flex-1 border-b border-slate-100" />
                   </div>
                 ));

@@ -1107,47 +1107,54 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
                               return (
                                 <div
                                   key={index}
-                                  className="flex items-center justify-between p-2 rounded-xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-100 transition-colors text-xs gap-2"
+                                  className="p-2 rounded-xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-100 transition-colors text-xs space-y-1.5"
                                 >
-                                  <div className="flex-1 min-w-0 pr-1">
-                                    <div className="font-bold text-slate-900 truncate">{item.product.name}</div>
-                                    <div className="text-[11px] text-slate-500">
-                                      Mã: <strong className="text-slate-700">{item.product.sku}</strong> • ĐVT: <strong>{item.product.unit}</strong>
+                                  {/* Row 1: name + SKU/unit (own line, truncates) + remove — never competes with the controls below for width. */}
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-slate-900 truncate">{item.product.name}</div>
+                                      <div className="text-[11px] text-slate-500 truncate">
+                                        Mã: <strong className="text-slate-700">{item.product.sku}</strong> • ĐVT: <strong>{item.product.unit}</strong>
+                                      </div>
                                     </div>
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0">
                                     <button
-                                      onClick={() => handleQuantityChange(index, -1)}
-                                      className="w-6 h-6 rounded-md bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                                      onClick={() => handleRemoveItem(index)}
+                                      className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer shrink-0"
                                     >
-                                      <Minus className="w-3 h-3" />
-                                    </button>
-                                    <span className="font-bold text-slate-900 w-6 text-center">{item.quantity}</span>
-                                    <button
-                                      onClick={() => handleQuantityChange(index, 1)}
-                                      className="w-6 h-6 rounded-md bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
-                                    >
-                                      <Plus className="w-3 h-3" />
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
-                                  <input
-                                    type="number"
-                                    onFocus={(e) => e.target.select()}
-                                    value={price}
-                                    onChange={(e) =>
-                                      mode === 'POS_ORDER'
-                                        ? handlePriceChange(index, Number(e.target.value))
-                                        : handleCostChange(index, Number(e.target.value))
-                                    }
-                                    className="w-20 shrink-0 text-right font-semibold text-slate-800 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-blue-500"
-                                  />
-                                  <div className="w-20 shrink-0 text-right font-bold text-blue-600">{formatCurrency(lineTotal)}</div>
-                                  <button
-                                    onClick={() => handleRemoveItem(index)}
-                                    className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer shrink-0"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+
+                                  {/* Row 2: qty stepper + price + line total — short enough to always fit on narrow screens. */}
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        onClick={() => handleQuantityChange(index, -1)}
+                                        className="w-6 h-6 rounded-md bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                                      >
+                                        <Minus className="w-3 h-3" />
+                                      </button>
+                                      <span className="font-bold text-slate-900 w-6 text-center">{item.quantity}</span>
+                                      <button
+                                        onClick={() => handleQuantityChange(index, 1)}
+                                        className="w-6 h-6 rounded-md bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                    <input
+                                      type="number"
+                                      onFocus={(e) => e.target.select()}
+                                      value={price}
+                                      onChange={(e) =>
+                                        mode === 'POS_ORDER'
+                                          ? handlePriceChange(index, Number(e.target.value))
+                                          : handleCostChange(index, Number(e.target.value))
+                                      }
+                                      className="w-20 min-w-0 shrink text-right font-semibold text-slate-800 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-blue-500"
+                                    />
+                                    <div className="shrink-0 text-right font-bold text-blue-600">{formatCurrency(lineTotal)}</div>
+                                  </div>
                                 </div>
                               );
                             })}
