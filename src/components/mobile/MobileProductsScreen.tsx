@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency } from '../../utils/formatters';
 import { Product } from '../../types';
@@ -141,6 +142,13 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
       prods,
     }));
   }, [filteredProducts, categories]);
+
+  // Lazy loading — chỉ render số items cần thiết, load thêm khi scroll đến cuối
+  const { visibleCount, sentinelRef, hasMore } = useInfiniteScroll(
+    filteredProducts.length,
+    20,
+    [searchQuery, sortOption, priceType, filterOptions, viewMode]
+  );
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F5F6F8] pb-24 text-slate-800">
@@ -296,56 +304,64 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
             <span className="text-sm font-medium">Không tìm thấy hàng hoá phù hợp</span>
           </div>
         ) : viewMode === 'GROUPED' ? (
-          groupedProducts.map((grp) => (
-            <div key={grp.categoryName} className="flex flex-col gap-2 mb-2">
-              <div className="px-2 pt-1 flex items-center justify-between">
-                <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wide">
-                  {grp.categoryName}
-                </span>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  {grp.prods.length} sản phẩm
-                </span>
-              </div>
-              {grp.prods.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => {
-                    setSelectedProductForEdit(p);
-                    setIsProductModalOpen(true);
-                  }}
-                  className="bg-white rounded-2xl p-3.5 flex items-center justify-between border border-slate-100 shadow-2xs hover:shadow-xs transition-all active:bg-blue-50/50 cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0 pr-3">
-                    <div className="w-12 h-12 rounded-xl bg-blue-50/60 border border-blue-100 flex items-center justify-center shrink-0 text-[#0066FF]">
-                      {p.image ? (
-                        <img src={p.image} alt={p.name} className="w-full h-full object-cover rounded-xl" />
-                      ) : (
-                        <ImageIcon className="w-6 h-6 text-blue-400" />
-                      )}
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-bold text-sm text-slate-900 truncate leading-snug">{p.name}</span>
-                      <span className="text-xs text-slate-400 font-mono mt-0.5">{p.sku}</span>
-                    </div>
+          (() => {
+            let shown = 0;
+            return groupedProducts.map((grp) => {
+              if (shown >= visibleCount) return null;
+              const visibleProds = grp.prods.slice(0, visibleCount - shown);
+              shown += visibleProds.length;
+              return (
+                <div key={grp.categoryName} className="flex flex-col gap-2 mb-2">
+                  <div className="px-2 pt-1 flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wide">
+                      {grp.categoryName}
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {grp.prods.length} sản phẩm
+                    </span>
                   </div>
-                  <div className="text-right shrink-0 flex flex-col items-end">
-                    <div className="font-black text-sm text-slate-900 tracking-tight">
-                      {(p[priceType] || 0).toLocaleString('vi-VN')}
-                    </div>
+                  {visibleProds.map((p) => (
                     <div
-                      className={`text-xs mt-0.5 font-medium ${
-                        p.stock <= 0 ? 'text-red-500 font-bold' : p.stock <= p.min_stock ? 'text-amber-600' : 'text-slate-500'
-                      }`}
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedProductForEdit(p);
+                        setIsProductModalOpen(true);
+                      }}
+                      className="bg-white rounded-2xl p-3.5 flex items-center justify-between border border-slate-100 shadow-2xs hover:shadow-xs transition-all active:bg-blue-50/50 cursor-pointer"
                     >
-                      Tồn: {p.stock} {p.unit}
+                      <div className="flex items-center gap-3 flex-1 min-w-0 pr-3">
+                        <div className="w-12 h-12 rounded-xl bg-blue-50/60 border border-blue-100 flex items-center justify-center shrink-0 text-[#0066FF]">
+                          {p.image ? (
+                            <img src={p.image} alt={p.name} className="w-full h-full object-cover rounded-xl" />
+                          ) : (
+                            <ImageIcon className="w-6 h-6 text-blue-400" />
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-sm text-slate-900 truncate leading-snug">{p.name}</span>
+                          <span className="text-xs text-slate-400 font-mono mt-0.5">{p.sku}</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 flex flex-col items-end">
+                        <div className="font-black text-sm text-slate-900 tracking-tight">
+                          {(p[priceType] || 0).toLocaleString('vi-VN')}
+                        </div>
+                        <div
+                          className={`text-xs mt-0.5 font-medium ${
+                            p.stock <= 0 ? 'text-red-500 font-bold' : p.stock <= p.min_stock ? 'text-amber-600' : 'text-slate-500'
+                          }`}
+                        >
+                          Tồn: {p.stock} {p.unit}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ))
+              );
+            });
+          })()
         ) : (
-          filteredProducts.map((p) => (
+          filteredProducts.slice(0, visibleCount).map((p) => (
             <div
               key={p.id}
               onClick={() => {
@@ -384,6 +400,14 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
               </div>
             </div>
           ))
+        )}
+
+        {/* Sentinel: trigger load more when scrolled near bottom */}
+        <div ref={sentinelRef} className="h-4" />
+        {hasMore && (
+          <div className="py-3 flex justify-center">
+            <div className="w-5 h-5 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+          </div>
         )}
       </div>
 

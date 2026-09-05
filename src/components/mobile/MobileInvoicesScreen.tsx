@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency, formatDateTime, parseDateToTimestamp, parseOrderDate } from '../../utils/formatters';
 import { Order } from '../../types';
@@ -136,6 +137,13 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
 
     return groups;
   }, [filteredOrders]);
+
+  // Lazy loading — chỉ render số hóa đơn cần thiết, load thêm khi scroll đến cuối
+  const { visibleCount, sentinelRef, hasMore } = useInfiniteScroll(
+    filteredOrders.length,
+    20,
+    [searchQuery, timeRange, paymentFilter, sortOption]
+  );
 
   const summaryDisplay = useMemo(() => {
     if (summaryMetric === 'REVENUE') {
@@ -295,64 +303,80 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
             Không có hóa đơn nào
           </div>
         ) : (
-          groupedOrders.map((group) => (
-            <div key={group.dateLabel} className="flex flex-col gap-2">
-              {/* Date Group Title */}
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">
-                {group.dateLabel}
-              </span>
+          (() => {
+            let shown = 0;
+            return groupedOrders.map((group) => {
+              if (shown >= visibleCount) return null;
+              const visibleOrders = group.orders.slice(0, visibleCount - shown);
+              shown += visibleOrders.length;
+              return (
+                <div key={group.dateLabel} className="flex flex-col gap-2">
+                  {/* Date Group Title */}
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">
+                    {group.dateLabel}
+                  </span>
 
-              {/* Invoices in this date */}
-              <div className="flex flex-col gap-2">
-                {group.orders.map((order) => {
-                  const firstItem = order.items?.[0];
-                  const otherItemsCount = (order.items?.length || 1) - 1;
+                  {/* Invoices in this date */}
+                  <div className="flex flex-col gap-2">
+                    {visibleOrders.map((order) => {
+                      const firstItem = order.items?.[0];
+                      const otherItemsCount = (order.items?.length || 1) - 1;
 
-                  return (
-                    <div
-                      key={order.id}
-                      onClick={() => setSelectedOrder(order)}
-                      className="bg-white rounded-2xl p-4 flex flex-col gap-1.5 border border-slate-100 shadow-2xs hover:shadow-xs active:bg-slate-50 cursor-pointer transition-all"
-                    >
-                      {/* Top line: Customer & Amount */}
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-base text-slate-900">
-                          {order.customer_name || 'Khách lẻ'}
-                        </span>
-                        <span className="font-black text-base text-slate-900">
-                          {order.final_amount.toLocaleString('vi-VN')}
-                        </span>
-                      </div>
+                      return (
+                        <div
+                          key={order.id}
+                          onClick={() => setSelectedOrder(order)}
+                          className="bg-white rounded-2xl p-4 flex flex-col gap-1.5 border border-slate-100 shadow-2xs hover:shadow-xs active:bg-slate-50 cursor-pointer transition-all"
+                        >
+                          {/* Top line: Customer & Amount */}
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-base text-slate-900">
+                              {order.customer_name || 'Khách lẻ'}
+                            </span>
+                            <span className="font-black text-base text-slate-900">
+                              {order.final_amount.toLocaleString('vi-VN')}
+                            </span>
+                          </div>
 
-                      {/* Second line: Time & Code, Payment Method */}
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span>
-                          {order.created_at ? new Date(order.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--'} · {order.code}
-                        </span>
-                        <span className="text-slate-600">
-                          {order.payment_method === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản'}
-                        </span>
-                      </div>
+                          {/* Second line: Time & Code, Payment Method */}
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span>
+                              {order.created_at ? new Date(order.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--'} · {order.code}
+                            </span>
+                            <span className="text-slate-600">
+                              {order.payment_method === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản'}
+                            </span>
+                          </div>
 
-                      {/* Third line: Product preview snippet */}
-                      {firstItem && (
-                        <div className="text-xs text-slate-600 mt-1">
-                          <span>{firstItem.name}</span>
-                          <span className="font-bold text-slate-900 ml-1">x{firstItem.quantity}</span>
+                          {/* Third line: Product preview snippet */}
+                          {firstItem && (
+                            <div className="text-xs text-slate-600 mt-1">
+                              <span>{firstItem.name}</span>
+                              <span className="font-bold text-slate-900 ml-1">x{firstItem.quantity}</span>
+                            </div>
+                          )}
+
+                          {otherItemsCount > 0 && (
+                            <span className="text-[11px] text-slate-400">
+                              +{otherItemsCount} mặt hàng khác
+                            </span>
+                          )}
                         </div>
-                      )}
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            });
+          })()
+        )}
 
-                      {otherItemsCount > 0 && (
-                        <span className="text-[11px] text-slate-400">
-                          +{otherItemsCount} mặt hàng khác
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))
+        {/* Sentinel: trigger load more when scrolled near bottom */}
+        <div ref={sentinelRef} className="h-4" />
+        {hasMore && (
+          <div className="py-3 flex justify-center">
+            <div className="w-5 h-5 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+          </div>
         )}
       </div>
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency, getVietQRUrl } from '../../utils/formatters';
 import { generateOfflineQrDataUrl } from '../../utils/vietqr';
@@ -117,6 +118,13 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
 
     return list;
   }, [products, searchQuery, selectedCategory, stockFilterMode]);
+
+  // Lazy loading — chỉ render số sản phẩm cần thiết, load thêm khi scroll đến cuối
+  const { visibleCount, sentinelRef, hasMore } = useInfiniteScroll(
+    filteredProducts.length,
+    20,
+    [searchQuery, selectedCategory, stockFilterMode]
+  );
 
   // Sync price tier from active tab discount
   useEffect(() => {
@@ -397,7 +405,7 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
 
       {/* Products List (Image 5 & 14) */}
       <div className="p-3 flex flex-col gap-2">
-        {filteredProducts.map((p) => {
+        {filteredProducts.slice(0, visibleCount).map((p) => {
           const inCartItem = activeTab.items.find((i) => i.product_id === p.id);
           const isOutOfStock = (p.stock ?? 0) <= 0;
 
@@ -465,6 +473,14 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
             </div>
           );
         })}
+
+        {/* Sentinel: trigger load more when scrolled near bottom */}
+        <div ref={sentinelRef} className="h-4" />
+        {hasMore && (
+          <div className="py-3 flex justify-center">
+            <div className="w-5 h-5 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
       </div>
 
       {/* Floating Bottom Pill: Đặt hàng | Bán hàng | ... (Image 5) */}
