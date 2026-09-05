@@ -38,7 +38,8 @@ import { MobileReturnsModal } from './MobileReturnsModal';
 import { MobileShiftModal } from './MobileShiftModal';
 import { MobilePurchaseOrderModal } from './MobilePurchaseOrderModal';
 import { MobileStaffModal } from './MobileStaffModal';
-import { PriceAuditModal, detectPriceAnomaly } from '../products/PriceAuditModal';
+import { detectPriceAnomaly } from '../products/PriceAuditModal';
+import { MobilePriceAuditModal } from './MobilePriceAuditModal';
 
 interface MobileMoreScreenProps {
   onNavigateTab: (tab: 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE') => void;
@@ -628,8 +629,8 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
         onClose={() => setIsStaffOpen(false)}
       />
 
-      {/* Price Audit Modal */}
-      <PriceAuditModal
+      {/* Price Audit Modal (Mobile Optimized) */}
+      <MobilePriceAuditModal
         isOpen={isPriceAuditOpen}
         onClose={() => setIsPriceAuditOpen(false)}
         products={products}

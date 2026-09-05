@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Product } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency } from '../../utils/formatters';
 import { exportToExcel } from '../../utils/formatters';
+import { MobilePriceAuditModal } from '../mobile/MobilePriceAuditModal';
 import {
   AlertTriangle,
   X,
@@ -211,7 +212,30 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
     exportToExcel(data, `Audit_Bang_Gia_Bat_Thuong_${new Date().toISOString().slice(0, 10)}`, 'AuditGia');
   };
 
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileViewport(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   if (!isOpen) return null;
+
+  if (isMobileViewport) {
+    return (
+      <MobilePriceAuditModal
+        isOpen={isOpen}
+        onClose={onClose}
+        products={products}
+        onUpdateProduct={onUpdateProduct}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-150">

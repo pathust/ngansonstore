@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { MobileFilterDrawer, MobileFilterOptions } from './MobileFilterDrawer';
 import { MobileProductModal } from './MobileProductModal';
-import { PriceAuditModal, detectPriceAnomaly } from '../products/PriceAuditModal';
+import { detectPriceAnomaly } from '../products/PriceAuditModal';
+import { MobilePriceAuditModal } from './MobilePriceAuditModal';
 import { MobileInventoryAuditModal } from './MobileInventoryAuditModal';
 
 interface MobileProductsScreenProps {
@@ -704,8 +705,8 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
         </div>
       )}
 
-      {/* Price Audit Modal */}
-      <PriceAuditModal
+      {/* Price Audit Modal (Mobile Optimized) */}
+      <MobilePriceAuditModal
         isOpen={isPriceAuditOpen}
         onClose={() => setIsPriceAuditOpen(false)}
         products={products}
