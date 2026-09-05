@@ -122,6 +122,7 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
   // Lazy loading — chỉ render số sản phẩm cần thiết, load thêm khi scroll đến cuối
   const { visibleCount, sentinelRef, hasMore } = useInfiniteScroll(
     filteredProducts.length,
+    40,
     20,
     [searchQuery, selectedCategory, stockFilterMode]
   );

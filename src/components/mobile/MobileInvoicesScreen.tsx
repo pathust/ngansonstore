@@ -141,6 +141,7 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
   // Lazy loading — chỉ render số hóa đơn cần thiết, load thêm khi scroll đến cuối
   const { visibleCount, sentinelRef, hasMore } = useInfiniteScroll(
     filteredOrders.length,
+    40,
     20,
     [searchQuery, timeRange, paymentFilter, sortOption]
   );

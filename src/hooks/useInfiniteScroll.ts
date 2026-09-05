@@ -15,21 +15,22 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  */
 export function useInfiniteScroll(
   total: number,
-  pageSize = 20,
+  initialSize = 40,
+  chunkSize = 20,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   deps: any[] = []
 ) {
-  const [visibleCount, setVisibleCount] = useState(pageSize);
+  const [visibleCount, setVisibleCount] = useState(initialSize);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Reset khi filter/search/sort thay đổi
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setVisibleCount(pageSize); }, deps);
+  useEffect(() => { setVisibleCount(initialSize); }, deps);
 
   const loadMore = useCallback(() => {
-    setVisibleCount((prev) => Math.min(prev + pageSize, total));
-  }, [pageSize, total]);
+    setVisibleCount((prev) => Math.min(prev + chunkSize, total));
+  }, [chunkSize, total, initialSize]);
 
   useEffect(() => {
     observerRef.current?.disconnect();
