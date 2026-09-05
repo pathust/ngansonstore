@@ -72,6 +72,30 @@ describe('createSpeechRecognition — transcript accumulation', () => {
     expect(finalTranscript.match(/chào/g)?.length).toBe(1);
   });
 
+  it('không lặp chồng khi thiết bị trả về từng entry final là CÂU CỘNG DỒN thay vì từ mới (lỗi thực tế quan sát được)', () => {
+    // Quan sát thực tế trên điện thoại: mỗi entry final MỚI (index mới) không chỉ chứa từ mới,
+    // mà chứa lại TOÀN BỘ câu đã nói tính đến thời điểm đó (dài hơn 1 từ so với entry trước).
+    // Đây khác với lỗi "lặp lại đúng entry cũ ở đúng index cũ" — ở đây mỗi entry là MỘT index MỚI
+    // nhưng nội dung lại cộng dồn toàn bộ câu, nên nếu cứ nối (concat) từng entry lại sẽ ra
+    // "Xin Xin chào Xin chào tôi Xin chào tôi bị..." giống hệt ảnh chụp màn hình người dùng gửi.
+    const onResult = vi.fn();
+    createSpeechRecognition(onResult, vi.fn(), vi.fn());
+
+    const cumulativeSteps = ['Xin', 'Xin chào', 'Xin chào tôi', 'Xin chào tôi bị', 'Xin chào tôi bị một cái lỗi'];
+    cumulativeSteps.forEach((sentenceSoFar, idx) => {
+      // Mỗi bước là một entry MỚI ở index idx (không phải ghi đè index cũ) — nhưng nội dung là
+      // câu cộng dồn, đúng như thiết bị lỗi thực tế đã gửi.
+      const results = cumulativeSteps.slice(0, idx + 1).map((s, i) => makeResult(i === idx ? sentenceSoFar : cumulativeSteps[i], true));
+      fakeInstance.onresult!({ results });
+    });
+
+    const allTranscripts = onResult.mock.calls.map((call) => call[0] as string);
+    const finalTranscript = allTranscripts[allTranscripts.length - 1];
+
+    expect(finalTranscript).toBe('Xin chào tôi bị một cái lỗi');
+    expect(finalTranscript.match(/Xin/gi)?.length).toBe(1);
+  });
+
   it('vẫn cập nhật đúng phần interim (chưa final) đang thay đổi liên tục', () => {
     const onResult = vi.fn();
     createSpeechRecognition(onResult, vi.fn(), vi.fn());

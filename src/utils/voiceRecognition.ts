@@ -78,14 +78,37 @@ export const createSpeechRecognition = (
     recognition.interimResults = true;
     recognition.maxAlternatives = 3;
 
-    // Android's SpeechRecognition (esp. inside embedded WebViews like Zalo's) is known to
-    // sometimes re-deliver already-finalized result entries in a later onresult event instead
-    // of only appending new ones. Blindly re-summing event.results[0..length] every time then
-    // re-commits old segments on top of the transcript, producing a repeating-prefix mess
-    // ("Xin Xin chào Xin chào Xin chào..."). Guard against that by committing each result index
-    // into our own accumulator at most once, regardless of how many times it reappears.
+    // Some Android WebView SpeechRecognition implementations (observed inside Zalo's embedded
+    // browser) don't behave like desktop Chrome's spec-standard incremental model, where each
+    // new `isFinal` entry in event.results is a distinct, non-overlapping segment meant to be
+    // concatenated onto the previous ones. Instead, each new "final" entry there re-delivers the
+    // FULL cumulative sentence recognized so far (one word longer each time) rather than just the
+    // new word. Blindly concatenating every entry — correct for the standard model — then
+    // compounds that cumulative text onto itself every step, producing the observed
+    // repeating-prefix mess ("Xin Xin chào Xin chào tôi Xin chào tôi bị...").
+    // Handle both models: if a new final entry's text already contains everything accumulated so
+    // far, treat it as a cumulative snapshot and REPLACE the accumulator; otherwise treat it as a
+    // genuinely new incremental segment and concatenate, as the standard model expects. Each
+    // result index is also only ever considered once, so a device that instead re-delivers the
+    // exact same entry verbatim in a later event can't re-append it either.
     let accumulatedFinal = '';
     let finalizedUpTo = 0;
+
+    const mergeFinalSegment = (previous: string, next: string): string => {
+      if (!previous) return next;
+      const prevNorm = previous.toLowerCase();
+      const nextNorm = next.toLowerCase();
+      if (nextNorm === prevNorm || nextNorm.startsWith(prevNorm)) {
+        // `next` is a cumulative snapshot that already includes everything we have — replace.
+        return next;
+      }
+      if (prevNorm.startsWith(nextNorm)) {
+        // `next` is fully contained in what we already have — nothing new to add.
+        return previous;
+      }
+      // Genuinely a new, non-overlapping segment — append as the standard incremental model expects.
+      return `${previous} ${next}`;
+    };
 
     recognition.onresult = (event: any) => {
       try {
@@ -105,11 +128,11 @@ export const createSpeechRecognition = (
 
           if (result.isFinal) {
             if (i >= finalizedUpTo) {
-              accumulatedFinal = accumulatedFinal ? `${accumulatedFinal} ${text}` : text;
+              accumulatedFinal = mergeFinalSegment(accumulatedFinal, text);
               finalizedUpTo = i + 1;
             }
           } else if (i >= finalizedUpTo) {
-            interimTranscript = interimTranscript ? `${interimTranscript} ${text}` : text;
+            interimTranscript = text;
           }
         }
 
