@@ -51,14 +51,23 @@ export const ThermalReceiptModal: React.FC = () => {
 
   const qrUrl = storeSettings.useCustomQr && storeSettings.customQrImage
     ? storeSettings.customQrImage
-    : getVietQRUrl(
-        storeSettings.bankId || 'MB',
-        storeSettings.accountNumber || '0912345678',
+    : lastCompletedOrder.final_amount > 0
+    ? getVietQRUrl(
+        storeSettings.bankId || 'ICB',
+        storeSettings.accountNumber || '106877069794',
         storeSettings.qrTemplate || 'compact2',
         lastCompletedOrder.final_amount,
         qrMemo,
         storeSettings.accountHolder || 'PHAN ANH TAI'
-      );
+      )
+    : (storeSettings.savedQrCode || getVietQRUrl(
+        storeSettings.bankId || 'ICB',
+        storeSettings.accountNumber || '106877069794',
+        storeSettings.qrTemplate || 'compact2',
+        0,
+        qrMemo,
+        storeSettings.accountHolder || 'PHAN ANH TAI'
+      ));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">

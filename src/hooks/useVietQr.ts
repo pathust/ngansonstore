@@ -11,6 +11,7 @@ export interface UseVietQrOptions {
   memo?: string;
   useCustomQr?: boolean;
   customQrImage?: string;
+  savedQrCode?: string; // Pre-saved confirmed QR code for instant zero-latency rendering
 }
 
 export interface UseVietQrReturn {
@@ -26,9 +27,9 @@ export interface UseVietQrReturn {
 
 /**
  * High-performance hook for VietQR code generation.
- * Guarantees zero blank screen by immediately generating a local EMVCo QR code
- * in ~5ms, then seamlessly upgrading to the official VietQR.io branded template
- * if an internet connection is available.
+ * - Instantly displays the saved/confirmed QR code without any flicker or placeholder.
+ * - Only queries the VietQR API when banking details are edited or when explicitly refreshed.
+ * - Graceful fallback to local EMVCo QR only if network fails.
  */
 export function useVietQr({
   bankId,
@@ -39,18 +40,39 @@ export function useVietQr({
   memo = '',
   useCustomQr = false,
   customQrImage = '',
+  savedQrCode = '',
 }: UseVietQrOptions): UseVietQrReturn {
-  const [qrUrl, setQrUrl] = useState<string>('');
+  const cleanAccount = (accountNumber || '').trim();
+  const cleanBank = (bankId || 'ICB').trim();
+
+  // Initial QR selection: custom static -> saved confirmed QR -> fallback VietQR URL
+  const getInitialQr = () => {
+    if (useCustomQr && customQrImage) return customQrImage;
+    if (savedQrCode && !amount && !memo) return savedQrCode;
+    if (cleanAccount) {
+      return getVietQRUrl(cleanBank, cleanAccount, template, amount, memo, accountHolder);
+    }
+    return '';
+  };
+
+  const [qrUrl, setQrUrl] = useState<string>(getInitialQr);
   const [localDataUrl, setLocalDataUrl] = useState<string>('');
-  const [isOnlineTemplate, setIsOnlineTemplate] = useState<boolean>(false);
+  const [isOnlineTemplate, setIsOnlineTemplate] = useState<boolean>(() => !useCustomQr && !!getInitialQr());
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [onlineUrl, setOnlineUrl] = useState<string>('');
+  const [onlineUrl, setOnlineUrl] = useState<string>(() => {
+    if (cleanAccount) {
+      return getVietQRUrl(cleanBank, cleanAccount, template, amount, memo, accountHolder);
+    }
+    return '';
+  });
 
   const probeImgRef = useRef<HTMLImageElement | null>(null);
   const probeTimerRef = useRef<NodeJS.Timeout | number | null>(null);
+  const isFirstMountRef = useRef<boolean>(true);
+  const lastParamsRef = useRef<string>('');
 
   const generate = useCallback(
-    async (customTs?: number): Promise<boolean> => {
+    async (forceRegenerate: boolean = false): Promise<boolean> => {
       // 1. Custom static QR uploaded by user
       if (useCustomQr && customQrImage) {
         setQrUrl(customQrImage);
@@ -60,7 +82,6 @@ export function useVietQr({
       }
 
       // 2. Validate required account number
-      const cleanAccount = (accountNumber || '').trim();
       if (!cleanAccount) {
         setQrUrl('');
         setLocalDataUrl('');
@@ -69,25 +90,28 @@ export function useVietQr({
         return false;
       }
 
-      setIsGenerating(true);
-
-      // 3. STEP 1: IMMEDIATELY generate local EMVCo QR code (pure JS, 0 network dependency)
-      let offlineUrl = '';
-      try {
-        offlineUrl = await generateOfflineQrDataUrl(
-          bankId || 'MB',
-          cleanAccount,
-          amount || 0,
-          memo || ''
-        );
-        setLocalDataUrl(offlineUrl);
-        // Show immediately so user never sees a blank space
-        setQrUrl(offlineUrl);
-      } catch (err) {
-        console.error('Error generating offline EMVCo QR:', err);
+      // 3. If we already have a savedQrCode and this is initial mount without dynamic amount/memo, use it directly!
+      const currentParamKey = `${cleanBank}|${cleanAccount}|${accountHolder}|${template}|${amount}|${memo}`;
+      if (!forceRegenerate && isFirstMountRef.current) {
+        isFirstMountRef.current = false;
+        lastParamsRef.current = currentParamKey;
+        if (savedQrCode && !amount && !memo) {
+          setQrUrl(savedQrCode);
+          setIsOnlineTemplate(true);
+          setIsGenerating(false);
+          return true;
+        }
       }
 
-      // 4. STEP 2: Probe online VietQR template in background
+      // If parameters didn't change and not forced, avoid redundant API call
+      if (!forceRegenerate && lastParamsRef.current === currentParamKey && qrUrl) {
+        return true;
+      }
+      lastParamsRef.current = currentParamKey;
+
+      setIsGenerating(true);
+
+      // Clean up previous image probe
       if (probeImgRef.current) {
         probeImgRef.current.onload = null;
         probeImgRef.current.onerror = null;
@@ -96,9 +120,9 @@ export function useVietQr({
         clearTimeout(probeTimerRef.current as NodeJS.Timeout);
       }
 
-      const ts = customTs || Date.now();
+      const ts = forceRegenerate ? Date.now() : undefined;
       const currentOnlineUrl = getVietQRUrl(
-        bankId || 'MB',
+        cleanBank,
         cleanAccount,
         template,
         amount || 0,
@@ -108,16 +132,26 @@ export function useVietQr({
       );
       setOnlineUrl(currentOnlineUrl);
 
+      // Probe image in background without flashing a raw offline QR code
       const probeImg = new Image();
       probeImgRef.current = probeImg;
 
-      // Fast 1.5s timeout in case of offline emulator or slow network
-      probeTimerRef.current = setTimeout(() => {
+      // Timeout fallback: if VietQR API takes longer than 2.5s, generate offline EMVCo QR
+      probeTimerRef.current = setTimeout(async () => {
         setIsGenerating(false);
-        if (offlineUrl) {
+        try {
+          const offlineUrl = await generateOfflineQrDataUrl(
+            cleanBank,
+            cleanAccount,
+            amount || 0,
+            memo || ''
+          );
+          setLocalDataUrl(offlineUrl);
           setQrUrl((curr) => curr || offlineUrl);
+        } catch (e) {
+          console.error('Failed to generate offline QR fallback:', e);
         }
-      }, 1500);
+      }, 2500);
 
       probeImg.onload = () => {
         if (probeTimerRef.current) {
@@ -128,13 +162,22 @@ export function useVietQr({
         setIsGenerating(false);
       };
 
-      probeImg.onerror = () => {
+      probeImg.onerror = async () => {
         if (probeTimerRef.current) {
           clearTimeout(probeTimerRef.current as NodeJS.Timeout);
         }
-        // Fallback to local offline QR
-        if (offlineUrl) {
+        // Fallback to local offline EMVCo QR code
+        try {
+          const offlineUrl = await generateOfflineQrDataUrl(
+            cleanBank,
+            cleanAccount,
+            amount || 0,
+            memo || ''
+          );
+          setLocalDataUrl(offlineUrl);
           setQrUrl(offlineUrl);
+        } catch (e) {
+          console.error('Offline QR generation error:', e);
         }
         setIsOnlineTemplate(false);
         setIsGenerating(false);
@@ -143,12 +186,12 @@ export function useVietQr({
       probeImg.src = currentOnlineUrl;
       return true;
     },
-    [bankId, accountNumber, accountHolder, template, amount, memo, useCustomQr, customQrImage]
+    [cleanBank, cleanAccount, accountHolder, template, amount, memo, useCustomQr, customQrImage, savedQrCode, qrUrl]
   );
 
-  // Re-generate when parameters change
+  // Trigger generation only when options change
   useEffect(() => {
-    generate();
+    generate(false);
     return () => {
       if (probeTimerRef.current) {
         clearTimeout(probeTimerRef.current as NodeJS.Timeout);
@@ -158,11 +201,11 @@ export function useVietQr({
         probeImgRef.current.onerror = null;
       }
     };
-  }, [generate]);
+  }, [cleanBank, cleanAccount, accountHolder, template, amount, memo, useCustomQr, customQrImage]);
 
   // Explicit user-triggered regeneration
   const regenerate = useCallback(async (): Promise<boolean> => {
-    return generate(Date.now());
+    return generate(true);
   }, [generate]);
 
   // Cross-browser download helper

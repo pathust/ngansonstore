@@ -57,7 +57,7 @@ export const StoreSettingsScreen: React.FC = () => {
     downloadQr,
     copyQrLink,
   } = useVietQr({
-    bankId: formData.bankId || 'MB',
+    bankId: formData.bankId || 'ICB',
     accountNumber: formData.accountNumber || '',
     accountHolder: formData.accountHolder || '',
     template: formData.qrTemplate || 'compact2',
@@ -65,6 +65,7 @@ export const StoreSettingsScreen: React.FC = () => {
     memo: previewDesc,
     useCustomQr: formData.useCustomQr,
     customQrImage: formData.customQrImage,
+    savedQrCode: formData.savedQrCode || storeSettings.savedQrCode,
   });
 
   // Sync formData when storeSettings changes externally ONLY if user has not edited the form
@@ -110,6 +111,7 @@ export const StoreSettingsScreen: React.FC = () => {
           ...prev,
           customQrImage: base64,
           useCustomQr: true,
+          savedQrCode: base64,
         }));
         showToast('Đã tải ảnh mã QR lên thành công!', 'success');
       };
@@ -118,9 +120,17 @@ export const StoreSettingsScreen: React.FC = () => {
   };
 
   const handleSave = () => {
-    updateStoreSettings(formData);
+    const effectiveQr = qrUrl || onlineUrl || formData.savedQrCode;
+    const settingsToSave: StoreSettings = {
+      ...formData,
+      savedQrCode: effectiveQr,
+      savedQrUrl: onlineUrl || effectiveQr,
+      qrLastUpdated: Date.now(),
+    };
+    updateStoreSettings(settingsToSave);
     isDirtyRef.current = false;
     setIsDirty(false);
+    showToast('Đã lưu cấu hình cửa hàng & mã QR chuẩn thành công!', 'success');
   };
 
   const handleReset = async () => {

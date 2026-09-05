@@ -26,8 +26,8 @@ export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose,
     if (isOpen) {
       setHasImageError(false);
       generateOfflineQrDataUrl(
-        settings.bankId || 'MB',
-        settings.accountNumber || '0912345678',
+        settings.bankId || 'ICB',
+        settings.accountNumber || '106877069794',
         0,
         'THANH TOAN CUA HANG NGAN SON'
       )
@@ -42,10 +42,10 @@ export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose,
 
   const qrUrl = settings.useCustomQr && settings.customQrImage
     ? settings.customQrImage
-    : getVietQRUrl(
-        settings.bankId || 'MB',
-        settings.accountNumber || '0912345678',
-        'compact2',
+    : settings.savedQrCode || getVietQRUrl(
+        settings.bankId || 'ICB',
+        settings.accountNumber || '106877069794',
+        settings.qrTemplate || 'compact2',
         0,
         'THANH TOAN CUA HANG NGAN SON',
         settings.accountHolder || 'PHAN ANH TAI'
@@ -146,12 +146,12 @@ export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose,
               <div className="mt-3.5 w-full bg-white rounded-xl p-3 border border-slate-200 text-left space-y-1.5 shadow-2xs">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-500 font-medium">Ngân hàng:</span>
-                  <span className="font-bold text-blue-700">{settings.bankName || settings.bankId || 'MBBank'}</span>
+                  <span className="font-bold text-blue-700">{settings.bankName || (settings.bankId === 'ICB' ? 'VietinBank' : settings.bankId)}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-500 font-medium">Số tài khoản:</span>
                   <span className="font-mono font-black text-slate-900 text-sm tracking-wider bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    {settings.accountNumber || '0912345678'}
+                    {settings.accountNumber || '106877069794'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-xs">

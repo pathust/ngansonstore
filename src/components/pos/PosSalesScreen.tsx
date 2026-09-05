@@ -171,21 +171,30 @@ export const PosSalesScreen: React.FC = () => {
 
   const qrPaymentUrl = storeSettings.useCustomQr && storeSettings.customQrImage
     ? storeSettings.customQrImage
-    : getVietQRUrl(
-        storeSettings.bankId || 'MB',
-        storeSettings.accountNumber || '0912345678',
+    : totalAmountToPay > 0
+    ? getVietQRUrl(
+        storeSettings.bankId || 'ICB',
+        storeSettings.accountNumber || '106877069794',
         storeSettings.qrTemplate || 'compact2',
         totalAmountToPay,
         qrTransferMemo,
         storeSettings.accountHolder || 'PHAN ANH TAI'
-      );
+      )
+    : (storeSettings.savedQrCode || getVietQRUrl(
+        storeSettings.bankId || 'ICB',
+        storeSettings.accountNumber || '106877069794',
+        storeSettings.qrTemplate || 'compact2',
+        0,
+        qrTransferMemo,
+        storeSettings.accountHolder || 'PHAN ANH TAI'
+      ));
 
-  // Pre-generate offline QR for instant POS payment display
+  // Pre-generate offline QR for instant POS payment display fallback
   useEffect(() => {
     if (isPaymentModalOpen && selectedPaymentMethod === 'TRANSFER') {
       generateOfflineQrDataUrl(
-        storeSettings.bankId || 'MB',
-        storeSettings.accountNumber || '0912345678',
+        storeSettings.bankId || 'ICB',
+        storeSettings.accountNumber || '106877069794',
         totalAmountToPay,
         qrTransferMemo
       ).then((url) => setPosOfflineQrUrl(url)).catch(console.error);
@@ -950,7 +959,7 @@ export const PosSalesScreen: React.FC = () => {
                           ? storeSettings.customQrImage
                           : posQrError && posOfflineQrUrl
                           ? posOfflineQrUrl
-                          : (posOfflineQrUrl || qrPaymentUrl)
+                          : qrPaymentUrl
                       }
                       alt="VietQR Dynamic Payment"
                       onError={() => setPosQrError(true)}

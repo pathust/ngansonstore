@@ -1188,8 +1188,9 @@ apiRouter.delete('/users/:id', async (req: Request, res: Response) => {
 });
 
 // ==================== SETTINGS API ====================
-apiRouter.get('/settings', (req: Request, res: Response) => {
+apiRouter.get('/settings', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const settings = dbManager.getSettings();
     res.json({ success: true, data: settings });
   } catch (err: unknown) {
@@ -1198,8 +1199,9 @@ apiRouter.get('/settings', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/settings', (req: Request, res: Response) => {
+apiRouter.put('/settings', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const updated = dbManager.updateSettings(req.body);
     res.json({ success: true, data: updated });
   } catch (err: unknown) {

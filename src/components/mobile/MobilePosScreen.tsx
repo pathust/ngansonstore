@@ -171,8 +171,8 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
         ? storeSettings.transferSyntaxPrefix.replace('{order_code}', activeTab?.title || 'DH')
         : `NGANSON ${activeTab?.title || 'DH'}`;
       generateOfflineQrDataUrl(
-        storeSettings?.bankId || 'MB',
-        storeSettings?.accountNumber || '0912345678',
+        storeSettings?.bankId || 'ICB',
+        storeSettings?.accountNumber || '106877069794',
         cartSubtotal,
         memo
       ).then(url => {
@@ -706,9 +706,10 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                         ? storeSettings.customQrImage
                         : posQrError && posOfflineQrUrl
                         ? posOfflineQrUrl
-                        : (posOfflineQrUrl || getVietQRUrl(
-                            storeSettings?.bankId || 'MB',
-                            storeSettings?.accountNumber || '0912345678',
+                        : cartSubtotal > 0
+                        ? getVietQRUrl(
+                            storeSettings?.bankId || 'ICB',
+                            storeSettings?.accountNumber || '106877069794',
                             storeSettings?.qrTemplate || 'compact2',
                             cartSubtotal,
                             storeSettings?.transferSyntaxPrefix
@@ -716,6 +717,14 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                               : `NGANSON ${activeTab.title}`,
                             storeSettings?.accountHolder || 'PHAN ANH TAI',
                             posQrTs
+                          )
+                        : (storeSettings?.savedQrCode || getVietQRUrl(
+                            storeSettings?.bankId || 'ICB',
+                            storeSettings?.accountNumber || '106877069794',
+                            storeSettings?.qrTemplate || 'compact2',
+                            0,
+                            'NGANSON',
+                            storeSettings?.accountHolder || 'PHAN ANH TAI'
                           ))
                     }
                     alt="VietQR"
@@ -729,8 +738,8 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                       if (!posOfflineQrUrl) {
                         try {
                           const offline = await generateOfflineQrDataUrl(
-                            storeSettings?.bankId || 'MB',
-                            storeSettings?.accountNumber || '0912345678',
+                            storeSettings?.bankId || 'ICB',
+                            storeSettings?.accountNumber || '106877069794',
                             cartSubtotal,
                             `NGANSON ${activeTab.title}`
                           );
@@ -745,7 +754,7 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                 </div>
 
                 <div className="text-xs font-mono font-bold text-slate-800">
-                  {storeSettings?.bankName || storeSettings?.bankId || 'MB'} • {storeSettings?.accountNumber || '0912345678'}
+                  {storeSettings?.bankName || (storeSettings?.bankId === 'ICB' ? 'VietinBank' : storeSettings?.bankId)} • {storeSettings?.accountNumber || '106877069794'}
                 </div>
                 <div className="text-[11px] font-bold text-[#0066FF] uppercase">
                   {storeSettings?.accountHolder || 'PHAN ANH TAI'}
@@ -759,8 +768,8 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                     setPosQrTs(Date.now());
                     try {
                       const offline = await generateOfflineQrDataUrl(
-                        storeSettings?.bankId || 'MB',
-                        storeSettings?.accountNumber || '0912345678',
+                        storeSettings?.bankId || 'ICB',
+                        storeSettings?.accountNumber || '106877069794',
                         cartSubtotal,
                         `NGANSON ${activeTab.title}`
                       );

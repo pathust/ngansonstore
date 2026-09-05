@@ -78,14 +78,23 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
 
   const qrUrl = storeSettings.useCustomQr && storeSettings.customQrImage
     ? storeSettings.customQrImage
-    : getVietQRUrl(
-        storeSettings.bankId || 'MB',
-        storeSettings.accountNumber || '0912345678',
+    : order.final_amount > 0
+    ? getVietQRUrl(
+        storeSettings.bankId || 'ICB',
+        storeSettings.accountNumber || '106877069794',
         storeSettings.qrTemplate || 'compact2',
         order.final_amount,
         qrMemo,
         storeSettings.accountHolder || 'PHAN ANH TAI'
-      );
+      )
+    : (storeSettings.savedQrCode || getVietQRUrl(
+        storeSettings.bankId || 'ICB',
+        storeSettings.accountNumber || '106877069794',
+        storeSettings.qrTemplate || 'compact2',
+        0,
+        qrMemo,
+        storeSettings.accountHolder || 'PHAN ANH TAI'
+      ));
 
   const wordsAmount = numberToVietnameseWords(order.final_amount);
   const paymentMethodLabel =

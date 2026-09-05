@@ -292,6 +292,9 @@ export interface StoreSettings {
   transferSyntaxPrefix: string;
   customQrImage?: string;
   useCustomQr: boolean;
+  savedQrCode?: string; // Confirmed, saved QR code URL or base64 data for instant rendering
+  savedQrUrl?: string; // Direct standard VietQR URL
+  qrLastUpdated?: number; // Timestamp when QR was last generated or updated
 
   // Print & POS display toggles
   showQrOnK80Receipt: boolean;

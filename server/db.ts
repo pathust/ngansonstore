@@ -100,13 +100,16 @@ const DEFAULT_SETTINGS: StoreSettings = {
   wifiSsid: 'NganSon_Guest',
   wifiPassword: 'nganson318vuquang',
   receiptFooterNote: 'Cảm ơn quý khách và hẹn gặp lại!',
-  bankId: 'MB',
-  bankName: 'MBBank (Quân Đội)',
-  accountNumber: '0912345678',
+  bankId: 'ICB',
+  bankName: 'Ngân hàng TMCP Công Thương Việt Nam (VietinBank)',
+  accountNumber: '106877069794',
   accountHolder: 'PHAN ANH TAI',
   qrTemplate: 'compact2',
   transferSyntaxPrefix: 'NS',
   useCustomQr: false,
+  savedQrCode: 'https://img.vietqr.io/image/ICB-106877069794-compact2.png?accountName=PHAN%20ANH%20TAI',
+  savedQrUrl: 'https://img.vietqr.io/image/ICB-106877069794-compact2.png?accountName=PHAN%20ANH%20TAI',
+  qrLastUpdated: Date.now(),
   showQrOnK80Receipt: true,
   showQrOnA4Invoice: true,
   showWifiOnReceipt: false,
@@ -1481,6 +1484,14 @@ class DatabaseManager {
     const db = this.getDB();
     if (!db.settings) {
       db.settings = { ...DEFAULT_SETTINGS };
+      this.schedulePersist();
+    } else if (!db.settings.savedQrCode && db.settings.accountNumber) {
+      const bank = db.settings.bankId || 'ICB';
+      const acc = db.settings.accountNumber;
+      const tmpl = db.settings.qrTemplate || 'compact2';
+      const holder = db.settings.accountHolder || 'PHAN ANH TAI';
+      db.settings.savedQrCode = `https://img.vietqr.io/image/${bank}-${acc}-${tmpl}.png?accountName=${encodeURIComponent(holder)}`;
+      db.settings.savedQrUrl = db.settings.savedQrCode;
       this.schedulePersist();
     }
     return db.settings;

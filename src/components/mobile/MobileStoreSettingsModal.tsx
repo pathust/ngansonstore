@@ -64,7 +64,7 @@ export const MobileStoreSettingsModal: React.FC<MobileStoreSettingsModalProps> =
     downloadQr,
     copyQrLink,
   } = useVietQr({
-    bankId: formData.bankId || 'MB',
+    bankId: formData.bankId || 'ICB',
     accountNumber: formData.accountNumber || '',
     accountHolder: formData.accountHolder || '',
     template: formData.qrTemplate || 'compact2',
@@ -72,6 +72,7 @@ export const MobileStoreSettingsModal: React.FC<MobileStoreSettingsModalProps> =
     memo: previewDesc,
     useCustomQr: formData.useCustomQr,
     customQrImage: formData.customQrImage,
+    savedQrCode: formData.savedQrCode || storeSettings.savedQrCode,
   });
 
   // Sync state whenever modal opens
@@ -92,7 +93,14 @@ export const MobileStoreSettingsModal: React.FC<MobileStoreSettingsModalProps> =
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      updateStoreSettings(formData);
+      const effectiveQr = qrUrl || onlineUrl || formData.savedQrCode;
+      const settingsToSave: StoreSettings = {
+        ...formData,
+        savedQrCode: effectiveQr,
+        savedQrUrl: onlineUrl || effectiveQr,
+        qrLastUpdated: Date.now(),
+      };
+      updateStoreSettings(settingsToSave);
       showToast('Đã lưu cấu hình cửa hàng & mã QR thành công!', 'success');
       onClose();
     } catch (error) {
@@ -116,6 +124,7 @@ export const MobileStoreSettingsModal: React.FC<MobileStoreSettingsModalProps> =
           ...prev,
           customQrImage: base64,
           useCustomQr: true,
+          savedQrCode: base64,
         }));
         showToast('Đã tải ảnh mã QR lên thành công!', 'success');
       };

@@ -27,6 +27,7 @@ export interface PdfExportOptions {
   accountHolder?: string;
   showQr?: boolean;
   customQrImage?: string;
+  savedQrCode?: string;
 }
 
 /**
@@ -44,9 +45,9 @@ export const exportInvoiceToPdf = async (
   const storeSlogan = options.storeSlogan;
   const storeWifi = options.storeWifi;
   const footerNote = options.footerNote || 'Cảm ơn Quý khách & Hẹn gặp lại!';
-  const bankId = options.bankId || 'MB';
-  const bankName = options.bankName || 'MBBank';
-  const accountNumber = options.accountNumber || '0912345678';
+  const bankId = options.bankId || 'ICB';
+  const bankName = options.bankName || 'VietinBank';
+  const accountNumber = options.accountNumber || '106877069794';
   const accountHolder = options.accountHolder || 'PHAN ANH TAI';
   const showQr = options.showQr !== undefined ? options.showQr : true;
   const filename = options.filename || `HoaDon_${order.code}_NganSon.pdf`;
@@ -60,7 +61,9 @@ export const exportInvoiceToPdf = async (
 
   const qrUrl = options.customQrImage
     ? options.customQrImage
-    : getVietQRUrl(bankId, accountNumber, 'compact2', order.final_amount, `NGANSON ${order.code}`, accountHolder);
+    : order.final_amount > 0
+    ? getVietQRUrl(bankId, accountNumber, 'compact2', order.final_amount, `NGANSON ${order.code}`, accountHolder)
+    : (options.savedQrCode || getVietQRUrl(bankId, accountNumber, 'compact2', 0, `NGANSON ${order.code}`, accountHolder));
 
   const wordsAmount = numberToVietnameseWords(order.final_amount);
   const paymentMethodLabel =
