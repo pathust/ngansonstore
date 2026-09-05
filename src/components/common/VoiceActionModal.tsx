@@ -989,17 +989,43 @@ export const VoiceActionModal: React.FC<VoiceActionModalProps> = ({
                           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.sku.toLowerCase().includes(searchQuery.toLowerCase())
                       )
+                      .sort((a, b) => {
+                        const aOut = (a.stock ?? 0) <= 0 ? 1 : 0;
+                        const bOut = (b.stock ?? 0) <= 0 ? 1 : 0;
+                        if (aOut !== bOut) return aOut - bOut;
+                        return 0;
+                      })
                       .slice(0, 6)
-                      .map((p) => (
-                        <div
-                          key={p.id}
-                          onClick={() => handleAddProductFromCatalog(p)}
-                          className="p-1.5 bg-white hover:bg-blue-100 rounded-md border border-slate-200 flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <span className="font-semibold text-slate-800">{p.name} ({p.sku})</span>
-                          <span className="font-bold text-blue-600">{formatCurrency(p.selling_price)}</span>
-                        </div>
-                      ))}
+                      .map((p) => {
+                        const isOutOfStock = (p.stock ?? 0) <= 0;
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              if (isOutOfStock) {
+                                showToast(`Sản phẩm "${p.name}" hiện đã hết hàng trong kho!`, 'warning');
+                                return;
+                              }
+                              handleAddProductFromCatalog(p);
+                            }}
+                            className={`p-1.5 rounded-md border flex items-center justify-between text-xs cursor-pointer ${
+                              isOutOfStock
+                                ? 'bg-slate-50/70 border-rose-200 opacity-60'
+                                : 'bg-white hover:bg-blue-100 border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-semibold text-slate-800 truncate">{p.name} ({p.sku})</span>
+                              {isOutOfStock ? (
+                                <span className="text-[10px] bg-red-100 text-red-600 px-1 py-0.2 rounded font-bold shrink-0">Hết hàng</span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 shrink-0">Tồn: {p.stock}</span>
+                              )}
+                            </div>
+                            <span className="font-bold text-blue-600 shrink-0">{formatCurrency(p.selling_price)}</span>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               )}

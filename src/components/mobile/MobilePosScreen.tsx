@@ -22,6 +22,7 @@ import {
   Trash2,
   Check,
   RefreshCw,
+  ArrowUpDown,
 } from 'lucide-react';
 import { MobileCustomerPickerModal } from './MobileCustomerPickerModal';
 import { MobileCashbookModal } from './MobileCashbookModal';
@@ -82,21 +83,40 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
   const currentCustomerName = selectedCustomer ? selectedCustomer.name : (activeTab.customer_name || 'Khách lẻ');
 
-  // Filter products for selling
+  const [stockFilterMode, setStockFilterMode] = useState<'OUT_OF_STOCK_LAST' | 'HIDE_OUT_OF_STOCK'>('OUT_OF_STOCK_LAST');
+
+  // Filter products for selling, always default pushes out-of-stock items (stock <= 0) to bottom
   const filteredProducts = useMemo(() => {
     let list = products;
     if (selectedCategory !== 'ALL') {
       list = list.filter((p) => p.category === selectedCategory || (p as any).category_id === selectedCategory);
     }
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.barcode.includes(q)
-    );
-  }, [products, searchQuery, selectedCategory]);
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          p.barcode.includes(q)
+      );
+    }
+
+    if (stockFilterMode === 'HIDE_OUT_OF_STOCK') {
+      list = list.filter((p) => (p.stock ?? 0) > 0);
+    } else {
+      // Mặc định: Luôn đẩy các mặt hàng hết hàng (stock <= 0) xuống cuối danh sách
+      list = [...list].sort((a, b) => {
+        const aOut = (a.stock ?? 0) <= 0 ? 1 : 0;
+        const bOut = (b.stock ?? 0) <= 0 ? 1 : 0;
+        if (aOut !== bOut) {
+          return aOut - bOut;
+        }
+        return 0;
+      });
+    }
+
+    return list;
+  }, [products, searchQuery, selectedCategory, stockFilterMode]);
 
   // Sync price tier from active tab discount
   useEffect(() => {
@@ -255,20 +275,20 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
 
       {/* Quick Settings Row */}
       <div className="bg-white px-4 py-2.5 flex items-center justify-between border-b border-slate-100 text-xs font-medium text-slate-700">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => setIsCustomerModalOpen(true)}
-            className="flex items-center gap-1.5 hover:text-[#0066FF] transition-colors"
+            className="flex items-center gap-1 hover:text-[#0066FF] transition-colors truncate"
           >
-            <User className="w-4 h-4 text-slate-500" />
-            <span>{currentCustomerName}</span>
+            <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span className="truncate max-w-[110px]">{currentCustomerName}</span>
           </button>
 
           <button
             onClick={() => setIsPriceTierSheetOpen(true)}
-            className="flex items-center gap-1.5 text-slate-700 hover:text-[#0066FF] transition-colors"
+            className="flex items-center gap-1 text-slate-700 hover:text-[#0066FF] transition-colors shrink-0"
           >
-            <Tag className="w-4 h-4 text-slate-500" />
+            <Tag className="w-3.5 h-3.5 text-slate-500 shrink-0" />
             <span>
               {priceTier === 'STANDARD'
                 ? 'Bảng giá chung'
@@ -279,29 +299,65 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
           </button>
         </div>
 
-        <button aria-label="Lọc theo nhóm hàng" onClick={() => setIsPosCategorySheetOpen(true)} className={`p-1 transition-colors ${
-            selectedCategory !== 'ALL' ? 'text-[#0066FF]' : 'text-slate-500 hover:text-slate-700'
-          }`}
-          title="Lọc theo nhóm hàng"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              const nextMode = stockFilterMode === 'OUT_OF_STOCK_LAST' ? 'HIDE_OUT_OF_STOCK' : 'OUT_OF_STOCK_LAST';
+              setStockFilterMode(nextMode);
+              showToast(
+                nextMode === 'HIDE_OUT_OF_STOCK'
+                  ? 'Đang ẩn các mặt hàng đã hết kho'
+                  : 'Mặc định: Đã đẩy các mặt hàng hết kho xuống cuối',
+                'info'
+              );
+            }}
+            className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border flex items-center gap-1 transition-all ${
+              stockFilterMode === 'HIDE_OUT_OF_STOCK'
+                ? 'bg-amber-50 text-amber-700 border-amber-300'
+                : 'bg-blue-50 text-[#0066FF] border-blue-200'
+            }`}
+            title="Bộ lọc tồn kho"
+          >
+            <ArrowUpDown className="w-3 h-3 shrink-0" />
+            <span>{stockFilterMode === 'HIDE_OUT_OF_STOCK' ? 'Ẩn hết' : 'Hết ở cuối'}</span>
+          </button>
+
+          <button
+            aria-label="Lọc theo nhóm hàng"
+            onClick={() => setIsPosCategorySheetOpen(true)}
+            className={`p-1 transition-colors ${
+              selectedCategory !== 'ALL' ? 'text-[#0066FF]' : 'text-slate-500 hover:text-slate-700'
+            }`}
+            title="Lọc theo nhóm hàng"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Products List (Image 5 & 14) */}
       <div className="p-3 flex flex-col gap-2">
         {filteredProducts.map((p) => {
           const inCartItem = activeTab.items.find((i) => i.product_id === p.id);
-          const isOutOfStock = p.stock <= 0;
+          const isOutOfStock = (p.stock ?? 0) <= 0;
 
           return (
             <div
               key={p.id}
               onClick={() => {
+                if (isOutOfStock) {
+                  showToast(`Sản phẩm "${p.name}" hiện đã hết hàng trong kho!`, 'warning');
+                  return;
+                }
                 addToCart(p);
                 showToast(`Đã thêm ${p.name} vào đơn`, 'info');
               }}
-              className="bg-white rounded-2xl p-3.5 flex items-center justify-between border border-slate-100 shadow-2xs hover:shadow-xs active:bg-blue-50/50 cursor-pointer transition-all"
+              className={`rounded-2xl p-3.5 flex items-center justify-between border shadow-2xs transition-all ${
+                isOutOfStock
+                  ? 'bg-slate-50/70 border-rose-100 opacity-60 cursor-not-allowed'
+                  : 'bg-white border-slate-100 hover:shadow-xs active:bg-blue-50/50 cursor-pointer'
+              }`}
             >
               {/* Left Column: Image & Details */}
               <div className="flex items-center gap-3 flex-1 min-w-0 pr-3">
@@ -324,10 +380,10 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                     <span className="text-[11px] text-slate-400 font-mono">{p.sku}</span>
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${
-                        isOutOfStock ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'
+                        isOutOfStock ? 'bg-red-50 text-red-600 font-bold' : 'bg-slate-100 text-slate-600'
                       }`}
                     >
-                      {p.stock} {p.unit}
+                      {isOutOfStock ? 'Hết hàng' : `${p.stock} ${p.unit}`}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-slate-100 text-slate-500 font-medium">
                       KH đặt: 0
@@ -814,6 +870,45 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                     {selectedCategory === cat.id && <Check className="w-4 h-4 text-[#0066FF]" />}
                   </div>
                 ))}
+            </div>
+
+            {/* Stock Filter Section */}
+            <div className="pt-3 pb-1 border-t border-slate-100">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
+                Sắp xếp & lọc tồn kho
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStockFilterMode('OUT_OF_STOCK_LAST');
+                    showToast('Mặc định: Đã đẩy các mặt hàng hết kho xuống cuối', 'info');
+                  }}
+                  className={`p-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-0.5 transition-all ${
+                    stockFilterMode === 'OUT_OF_STOCK_LAST'
+                      ? 'border-[#0066FF] bg-blue-50/70 text-[#0066FF]'
+                      : 'border-slate-200 text-slate-600 bg-white'
+                  }`}
+                >
+                  <span>Hết hàng ở cuối</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Mặc định</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStockFilterMode('HIDE_OUT_OF_STOCK');
+                    showToast('Đang ẩn các mặt hàng đã hết kho', 'info');
+                  }}
+                  className={`p-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-0.5 transition-all ${
+                    stockFilterMode === 'HIDE_OUT_OF_STOCK'
+                      ? 'border-amber-500 bg-amber-50/70 text-amber-800'
+                      : 'border-slate-200 text-slate-600 bg-white'
+                  }`}
+                >
+                  <span>Ẩn hết hàng</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Chỉ hiện còn hàng</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -25,7 +25,8 @@ import {
   Package,
   PackageOpen,
   Receipt,
-  Mic
+  Mic,
+  ArrowUpDown
 } from 'lucide-react';
 
 export const PosSalesScreen: React.FC = () => {
@@ -54,6 +55,7 @@ export const PosSalesScreen: React.FC = () => {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('cat-all');
   const [productSearch, setProductSearch] = useState<string>('');
+  const [stockFilterMode, setStockFilterMode] = useState<'OUT_OF_STOCK_LAST' | 'HIDE_OUT_OF_STOCK'>('OUT_OF_STOCK_LAST');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'CARD'>('CASH');
   const [cashGiven, setCashGiven] = useState<number>(0);
@@ -69,10 +71,10 @@ export const PosSalesScreen: React.FC = () => {
     [orderTabs, activeTabId]
   );
 
-  // Filter products by category and search (memoized)
+  // Filter products by category and search, with out-of-stock items pushed to bottom by default
   const filteredProducts = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
-    return products.filter((p) => {
+    let list = products.filter((p) => {
       const matchesCategory = selectedCategory === 'cat-all' || p.category === selectedCategory;
       if (!matchesCategory) return false;
       if (!q) return true;
@@ -82,7 +84,23 @@ export const PosSalesScreen: React.FC = () => {
         p.barcode.includes(q)
       );
     });
-  }, [products, selectedCategory, debouncedSearch]);
+
+    if (stockFilterMode === 'HIDE_OUT_OF_STOCK') {
+      list = list.filter((p) => (p.stock ?? 0) > 0);
+    } else {
+      // Mặc định: Luôn đẩy các mặt hàng hết hàng (stock <= 0) xuống cuối danh sách
+      list = [...list].sort((a, b) => {
+        const aOutOfStock = (a.stock ?? 0) <= 0 ? 1 : 0;
+        const bOutOfStock = (b.stock ?? 0) <= 0 ? 1 : 0;
+        if (aOutOfStock !== bOutOfStock) {
+          return aOutOfStock - bOutOfStock;
+        }
+        return 0;
+      });
+    }
+
+    return list;
+  }, [products, selectedCategory, debouncedSearch, stockFilterMode]);
 
   // Calculate totals (memoized)
   const subtotal = useMemo(() => {
@@ -384,24 +402,58 @@ export const PosSalesScreen: React.FC = () => {
               </form>
             )}
 
-            {/* Category Pill Filters */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs no-scrollbar">
-              {categories.map((cat) => {
-                const isSelected = selectedCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#0B63E5] text-white font-semibold shadow-2xs'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                );
-              })}
+            {/* Category Pill Filters & Stock Mode Toggle */}
+            <div className="flex items-center justify-between gap-2 pb-0.5 text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+                {categories.map((cat) => {
+                  const isSelected = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#0B63E5] text-white font-semibold shadow-2xs'
+                          : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                      }`}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Stock Filter Control */}
+              <div className="flex items-center gap-1 shrink-0 pl-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextMode = stockFilterMode === 'OUT_OF_STOCK_LAST' ? 'HIDE_OUT_OF_STOCK' : 'OUT_OF_STOCK_LAST';
+                    setStockFilterMode(nextMode);
+                    showToast(
+                      nextMode === 'HIDE_OUT_OF_STOCK'
+                        ? 'Đang ẩn các mặt hàng đã hết kho'
+                        : 'Mặc định: Đã đẩy các mặt hàng hết kho xuống cuối',
+                      'info'
+                    );
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer select-none whitespace-nowrap shadow-2xs ${
+                    stockFilterMode === 'HIDE_OUT_OF_STOCK'
+                      ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                      : 'bg-blue-50 text-[#0B63E5] border-blue-200 hover:bg-blue-100'
+                  }`}
+                  title={
+                    stockFilterMode === 'HIDE_OUT_OF_STOCK'
+                      ? 'Đang ẩn sản phẩm hết hàng (Bấm để đổi sang hiển thị ở cuối danh sách)'
+                      : 'Mặc định: Sản phẩm hết hàng luôn được xếp xuống cuối (Bấm để ẩn hẳn)'
+                  }
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    {stockFilterMode === 'HIDE_OUT_OF_STOCK' ? 'Ẩn hết hàng' : 'Hết hàng ở cuối'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -422,7 +474,13 @@ export const PosSalesScreen: React.FC = () => {
                   return (
                     <div
                       key={product.id}
-                      onClick={() => !isOutOfStock && addToCart(product, 1)}
+                      onClick={() => {
+                        if (isOutOfStock) {
+                          showToast(`Sản phẩm "${product.name}" hiện đã hết hàng trong kho!`, 'warning');
+                          return;
+                        }
+                        addToCart(product, 1);
+                      }}
                       className={`group bg-white rounded-lg border p-2 flex flex-col justify-between transition-all duration-100 relative select-none ${
                         isOutOfStock
                           ? 'opacity-60 cursor-not-allowed border-rose-200 bg-rose-50/20'
