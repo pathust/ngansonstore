@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
-import { useApp } from '../../context/AppContext';
+import { useCatalog } from '../../context/slices/CatalogContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { formatCurrency } from '../../utils/formatters';
 import { Product } from '../../types';
 import {
@@ -27,7 +28,8 @@ interface MobileProductsScreenProps {
 }
 
 export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
-  const { products, categories, updateProduct, showToast } = useApp();
+  const { products, categories, updateProduct } = useCatalog();
+  const { showToast } = useToast();
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');

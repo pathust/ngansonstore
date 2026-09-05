@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useCatalog } from '../../context/slices/CatalogContext';
+import { useInventoryAudit } from '../../context/slices/InventoryAuditContext';
+import { useCatalogOrchestrator } from '../../context/orchestrators/useCatalogOrchestrator';
+import { useToast } from '../../context/slices/ToastContext';
 import { InventoryAuditItem, InventoryAudit } from '../../types';
 import { formatCurrency, formatDate, parseDateToTimestamp, exportToExcel } from '../../utils/formatters';
 import { Pagination } from '../common/Pagination';
@@ -21,13 +24,10 @@ export const InventoryAuditScreen: React.FC<InventoryAuditScreenProps> = ({
   isCreateAuditModalOpen: externalModalOpen,
   setIsCreateAuditModalOpen: setExternalModalOpen,
 }) => {
-  const {
-    products,
-    inventoryAudits,
-    createInventoryAudit,
-    balanceInventoryAudit,
-    showToast,
-  } = useApp();
+  const { products } = useCatalog();
+  const { inventoryAudits } = useInventoryAudit();
+  const { createInventoryAudit, balanceInventoryAudit } = useCatalogOrchestrator();
+  const { showToast } = useToast();
 
   const [internalModalOpen, setInternalModalOpen] = useState(false);
   const isModalOpen = externalModalOpen !== undefined ? externalModalOpen : internalModalOpen;

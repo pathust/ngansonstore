@@ -12,6 +12,13 @@ import {
   StoreSettings,
 } from '../types/index';
 
+// Placeholder an toàn khi bản ghi user thiếu password — không phải mật khẩu thật,
+// người dùng cần được admin đặt lại mật khẩu qua tính năng resetUserPassword.
+function generatePlaceholderPassword(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
 function toIsoDate(dateStr?: string | number | null): string | null {
   if (!dateStr && dateStr !== 0) return null;
   if (typeof dateStr === 'number') {
@@ -154,27 +161,9 @@ export class SupabaseService {
       if (error || !data) return [];
       return data.map((u: any) => {
         const perms = u.permissions || {};
-        const username = u.username || perms._username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhatphan' : u.email ? u.email.split('@')[0] : 'user');
-        let password = u.password || perms._password;
-        if (!password || password === '123456') {
-          if (username === 'tai' || u.id === 'user-admin-01') password = 'admin123';
-          else if (username === 'son' || u.id === 'user-manager-01') password = 'minhson318vuquang';
-          else if (username === 'ngan' || u.id === 'user-manager-02') password = 'ngan318vuquang';
-          else if (username === 'nhat' || username === 'nhatphan' || u.id === 'user-staff-01') password = 'minhnhat318vuquang';
-          else password = '123456';
-        }
-
-        let email = u.email || '';
-        if (u.id === 'user-admin-01' || username === 'tai' || u.name?.toLowerCase().includes('tài')) {
-          email = 'taiphananh28@gmail.com';
-        } else if (u.id === 'user-manager-01' || username === 'son' || u.name?.toLowerCase().includes('sơn')) {
-          email = 'sn.phanminh@gmail.com';
-        } else if (u.id === 'user-manager-02' || username === 'ngan' || u.name?.toLowerCase().includes('ngân')) {
-          email = 'ngansonlv@gmail.com';
-        } else if (u.id === 'user-staff-01' || username === 'nhat' || username === 'nhatphan' || u.name?.toLowerCase().includes('nhật')) {
-          email = 'nhatphanminh2711@gmail.com';
-        }
-
+        const username = u.username || perms._username || (u.email ? u.email.split('@')[0] : 'user');
+        const password = u.password || perms._password || generatePlaceholderPassword();
+        const email = u.email || '';
         const status = u.status || (u.is_active === false ? 'LOCKED' : 'ACTIVE');
 
         return {

@@ -11,6 +11,7 @@ import {
   formatDateTime,
 } from '../../utils/formatters';
 import { Pagination } from '../common/Pagination';
+import { useCustomerFilters } from './useCustomerFilters';
 import {
   Users,
   Search,
@@ -168,82 +169,16 @@ export const CustomerManagementScreen: React.FC = () => {
     created_at: new Date().toISOString().slice(0, 10),
   });
 
-  // Extract distinct groups for dropdown
-  const distinctGroups = useMemo(() => {
-    const set = new Set<string>();
-    customers.forEach((c) => {
-      if (c.group && c.group.trim()) set.add(c.group.trim());
-    });
-    return Array.from(set);
-  }, [customers]);
-
-  // KPI Calculations
-  const metrics = useMemo(() => {
-    const totalCustomers = customers.length;
-    let totalDebtReceivable = 0; // Debt > 0
-    let totalCreditAdvance = 0;   // Debt < 0 (trả thừa/cọc)
-    let totalPurchased = 0;
-    let countInDebt = 0;
-
-    customers.forEach((c) => {
-      totalPurchased += c.total_purchased || 0;
-      if (c.debt > 0) {
-        totalDebtReceivable += c.debt;
-        countInDebt++;
-      } else if (c.debt < 0) {
-        totalCreditAdvance += Math.abs(c.debt);
-      }
-    });
-
-    return {
-      totalCustomers,
-      totalDebtReceivable,
-      totalCreditAdvance,
-      totalPurchased,
-      countInDebt,
-    };
-  }, [customers]);
-
-  // Filtered list
-  const filteredCustomers = useMemo(() => {
-    return customers.filter((c) => {
-      const q = searchTerm.toLowerCase().trim();
-      const matchSearch =
-        !q ||
-        c.name.toLowerCase().includes(q) ||
-        c.code.toLowerCase().includes(q) ||
-        (c.phone && c.phone.toLowerCase().includes(q)) ||
-        (c.address && c.address.toLowerCase().includes(q)) ||
-        (c.tax_code && c.tax_code.toLowerCase().includes(q)) ||
-        (c.email && c.email.toLowerCase().includes(q));
-
-      const matchGroup = selectedGroup === 'ALL' || c.group === selectedGroup;
-
-      const custType = c.customer_type || c.type || 'Cá nhân';
-      const matchType = selectedType === 'ALL' || custType === selectedType;
-
-      const isActive = c.status === 'ACTIVE' || c.status === 1;
-      const matchStatus =
-        statusFilter === 'ALL' ||
-        (statusFilter === 'ACTIVE' && isActive) ||
-        (statusFilter === 'INACTIVE' && !isActive);
-
-      let matchDebt = true;
-      if (debtFilter === 'HAS_DEBT') {
-        matchDebt = c.debt > 0;
-      } else if (debtFilter === 'CREDIT') {
-        matchDebt = c.debt < 0;
-      } else if (debtFilter === 'ZERO') {
-        matchDebt = c.debt === 0;
-      }
-
-      return matchSearch && matchGroup && matchType && matchStatus && matchDebt;
-    });
-  }, [customers, searchTerm, selectedGroup, selectedType, statusFilter, debtFilter]);
-
-  const paginatedCustomers = useMemo(() => {
-    return filteredCustomers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  }, [filteredCustomers, currentPage, pageSize]);
+  const { distinctGroups, metrics, filteredCustomers, paginatedCustomers } = useCustomerFilters({
+    customers,
+    searchTerm,
+    selectedGroup,
+    selectedType,
+    statusFilter,
+    debtFilter,
+    currentPage,
+    pageSize,
+  });
 
   // Open Add Modal
   const handleOpenAdd = () => {

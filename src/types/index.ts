@@ -233,6 +233,8 @@ export interface UserPermissions {
   canSellPOS: boolean;            // Bán hàng & thu ngân tại quầy POS
   canViewInvoices: boolean;       // Xem danh sách hóa đơn & in lại bill
   canDeleteInvoices: boolean;     // Xóa & hủy hóa đơn bán hàng
+  canEditInvoices?: boolean;      // Sửa thông tin hóa đơn đã tạo (chưa gán cho vai trò nào — xem InvoiceManagementScreen.tsx)
+  canCancelInvoices?: boolean;    // Hủy/khôi phục hóa đơn (chưa gán cho vai trò nào — xem InvoiceManagementScreen.tsx)
   canEditSystemSettings: boolean; // Cài đặt hệ thống & cấu hình
   canManageUsers: boolean;        // Phân quyền & quản lý nhân sự
   canImportData?: boolean;        // Nhập dữ liệu Excel từ KiotViet/ERP (Chỉ Admin)

@@ -11,6 +11,7 @@ import {
   findHeaderValue,
 } from '../../utils/formatters';
 import { Pagination } from '../common/Pagination';
+import { useSupplierFilters } from './useSupplierFilters';
 import {
   Building2,
   Search,
@@ -95,75 +96,15 @@ export const SupplierManagementScreen: React.FC = () => {
     created_at: new Date().toISOString().slice(0, 10),
   });
 
-  // Extract distinct groups for dropdown
-  const distinctGroups = useMemo(() => {
-    const set = new Set<string>();
-    suppliers.forEach((s) => {
-      if (s.group && s.group.trim()) set.add(s.group.trim());
-    });
-    return Array.from(set);
-  }, [suppliers]);
-
-  // KPI Calculations
-  const metrics = useMemo(() => {
-    const totalSuppliers = suppliers.length;
-    let totalDebtPayable = 0; // Debt > 0
-    let totalCreditAdvance = 0; // Debt < 0 (trả thừa/cọc)
-    let totalPurchased = 0;
-    let countInDebt = 0;
-
-    suppliers.forEach((s) => {
-      totalPurchased += s.total_purchased || 0;
-      if (s.debt > 0) {
-        totalDebtPayable += s.debt;
-        countInDebt++;
-      } else if (s.debt < 0) {
-        totalCreditAdvance += Math.abs(s.debt);
-      }
-    });
-
-    return {
-      totalSuppliers,
-      totalDebtPayable,
-      totalCreditAdvance,
-      totalPurchased,
-      countInDebt,
-    };
-  }, [suppliers]);
-
-  // Filtered Suppliers
-  const filteredSuppliers = useMemo(() => {
-    return suppliers.filter((s) => {
-      const q = searchTerm.toLowerCase().trim();
-      const matchSearch =
-        !q ||
-        s.name.toLowerCase().includes(q) ||
-        s.code.toLowerCase().includes(q) ||
-        (s.phone && s.phone.toLowerCase().includes(q)) ||
-        (s.address && s.address.toLowerCase().includes(q)) ||
-        (s.company && s.company.toLowerCase().includes(q)) ||
-        (s.tax_code && s.tax_code.toLowerCase().includes(q));
-
-      const matchGroup = selectedGroup === 'ALL' || s.group === selectedGroup;
-
-      const matchStatus = statusFilter === 'ALL' || s.status === statusFilter;
-
-      let matchDebt = true;
-      if (debtFilter === 'HAS_DEBT') {
-        matchDebt = s.debt > 0;
-      } else if (debtFilter === 'CREDIT') {
-        matchDebt = s.debt < 0;
-      } else if (debtFilter === 'ZERO') {
-        matchDebt = s.debt === 0;
-      }
-
-      return matchSearch && matchGroup && matchStatus && matchDebt;
-    });
-  }, [suppliers, searchTerm, selectedGroup, statusFilter, debtFilter]);
-
-  const paginatedSuppliers = useMemo(() => {
-    return filteredSuppliers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  }, [filteredSuppliers, currentPage, pageSize]);
+  const { distinctGroups, metrics, filteredSuppliers, paginatedSuppliers } = useSupplierFilters({
+    suppliers,
+    searchTerm,
+    selectedGroup,
+    statusFilter,
+    debtFilter,
+    currentPage,
+    pageSize,
+  });
 
   // Open Add Modal
   const handleOpenAdd = () => {

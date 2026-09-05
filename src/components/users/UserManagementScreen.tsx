@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { AppUser, UserRole, UserPermissions } from '../../types';
 import { AvatarUploader } from '../common/AvatarUploader';
 import {
@@ -106,8 +107,8 @@ export const UserManagementScreen: React.FC = () => {
     deleteUser,
     toggleUserLock,
     resetUserPassword,
-    showToast,
-  } = useApp();
+  } = useAuth();
+  const { showToast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | UserRole>('ALL');

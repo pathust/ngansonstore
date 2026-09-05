@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Product } from '../../types';
-import { useApp } from '../../context/AppContext';
+import { useCatalogOrchestrator } from '../../context/orchestrators/useCatalogOrchestrator';
 import { formatCurrency } from '../../utils/formatters';
 import { exportToExcel } from '../../utils/formatters';
 import { MobilePriceAuditModal } from '../mobile/MobilePriceAuditModal';
@@ -100,7 +100,7 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
     unconfirmProductPriceAudit,
     confirmAllProductPriceAudits,
     isPriceAuditConfirmed,
-  } = useApp();
+  } = useCatalogOrchestrator();
 
   const [activeTab, setActiveTab] = useState<PriceAnomalyType>('ALL');
   const [statusFilter, setStatusFilter] = useState<'UNCONFIRMED' | 'CONFIRMED' | 'ALL'>('UNCONFIRMED');

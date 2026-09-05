@@ -16,7 +16,7 @@ Hệ thống phần mềm quản trị bán hàng và vận hành toàn diện (
 ## 📑 Mục lục
 
 1. [Tính năng Nổi bật](#-tính-năng-nổi-bật)
-2. [Tài khoản Mặc định & Phân quyền](#-tài-khoản-mặc-định--phân-quyền)
+2. [Tài khoản & Phân quyền](#-tài-khoản--phân-quyền)
 3. [Công nghệ Sử dụng (Tech Stack)](#-công-nghệ-sử-dụng-tech-stack)
 4. [Cấu trúc Thư mục Dự án](#-cấu-trúc-thư-mục-dự-án)
 5. [Hướng dẫn Cài đặt & Vận hành](#-hướng-dẫn-cài-đặt--vận-hành)
@@ -86,16 +86,28 @@ Hệ thống phần mềm quản trị bán hàng và vận hành toàn diện (
 
 ---
 
-## 👥 Tài khoản Mặc định & Phân quyền
+## 👥 Tài khoản & Phân quyền
 
-Hệ thống được khởi tạo sẵn với 4 tài khoản nghiệp vụ:
+Hệ thống **không** đi kèm tài khoản mặc định nào — kho mã nguồn không lưu bất kỳ username/email/mật khẩu thật nào để tránh lộ thông tin khi chia sẻ hoặc public repo.
 
-| Tên người dùng | Username / Email | Mật khẩu | Vai trò | Quyền hạn mặc định |
-| :--- | :--- | :--- | :--- | :--- |
-| **Phan Anh Tài** | `tai`<br>`taiphananh28@gmail.com` | `admin123` | **ADMIN** (Quản trị viên) | **Toàn quyền 15/15 phân hệ**: Quản trị nhân sự, cài đặt hệ thống, xóa hóa đơn, cấu hình, sổ quỹ, bán hàng... |
-| **Phan Minh Sơn** | `son`<br>`sn.phanminh@gmail.com` | `minhson318vuquang` | **MANAGER** (Quản lý) | Quản lý vận hành, bán hàng POS, báo cáo doanh thu, kiểm kê kho, sổ quỹ, nhà cung cấp. |
-| **Nguyễn Thị Ngân** | `ngan`<br>`ngansonlv@gmail.com` | `ngan318vuquang` | **MANAGER** (Quản lý) | Quản lý báo cáo doanh thu, thu chi, kho hàng, khách hàng & nhà cung cấp. |
-| **Phan Minh Nhật** | `nhat`<br>`nhatphanminh2711@gmail.com` | `minhnhat318vuquang` | **STAFF** (Thu ngân) | Chuyên trách bán lẻ POS, tra cứu hóa đơn cá nhân, in biên lai K80. Khóa các mục quản trị nhạy cảm. |
+Để tạo tài khoản Admin đầu tiên, thêm vào file `.env` (xem mẫu ở [.env.example](.env.example)):
+
+```
+ADMIN_USERNAME=ten-dang-nhap
+ADMIN_PASSWORD=mat-khau-cua-ban
+ADMIN_NAME=Tên hiển thị
+ADMIN_EMAIL=email@vidu.com
+```
+
+Rồi chạy:
+
+```bash
+npm run db:seed:admin
+```
+
+Lệnh này tạo (hoặc cập nhật) 1 tài khoản **ADMIN** với toàn quyền 15/15 phân hệ trong `.data/db.json`. Nếu dùng Supabase, chạy tiếp `npm run db:seed:supabase` để đồng bộ tài khoản này lên cloud. Các tài khoản tiếp theo (MANAGER/STAFF) tạo trực tiếp trong màn hình **Quản lý nhân sự** của app sau khi đăng nhập Admin.
+
+Hệ thống hỗ trợ 3 vai trò: **ADMIN** (toàn quyền), **MANAGER** (vận hành, báo cáo, kho, sổ quỹ — trừ xóa hóa đơn/cài đặt hệ thống), **STAFF** (bán hàng POS, tra cứu hóa đơn cá nhân, khóa các mục quản trị nhạy cảm).
 
 ---
 

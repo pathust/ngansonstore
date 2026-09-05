@@ -2,10 +2,11 @@
 node_modules/
 mobile/node_modules/
 
-# Antigravity & AI IDE files
+#  AI Agent & IDE files
 .antigravity/
 .vscode/
 .idea/
+.claude/
 
 # Local database & data files (already migrated to Supabase)
 .data/
@@ -20,6 +21,9 @@ build/
 coverage/
 mobile/.expo/
 mobile/web-build/
+
+# Test run artifacts
+.vitest/
 
 # Operating System files
 .DS_Store

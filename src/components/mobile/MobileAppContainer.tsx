@@ -11,7 +11,6 @@ import { MobileProductsScreen } from './MobileProductsScreen';
 import { MobilePosScreen } from './MobilePosScreen';
 import { MobileInvoicesScreen } from './MobileInvoicesScreen';
 import { MobileMoreScreen } from './MobileMoreScreen';
-import { useApp } from '../../context/AppContext';
 
 export type MobileTab = 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE';
 
@@ -27,7 +26,6 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
   onResetAutoView,
 }) => {
   const [activeTab, setActiveTab] = useState<MobileTab>('OVERVIEW');
-  const { setIsVoiceAssistantOpen } = useApp();
 
   const tabs = [
     { id: 'OVERVIEW' as const, label: 'Tổng quan', icon: BarChart2 },

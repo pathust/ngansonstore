@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useOrdersData } from '../../context/slices/OrdersDataContext';
 import { formatCurrency, parseDateToTimestamp } from '../../utils/formatters';
 import {
   Phone,
@@ -29,7 +29,7 @@ interface MobileOverviewScreenProps {
 }
 
 export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNavigateTab }) => {
-  const { orders } = useApp();
+  const { orders } = useOrdersData();
   const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'last_7_days' | 'this_month' | 'last_month' | 'all'>('this_month');
   const [showProfit, setShowProfit] = useState(false);
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);

@@ -37,8 +37,12 @@ import {
   TrendingDown,
   TrendingUp,
   AlertCircle,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { PriceAuditModal, detectPriceAnomaly, PriceAnomalyType } from './PriceAuditModal';
+import { useProductFilters, ProductSortField, SortDirection } from './useProductFilters';
 
 interface ProductManagementScreenProps {
   isAddDrawerOpen?: boolean;
@@ -70,6 +74,31 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
   const [stockFilter, setStockFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+
+  // Sắp xếp theo cột: click lần 1 = tăng dần, lần 2 = giảm dần, lần 3 = bỏ sắp xếp (mặc định)
+  const [sortField, setSortField] = useState<ProductSortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const handleSort = (field: ProductSortField) => {
+    if (sortField !== field) {
+      setSortField(field);
+      setSortDirection('asc');
+    } else if (sortDirection === 'asc') {
+      setSortDirection('desc');
+    } else {
+      setSortField(null);
+    }
+    setCurrentPage(1);
+  };
+
+  const SortIcon = ({ field }: { field: ProductSortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-slate-300" />;
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-[#0066FF]" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-[#0066FF]" />
+    );
+  };
 
   // Voice AI Stock-in modal state
   const [isVoiceStockInOpen, setIsVoiceStockInOpen] = useState(false);
@@ -117,87 +146,18 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
 
   const debouncedSearch = useDebounce(search, 200);
 
-  // Thống kê toàn bộ các sản phẩm có chênh lệch giá bất thường (chỉ tính chưa duyệt OK)
-  const priceAnomalies = useMemo(() => {
-    let lossCount = 0;
-    let highMarginCount = 0;
-    let invertedCount = 0;
-    let zeroCostCount = 0;
-    let confirmedCount = 0;
-
-    products.forEach((p) => {
-      const a = detectPriceAnomaly(p);
-      if (a) {
-        if (isPriceAuditConfirmed(p)) {
-          confirmedCount++;
-        } else {
-          if (a.type === 'LOSS') lossCount++;
-          else if (a.type === 'HIGH_MARGIN') highMarginCount++;
-          else if (a.type === 'INVERTED_HIGH') invertedCount++;
-          else if (a.type === 'ZERO_COST') zeroCostCount++;
-        }
-      }
-    });
-
-    return {
-      total: lossCount + highMarginCount + invertedCount,
-      lossCount,
-      highMarginCount,
-      invertedCount,
-      zeroCostCount,
-      confirmedCount,
-    };
-  }, [products, isPriceAuditConfirmed]);
-
-  // Filter products (memoized)
-  const filteredProducts = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    return products.filter((p) => {
-      const matchSearch =
-        q === '' ||
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.barcode.includes(q);
-
-      const matchCategory = selectedCategory === 'ALL' || p.category === selectedCategory;
-
-      let matchStock = true;
-      if (stockFilter === 'OUT_OF_STOCK') matchStock = p.stock <= 0;
-      else if (stockFilter === 'LOW_STOCK') matchStock = p.stock > 0 && p.stock <= p.min_stock;
-      else if (stockFilter === 'IN_STOCK') matchStock = p.stock > p.min_stock;
-
-      // Price Anomaly Audit Filter
-      let matchPrice = true;
-      if (priceAnomalyFilter === 'CONFIRMED') {
-        const anomaly = detectPriceAnomaly(p);
-        matchPrice = !!anomaly && isPriceAuditConfirmed(p);
-      } else if (priceAnomalyFilter !== 'ALL') {
-        const anomaly = detectPriceAnomaly(p);
-        const isConfirmed = isPriceAuditConfirmed(p);
-        if (!anomaly || isConfirmed) {
-          matchPrice = false;
-        } else if (priceAnomalyFilter === 'LOSS') {
-          matchPrice = anomaly.type === 'LOSS';
-        } else if (priceAnomalyFilter === 'HIGH_MARGIN') {
-          matchPrice = anomaly.type === 'HIGH_MARGIN';
-        } else if (priceAnomalyFilter === 'INVERTED_HIGH') {
-          matchPrice = anomaly.type === 'INVERTED_HIGH';
-        } else if (priceAnomalyFilter === 'ZERO_COST') {
-          matchPrice = anomaly.type === 'ZERO_COST';
-        }
-      }
-
-      return matchSearch && matchCategory && matchStock && matchPrice;
-    });
-  }, [products, debouncedSearch, selectedCategory, stockFilter, priceAnomalyFilter, isPriceAuditConfirmed]);
-
-  // Pagination (memoized)
-  const paginatedProducts = useMemo(() => {
-    return filteredProducts.slice(
-      (currentPage - 1) * pageSize,
-      currentPage * pageSize
-    );
-  }, [filteredProducts, currentPage, pageSize]);
+  const { priceAnomalies, filteredProducts, paginatedProducts } = useProductFilters({
+    products,
+    debouncedSearch,
+    selectedCategory,
+    stockFilter,
+    priceAnomalyFilter,
+    sortField,
+    sortDirection,
+    currentPage,
+    pageSize,
+    isPriceAuditConfirmed,
+  });
 
   const handleOpenAddDrawer = () => {
     setEditingProduct(null);
@@ -642,12 +602,32 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
           <table className="w-full text-left text-xs border-collapse min-w-[880px]">
             <thead>
               <tr className="table-header border-b border-slate-200 uppercase tracking-wider text-[10px]">
-                <th className="py-2 px-3 min-w-[180px]">Ảnh & Sản phẩm</th>
-                <th className="py-2 px-3 whitespace-nowrap">Mã SKU / Barcode</th>
+                <th className="py-2 px-3 min-w-[180px]">
+                  <button type="button" onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-[#0066FF] transition-colors">
+                    Ảnh & Sản phẩm <SortIcon field="name" />
+                  </button>
+                </th>
+                <th className="py-2 px-3 whitespace-nowrap">
+                  <button type="button" onClick={() => handleSort('sku')} className="flex items-center gap-1 hover:text-[#0066FF] transition-colors">
+                    Mã SKU / Barcode <SortIcon field="sku" />
+                  </button>
+                </th>
                 <th className="py-2 px-2.5 whitespace-nowrap">ĐVT</th>
-                <th className="py-2 px-3 text-right whitespace-nowrap">Giá vốn (VNĐ)</th>
-                <th className="py-2 px-3 text-right whitespace-nowrap">Giá bán lẻ (VNĐ)</th>
-                <th className="py-2 px-3 text-center whitespace-nowrap">Tồn kho</th>
+                <th className="py-2 px-3 text-right whitespace-nowrap">
+                  <button type="button" onClick={() => handleSort('cost_price')} className="flex items-center gap-1 ml-auto hover:text-[#0066FF] transition-colors">
+                    Giá vốn (VNĐ) <SortIcon field="cost_price" />
+                  </button>
+                </th>
+                <th className="py-2 px-3 text-right whitespace-nowrap">
+                  <button type="button" onClick={() => handleSort('selling_price')} className="flex items-center gap-1 ml-auto hover:text-[#0066FF] transition-colors">
+                    Giá bán lẻ (VNĐ) <SortIcon field="selling_price" />
+                  </button>
+                </th>
+                <th className="py-2 px-3 text-center whitespace-nowrap">
+                  <button type="button" onClick={() => handleSort('stock')} className="flex items-center gap-1 mx-auto hover:text-[#0066FF] transition-colors">
+                    Tồn kho <SortIcon field="stock" />
+                  </button>
+                </th>
                 <th className="py-2 px-2.5 text-center whitespace-nowrap">Trạng thái</th>
                 <th className="py-2 px-3 text-center whitespace-nowrap sticky right-0 bg-slate-50 z-20 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">Thao tác</th>
               </tr>
