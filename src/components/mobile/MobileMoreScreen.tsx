@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   User,
@@ -23,6 +23,7 @@ import {
   Lock,
   Monitor,
   RefreshCw,
+  ShieldAlert,
 } from 'lucide-react';
 import { MobileCustomerModal } from './MobileCustomerModal';
 import { MobileSupplierModal } from './MobileSupplierModal';
@@ -35,6 +36,7 @@ import { MobileReturnsModal } from './MobileReturnsModal';
 import { MobileShiftModal } from './MobileShiftModal';
 import { MobilePurchaseOrderModal } from './MobilePurchaseOrderModal';
 import { MobileStaffModal } from './MobileStaffModal';
+import { PriceAuditModal, detectPriceAnomaly } from '../products/PriceAuditModal';
 
 interface MobileMoreScreenProps {
   onNavigateTab: (tab: 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE') => void;
@@ -51,9 +53,10 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
   isManualOverride,
   onResetAutoView,
 }) => {
-  const { storeSettings, currentUser, setIsUserSwitcherOpen, showToast } = useApp();
+  const { storeSettings, currentUser, products, updateProduct, setIsUserSwitcherOpen, showToast } = useApp();
 
   // Role & Permissions checks
+  const canManageProducts = currentUser.role === 'ADMIN' || currentUser.permissions.canManageProducts;
   const canManageCustomers = currentUser.role === 'ADMIN' || currentUser.permissions.canManageCustomers;
   const canManageSuppliers = currentUser.role === 'ADMIN' || currentUser.permissions.canManageSuppliers;
   const canManageStaff = currentUser.role === 'ADMIN';
@@ -72,10 +75,15 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
   };
 
   // Modals state
+  const [isPriceAuditOpen, setIsPriceAuditOpen] = useState(false);
   const [isCustomersOpen, setIsCustomersOpen] = useState(false);
   const [isSuppliersOpen, setIsSuppliersOpen] = useState(false);
   const [isCashbookOpen, setIsCashbookOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+
+  const priceAnomalyCount = useMemo(() => {
+    return products.filter((p) => detectPriceAnomaly(p) !== null).length;
+  }, [products]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isReportsOpen, setIsReportsOpen] = useState(false);
   const [reportMode, setReportMode] = useState<'SALES' | 'END_OF_DAY'>('SALES');
@@ -304,6 +312,31 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
             </button>
 
             <button
+              onClick={() => requirePermission(canManageProducts, () => setIsPriceAuditOpen(true))}
+              className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
+                canManageProducts ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-slate-900 truncate">Audit Giá</span>
+                    {priceAnomalyCount > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-black">
+                        {priceAnomalyCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-slate-400 truncate">Quét bất thường giá</span>
+                </div>
+              </div>
+              {!canManageProducts && <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-1" />}
+            </button>
+
+            <button
               onClick={() => requirePermission(canAuditInventory, () => setIsInventoryOpen(true))}
               className={`flex items-center justify-between p-1.5 rounded-xl text-left text-xs font-medium transition-all ${
                 canAuditInventory ? 'text-slate-800 hover:text-[#0066FF] active:scale-95' : 'text-slate-400 bg-slate-50/50'
@@ -314,7 +347,7 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
                   <CheckSquare className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-slate-900 truncate">Kiểm kho</span>
+                  <span className="font-bold text-slate-900 truncate">Audit Kiểm kho</span>
                   <span className="text-[10px] text-slate-400 truncate">Cân bằng tồn kho</span>
                 </div>
               </div>
@@ -529,6 +562,14 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
       <MobileStaffModal
         isOpen={isStaffOpen}
         onClose={() => setIsStaffOpen(false)}
+      />
+
+      {/* Price Audit Modal */}
+      <PriceAuditModal
+        isOpen={isPriceAuditOpen}
+        onClose={() => setIsPriceAuditOpen(false)}
+        products={products}
+        onUpdateProduct={updateProduct}
       />
     </div>
   );

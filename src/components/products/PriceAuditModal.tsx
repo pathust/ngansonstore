@@ -450,8 +450,8 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
               </div>
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
+              <table className="w-full min-w-[700px] text-left text-xs border-collapse">
                 <thead className="bg-slate-50 border-b border-slate-200 uppercase tracking-wider text-[10px] text-slate-600 font-bold">
                   <tr>
                     <th className="py-2.5 px-3">Sản phẩm &amp; Mã SKU</th>

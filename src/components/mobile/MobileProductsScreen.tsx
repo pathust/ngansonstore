@@ -12,16 +12,20 @@ import {
   Check,
   ImageIcon,
   X,
+  ShieldAlert,
+  CheckSquare,
 } from 'lucide-react';
 import { MobileFilterDrawer, MobileFilterOptions } from './MobileFilterDrawer';
 import { MobileProductModal } from './MobileProductModal';
+import { PriceAuditModal, detectPriceAnomaly } from '../products/PriceAuditModal';
+import { MobileInventoryAuditModal } from './MobileInventoryAuditModal';
 
 interface MobileProductsScreenProps {
   onOpenAddProduct?: () => void;
 }
 
 export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
-  const { products, categories, showToast } = useApp();
+  const { products, categories, updateProduct, showToast } = useApp();
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,12 +39,21 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<Product | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
+  // Audit Modals State
+  const [isPriceAuditOpen, setIsPriceAuditOpen] = useState(false);
+  const [isInventoryAuditOpen, setIsInventoryAuditOpen] = useState(false);
+
   // Modals & Bottom Sheets
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [isPriceTypeSheetOpen, setIsPriceTypeSheetOpen] = useState(false);
   const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const [isProductTypeSheetOpen, setIsProductTypeSheetOpen] = useState(false);
+
+  // Detect price anomalies for Audit
+  const priceAnomalies = useMemo(() => {
+    return products.filter((p) => detectPriceAnomaly(p) !== null);
+  }, [products]);
 
   // Advanced Filters
   const [filterOptions, setFilterOptions] = useState<MobileFilterOptions>({
@@ -172,6 +185,20 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
                 <Search className="w-5 h-5" />
               </button>
               <button
+                onClick={() => setIsPriceAuditOpen(true)}
+                className={`p-1 relative transition-colors ${
+                  priceAnomalies.length > 0 ? 'text-amber-600' : 'hover:text-amber-600'
+                }`}
+                title={`Audit Bảng Giá (${priceAnomalies.length} bất thường)`}
+              >
+                <ShieldAlert className="w-5 h-5" />
+                {priceAnomalies.length > 0 && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-black animate-pulse">
+                    {priceAnomalies.length}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => setIsSortSheetOpen(true)}
                 className="p-1 hover:text-[#0066FF] transition-colors"
                 title="Sắp xếp"
@@ -181,7 +208,7 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
               <button
                 onClick={() => setIsMoreSheetOpen(true)}
                 className="p-1 hover:text-[#0066FF] transition-colors"
-                title="Chế độ hiển thị"
+                title="Chế độ hiển thị & Tiện ích"
               >
                 <MoreHorizontal className="w-5 h-5" />
               </button>
@@ -235,6 +262,30 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
           {totalStock.toLocaleString('vi-VN')}
         </div>
       </div>
+
+      {/* Price Audit Warning Banner */}
+      {priceAnomalies.length > 0 && (
+        <div className="mx-4 mt-2.5 p-3 bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-200 rounded-2xl flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                <span>Audit: {priceAnomalies.length} cảnh báo giá</span>
+                <span className="px-1.5 py-0.2 rounded bg-rose-600 text-white text-[9px] font-bold">Cần duyệt</span>
+              </div>
+              <p className="text-[10px] text-slate-500 truncate">Có sản phẩm bán dưới vốn hoặc chênh lệch cao</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsPriceAuditOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold shrink-0 shadow-2xs"
+          >
+            Audit giá
+          </button>
+        </div>
+      )}
 
       {/* Product List Items */}
       <div className="p-3 flex flex-col gap-2">
@@ -587,7 +638,7 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-slate-200 rounded-full self-center mb-1" />
-            <h3 className="font-extrabold text-base text-slate-900 mb-1">Chế độ hiển thị</h3>
+            <h3 className="font-extrabold text-base text-slate-900 mb-1">Chế độ hiển thị & Tiện ích</h3>
             <div className="flex flex-col divide-y divide-slate-100">
               <button
                 onClick={() => {
@@ -612,9 +663,60 @@ export const MobileProductsScreen: React.FC<MobileProductsScreenProps> = () => {
                 {viewMode === 'GROUPED' && <Check className="w-4 h-4 text-[#0066FF]" />}
               </button>
             </div>
+
+            {/* Audit & Inventory Tools */}
+            <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Công cụ Audit & Kiểm kê
+              </span>
+              <button
+                onClick={() => {
+                  setIsMoreSheetOpen(false);
+                  setIsPriceAuditOpen(true);
+                }}
+                className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 flex items-center justify-between text-xs font-bold text-amber-900 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Audit Bảng Giá Bất Thường</span>
+                </div>
+                {priceAnomalies.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold">
+                    {priceAnomalies.length} SP
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMoreSheetOpen(false);
+                  setIsInventoryAuditOpen(true);
+                }}
+                className="py-2.5 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 flex items-center justify-between text-xs font-bold text-teal-900 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>Audit Kiểm kê kho & Cân bằng tồn</span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Price Audit Modal */}
+      <PriceAuditModal
+        isOpen={isPriceAuditOpen}
+        onClose={() => setIsPriceAuditOpen(false)}
+        products={products}
+        onUpdateProduct={updateProduct}
+      />
+
+      {/* Inventory Audit Modal */}
+      <MobileInventoryAuditModal
+        isOpen={isInventoryAuditOpen}
+        onClose={() => setIsInventoryAuditOpen(false)}
+      />
     </div>
   );
 };
