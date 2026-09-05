@@ -109,6 +109,13 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
   // inside closures, so continuous recognition could otherwise fire a new analysis on every
   // growing transcript chunk while a previous one is still in flight.
   const isAnalyzingRef = useRef<boolean>(false);
+  // `.stop()` on a SpeechRecognition instance still delivers one trailing result for audio it
+  // already captured, even after we've moved on (paused for analysis, started a new session,
+  // closed the modal). That stale callback has no idea it's stale — it happily calls
+  // setTranscript(...) and re-arms the debounce, which is what produced the repeating-prefix
+  // transcript ("Xin Xin chào Xin chào Xin chào..."). Every callback checks this token against
+  // the session it was created for and no-ops if a newer session has since started.
+  const recognitionSessionRef = useRef<number>(0);
 
   const resetDraftState = () => {
     setParseResult(null);
@@ -214,15 +221,30 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
     resetDraftState();
   };
 
+  const abortRecognitionInstance = (instance: any) => {
+    try {
+      // abort() (unlike stop()) does not deliver any further/trailing result for audio it has
+      // already captured — exactly what we want whenever WE decide to stop, so a superseded
+      // instance can never sneak in one more onresult after the fact.
+      if (typeof instance.abort === 'function') instance.abort();
+      else instance.stop();
+    } catch {}
+  };
+
   const startListening = () => {
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
+      abortRecognitionInstance(recognitionRef.current);
     }
+
+    // Bump the session token so any trailing callback from the instance we just aborted
+    // (or any earlier one) is recognized as stale and ignored below.
+    recognitionSessionRef.current += 1;
+    const mySession = recognitionSessionRef.current;
 
     const rec = createSpeechRecognition(
       (newTranscript, _isFinal) => {
+        if (mySession !== recognitionSessionRef.current) return; // stale/superseded session
+
         // Barge-in: if the assistant is currently speaking TTS feedback and the user starts
         // talking again, cut the AI off immediately instead of ignoring the new speech.
         if (isSpeakingRef.current) {
@@ -236,14 +258,17 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
         // Wait for a short pause before auto-analyzing so natural speech isn't cut mid-sentence,
         // but shorter than before so the assistant feels snappier.
         analyzeTimeoutRef.current = setTimeout(() => {
+          if (mySession !== recognitionSessionRef.current) return; // stale/superseded session
           executeAnalysis(newTranscript);
         }, 1200);
       },
       (error) => {
+        if (mySession !== recognitionSessionRef.current) return;
         showToast(error, 'error');
         setIsListening(false);
       },
       () => {
+        if (mySession !== recognitionSessionRef.current) return;
         setIsListening(false);
       }
     );
@@ -260,13 +285,14 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
   };
 
   const stopListening = () => {
+    // Invalidate the current session too — once we've decided to stop, no callback from it
+    // (even a "legitimate" final result) should still be allowed to touch state.
+    recognitionSessionRef.current += 1;
     if (analyzeTimeoutRef.current) {
       clearTimeout(analyzeTimeoutRef.current);
     }
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
+      abortRecognitionInstance(recognitionRef.current);
       recognitionRef.current = null;
     }
     setIsListening(false);
