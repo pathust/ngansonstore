@@ -35,6 +35,12 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
 }) => {
   const { products, customers, orders } = useApp();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [visibleCount, setVisibleCount] = useState(5);
+
+  // Reset visible count each time the modal is closed
+  React.useEffect(() => {
+    if (!isOpen) setVisibleCount(5);
+  }, [isOpen]);
 
   React.useEffect(() => {
     const newNotifications: (NotificationItem & { timestamp: number })[] = [];
@@ -178,7 +184,7 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
               <span className="text-xs text-slate-400 mt-1">Các thông báo mới về hàng hoá, doanh thu sẽ hiển thị tại đây</span>
             </div>
           ) : (
-            notifications.map((item) => (
+            notifications.slice(0, visibleCount).map((item) => (
               <div
                 key={item.id}
                 onClick={() => handleItemClick(item)}
@@ -220,6 +226,16 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
                 )}
               </div>
             ))
+          )}
+
+          {/* Xem thêm button */}
+          {notifications.length > 0 && visibleCount < notifications.length && (
+            <button
+              onClick={() => setVisibleCount(c => c + 5)}
+              className="w-full mt-1 py-2.5 rounded-xl text-xs font-semibold text-[#0066FF] bg-blue-50 hover:bg-blue-100 active:bg-blue-200 transition-colors border border-blue-100"
+            >
+              Xem thêm ({notifications.length - visibleCount} thông báo)
+            </button>
           )}
         </div>
       </div>
