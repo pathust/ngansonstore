@@ -488,6 +488,7 @@ export const MobileStoreSettingsModal: React.FC<MobileStoreSettingsModalProps> =
                 <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Số tiền thử:</label>
                 <input
                   type="number"
+                  onFocus={(e) => e.target.select()}
                   value={testAmount}
                   onChange={(e) => setTestAmount(Math.max(0, Number(e.target.value)))}
                   placeholder="0 đ"

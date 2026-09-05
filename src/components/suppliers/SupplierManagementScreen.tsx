@@ -1013,6 +1013,7 @@ export const SupplierManagementScreen: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     value={formData.debt}
                     onChange={(e) => setFormData({ ...formData, debt: parseFloat(e.target.value) || 0 })}
                     placeholder="0"
@@ -1026,6 +1027,7 @@ export const SupplierManagementScreen: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     value={formData.total_purchased}
                     onChange={(e) => setFormData({ ...formData, total_purchased: parseFloat(e.target.value) || 0 })}
                     placeholder="0"
@@ -1105,6 +1107,7 @@ export const SupplierManagementScreen: React.FC = () => {
                 </label>
                 <input
                   type="number"
+                  onFocus={(e) => e.target.select()}
                   required
                   min={1000}
                   value={paymentAmount}

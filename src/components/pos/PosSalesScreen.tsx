@@ -4,7 +4,7 @@ import { Product } from '../../types';
 import { formatCurrency, getVietQRUrl } from '../../utils/formatters';
 import { generateOfflineQrDataUrl } from '../../utils/vietqr';
 import { useDebounce } from '../../utils/useDebounce';
-import { VoiceActionModal } from '../common/VoiceActionModal';
+import { useUiShell } from '../../context/slices/UiShellContext';
 import {
   Search,
   Barcode,
@@ -52,6 +52,7 @@ export const PosSalesScreen: React.FC = () => {
     storeSettings,
     isPriceAuditConfirmed,
   } = useApp();
+  const { requestVoiceAssistant } = useUiShell();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('cat-all');
   const [productSearch, setProductSearch] = useState<string>('');
@@ -61,7 +62,6 @@ export const PosSalesScreen: React.FC = () => {
   const [cashGiven, setCashGiven] = useState<number>(0);
   const [barcodeInput, setBarcodeInput] = useState<string>('');
   const [showBarcodeScanner, setShowBarcodeScanner] = useState<boolean>(false);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
   const [mobileTab, setMobileTab] = useState<'PRODUCTS' | 'CART'>('PRODUCTS');
 
   const debouncedSearch = useDebounce(productSearch, 200);
@@ -219,15 +219,6 @@ export const PosSalesScreen: React.FC = () => {
         return;
       }
 
-      // If voice modal is open
-      if (isVoiceModalOpen) {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          setIsVoiceModalOpen(false);
-        }
-        return;
-      }
-
       // F2: Focus product search input
       if (e.key === 'F2') {
         e.preventDefault();
@@ -265,7 +256,6 @@ export const PosSalesScreen: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isPaymentModalOpen,
-    isVoiceModalOpen,
     showBarcodeScanner,
     productSearch,
     activeTab.items,
@@ -339,7 +329,7 @@ export const PosSalesScreen: React.FC = () => {
                     </button>
                   )}
                   <button
-                    onClick={() => setIsVoiceModalOpen(true)}
+                    onClick={() => requestVoiceAssistant('POS_ORDER')}
                     className="p-1 rounded text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors cursor-pointer"
                     title="Nói để tìm kiếm hoặc tạo đơn (VD: Bán 2 bóng rạng đông 9w)"
                   >
@@ -364,7 +354,7 @@ export const PosSalesScreen: React.FC = () => {
 
               {/* Voice AI POS Assistant Button */}
               <button
-                onClick={() => setIsVoiceModalOpen(true)}
+                onClick={() => requestVoiceAssistant('POS_ORDER')}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
                 title="Lập hóa đơn bằng giọng nói AI (VD: Bán 2 quạt panasonic giảm 50k cho anh Minh)"
               >
@@ -725,6 +715,7 @@ export const PosSalesScreen: React.FC = () => {
                         </button>
                         <input
                           type="number"
+                          onFocus={(e) => e.target.select()}
                           min="1"
                           max={item.max_stock}
                           value={item.quantity}
@@ -775,6 +766,7 @@ export const PosSalesScreen: React.FC = () => {
               <div className="flex items-center gap-1">
                 <input
                   type="number"
+                  onFocus={(e) => e.target.select()}
                   min="0"
                   value={activeTab.discount_amount || ''}
                   onChange={(e) =>
@@ -908,6 +900,7 @@ export const PosSalesScreen: React.FC = () => {
                     <label className="text-xs font-medium text-slate-600 block mb-1">Tiền khách đưa:</label>
                     <input
                       type="number"
+                      onFocus={(e) => e.target.select()}
                       value={cashGiven || ''}
                       onChange={(e) => setCashGiven(parseInt(e.target.value) || 0)}
                       placeholder={totalAmountToPay.toString()}
@@ -1026,13 +1019,6 @@ export const PosSalesScreen: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Voice Assistant Modal */}
-      <VoiceActionModal
-        isOpen={isVoiceModalOpen}
-        onClose={() => setIsVoiceModalOpen(false)}
-        initialMode="POS_ORDER"
-      />
     </div>
   );
 };

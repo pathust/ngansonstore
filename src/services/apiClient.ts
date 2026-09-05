@@ -506,6 +506,30 @@ class ApiClient {
     });
     return res.data;
   }
+
+  // Raw SSE stream — caller reads response.body itself to consume chunks as they arrive.
+  // Throws on any non-OK HTTP response so callers can fall back the same way as parseVoiceOrder.
+  public async parseVoiceOrderStreamRaw(payload: {
+    text: string;
+    products?: Product[];
+    customers?: Customer[];
+    suppliers?: Supplier[];
+    mode?: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER';
+    currentOrder?: Order;
+  }): Promise<Response> {
+    const response = await fetch(`${API_BASE}/ai/parse-voice-order-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-Version': '4.3-WEB',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return response;
+  }
 }
 
 export const apiClient = new ApiClient();

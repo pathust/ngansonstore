@@ -341,6 +341,7 @@ export const MobileInventoryAuditModal: React.FC<MobileInventoryAuditModalProps>
                     <div className="flex items-center gap-1 shrink-0">
                       <input
                         type="number"
+                        onFocus={(e) => e.target.select()}
                         min="0"
                         value={item.actualStock}
                         onChange={(e) =>

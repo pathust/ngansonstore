@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product } from '../../types';
 import { useDebounce } from '../../utils/useDebounce';
-import { VoiceActionModal } from '../common/VoiceActionModal';
+import { useUiShell } from '../../context/slices/UiShellContext';
 import { Pagination } from '../common/Pagination';
 import { StockInVoucherModal } from './StockInVoucherModal';
 import {
@@ -66,6 +66,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
     currentUser,
     isPriceAuditConfirmed,
   } = useApp();
+  const { requestVoiceAssistant } = useUiShell();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,9 +100,6 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
       <ArrowDown className="w-3 h-3 text-[#0066FF]" />
     );
   };
-
-  // Voice AI Stock-in modal state
-  const [isVoiceStockInOpen, setIsVoiceStockInOpen] = useState(false);
 
   // Stock-In Voucher Modal state
   const [isStockInVoucherOpen, setIsStockInVoucherOpen] = useState(false);
@@ -406,7 +404,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
           </button>
 
           <button
-            onClick={() => setIsVoiceStockInOpen(true)}
+            onClick={() => requestVoiceAssistant('STOCK_IN')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
           >
             <Mic className="w-3.5 h-3.5 text-amber-300" />
@@ -531,7 +529,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
               </button>
             )}
             <button
-              onClick={() => setIsVoiceStockInOpen(true)}
+              onClick={() => requestVoiceAssistant('STOCK_IN')}
               className="p-1 rounded text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors cursor-pointer"
               title="Tìm kiếm hoặc nhập kho bằng giọng nói"
             >
@@ -908,6 +906,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                   <label className="font-bold text-slate-700 block mb-1">Giá vốn (VNĐ)</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     min="0"
                     value={formData.cost_price}
                     onChange={(e) => setFormData({ ...formData, cost_price: parseInt(e.target.value) || 0 })}
@@ -920,6 +919,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                   </label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     min="0"
                     required
                     value={formData.selling_price}
@@ -991,6 +991,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                   <label className="font-bold text-slate-700 block mb-1">Tồn kho ban đầu</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     min="0"
                     value={formData.stock}
                     onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
@@ -1001,6 +1002,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                   <label className="font-bold text-slate-700 block mb-1">Ngưỡng cảnh báo tối thiểu</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     min="0"
                     value={formData.min_stock}
                     onChange={(e) => setFormData({ ...formData, min_stock: parseInt(e.target.value) || 0 })}
@@ -1089,6 +1091,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                   <label className="font-bold text-slate-700 block mb-1">Số lượng nhập thêm:</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     min="1"
                     value={receivedQty}
                     onChange={(e) => setReceivedQty(Math.max(1, parseInt(e.target.value) || 1))}
@@ -1099,6 +1102,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                   <label className="font-bold text-slate-700 block mb-1">Đơn giá nhập đợt này:</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     min="0"
                     value={receivedCost}
                     onChange={(e) => setReceivedCost(Math.max(0, parseInt(e.target.value) || 0))}
@@ -1371,13 +1375,6 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
           </div>
         </div>
       )}
-
-      {/* Voice Assistant Stock In Modal */}
-      <VoiceActionModal
-        isOpen={isVoiceStockInOpen}
-        onClose={() => setIsVoiceStockInOpen(false)}
-        initialMode="STOCK_IN"
-      />
 
       {/* Stock-In Voucher Modal (Tạo Phiếu Nhập Kho & Nhập SP Mới / Gộp Kho) */}
       <StockInVoucherModal

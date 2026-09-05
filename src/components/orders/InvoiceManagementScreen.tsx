@@ -14,7 +14,7 @@ import {
 import { exportInvoiceToPdf } from '../../utils/pdfExport';
 import { InvoicePdfModal } from '../common/InvoicePdfModal';
 import { useInvoiceFilters } from './useInvoiceFilters';
-import { VoiceActionModal } from '../common/VoiceActionModal';
+import { useUiShell } from '../../context/slices/UiShellContext';
 import { Pagination } from '../common/Pagination';
 import {
   Search,
@@ -69,6 +69,7 @@ export const InvoiceManagementScreen: React.FC = () => {
     showToast,
     currentUser,
   } = useApp();
+  const { requestVoiceAssistant } = useUiShell();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -90,9 +91,6 @@ export const InvoiceManagementScreen: React.FC = () => {
   // PDF Modal State
   const [selectedPdfOrder, setSelectedPdfOrder] = useState<Order | null>(null);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
-
-  // Voice AI POS Order Modal State
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
 
   // Excel Import with Schema State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -611,7 +609,7 @@ export const InvoiceManagementScreen: React.FC = () => {
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
-            onClick={() => setIsVoiceModalOpen(true)}
+            onClick={() => requestVoiceAssistant('POS_ORDER')}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-md shadow-blue-500/20 active:scale-95"
           >
             <Mic className="w-4 h-4 text-amber-300" />
@@ -1321,6 +1319,7 @@ export const InvoiceManagementScreen: React.FC = () => {
                                   </button>
                                   <input
                                     type="number"
+                                    onFocus={(e) => e.target.select()}
                                     min={1}
                                     value={item.quantity}
                                     onChange={(e) =>
@@ -1342,6 +1341,7 @@ export const InvoiceManagementScreen: React.FC = () => {
                               <td className="py-2.5 px-3 text-right">
                                 <input
                                   type="number"
+                                  onFocus={(e) => e.target.select()}
                                   min={0}
                                   value={item.price}
                                   onChange={(e) =>
@@ -1409,6 +1409,7 @@ export const InvoiceManagementScreen: React.FC = () => {
 
                     <input
                       type="number"
+                      onFocus={(e) => e.target.select()}
                       min={0}
                       value={editFormData.discountValue}
                       onChange={(e) =>
@@ -1908,13 +1909,6 @@ export const InvoiceManagementScreen: React.FC = () => {
         }}
         order={selectedPdfOrder}
         branchName={currentBranch?.name || '318 Vũ Quang'}
-      />
-
-      {/* Voice Assistant POS / Stock In Modal */}
-      <VoiceActionModal
-        isOpen={isVoiceModalOpen}
-        onClose={() => setIsVoiceModalOpen(false)}
-        initialMode="POS_ORDER"
       />
     </div>
   );

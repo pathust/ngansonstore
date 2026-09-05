@@ -1274,6 +1274,7 @@ export const CustomerManagementScreen: React.FC = () => {
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Nợ hiện tại (đ)</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     value={formData.debt}
                     onChange={(e) => setFormData({ ...formData, debt: parseFloat(e.target.value) || 0 })}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-rose-600 focus:border-[#0B63E5] outline-none"
@@ -1284,6 +1285,7 @@ export const CustomerManagementScreen: React.FC = () => {
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Tổng mua tích lũy (đ)</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     value={formData.total_purchased}
                     onChange={(e) => setFormData({ ...formData, total_purchased: parseFloat(e.target.value) || 0 })}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-emerald-600 focus:border-[#0B63E5] outline-none"
@@ -1370,6 +1372,7 @@ export const CustomerManagementScreen: React.FC = () => {
                 </label>
                 <input
                   type="number"
+                  onFocus={(e) => e.target.select()}
                   required
                   min={1000}
                   value={collectAmount}

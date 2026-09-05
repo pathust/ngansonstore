@@ -400,6 +400,7 @@ export const MobileCashbookModal: React.FC<MobileCashbookModalProps> = ({
                 <div className="relative">
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     required
                     min="1000"
                     step="1000"

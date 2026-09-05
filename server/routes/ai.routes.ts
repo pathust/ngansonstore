@@ -18,48 +18,36 @@ function getGeminiClient(): GoogleGenAI | null {
   return geminiClient;
 }
 
-aiRouter.post('/ai/parse-voice-order', async (req: Request, res: Response) => {
-  try {
-    const { text, products = [], customers = [], suppliers = [], mode = 'POS_ORDER', currentOrder } = req.body;
+function buildVoiceOrderPrompt(products: any[], customers: any[], suppliers: any[]) {
+  const candidateProductsSummary = (Array.isArray(products) ? products : [])
+    .slice(0, 100)
+    .map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      barcode: p.barcode || '',
+      selling_price: p.selling_price || 0,
+      cost_price: p.cost_price || 0,
+      stock: p.stock || 0,
+      unit: p.unit || 'cái',
+    }));
 
-    if (!text || typeof text !== 'string' || !text.trim()) {
-      return res.status(400).json({ success: false, error: 'Text prompt is required' });
-    }
+  const candidateCustomersSummary = (Array.isArray(customers) ? customers : [])
+    .slice(0, 50)
+    .map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone || '',
+    }));
 
-    const ai = getGeminiClient();
+  const candidateSuppliersSummary = (Array.isArray(suppliers) ? suppliers : [])
+    .slice(0, 30)
+    .map((s: any) => ({
+      id: s.id,
+      name: s.name,
+    }));
 
-    // If Gemini client is available, use Gemini 3.7 Flash for deep intent and entity extraction
-    if (ai) {
-      try {
-        const candidateProductsSummary = (Array.isArray(products) ? products : [])
-          .slice(0, 100)
-          .map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            sku: p.sku,
-            barcode: p.barcode || '',
-            selling_price: p.selling_price || 0,
-            cost_price: p.cost_price || 0,
-            stock: p.stock || 0,
-            unit: p.unit || 'cái',
-          }));
-
-        const candidateCustomersSummary = (Array.isArray(customers) ? customers : [])
-          .slice(0, 50)
-          .map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            phone: c.phone || '',
-          }));
-
-        const candidateSuppliersSummary = (Array.isArray(suppliers) ? suppliers : [])
-          .slice(0, 30)
-          .map((s: any) => ({
-            id: s.id,
-            name: s.name,
-          }));
-
-        const systemInstruction = `Bạn là Trợ lý AI Bán hàng & Quản lý Kho thông minh của Cửa hàng Điện Nước & Kim Khí Ngân Sơn (318 Vũ Quang).
+  return `Bạn là Trợ lý AI Bán hàng & Quản lý Kho thông minh của Cửa hàng Điện Nước & Kim Khí Ngân Sơn (318 Vũ Quang).
 Nhiệm vụ: Phân tích câu lệnh giọng nói hoặc văn bản tiếng Việt của người dùng để trích xuất ý định (Intent) và dữ liệu có cấu trúc phù hợp.
 
 Danh sách sản phẩm trong kho của cửa hàng:
@@ -74,83 +62,160 @@ ${JSON.stringify(candidateSuppliersSummary)}
 Quy tắc phân loại Ý định (intent):
 1. 'SEARCH_PRODUCT': Người dùng muốn tra cứu, tìm kiếm sản phẩm, kiểm tra tồn kho hoặc hỏi giá (VD: "Tìm bóng rạng đông 9w", "Aptomat 32A giá bao nhiêu còn mấy cái?", "Dây cadivi 2.5 còn hàng không?", "Kiểm tra tồn kho ống nước Tiền Phong").
 2. 'CHECK_DEBT': Người dùng muốn tra cứu công nợ khách hàng (VD: "Kiểm tra nợ anh Hùng thợ điện", "Chị Lan còn nợ bao nhiêu?", "Khách Tuấn nợ mấy tiền?").
-3. 'NAVIGATE': Người dùng muốn chuyển nhanh tới màn hình chức năng (VD: "Mở sổ quỹ", "Xem báo cáo doanh thu", "Quản lý sản phẩm", "Vào bán hàng POS", "Mở danh sách hóa đơn", "Cài đặt cửa hàng"). Điền target_screen tương ứng: 'pos', 'products', 'invoices', 'reports', 'inventory', 'cashbook', 'customers', 'suppliers', 'settings'.
+3. 'NAVIGATE': Người dùng muốn chuyển nhanh tới màn hình chức năng (VD: "Mở sổ quỹ", "Xem báo cáo doanh thu", "Quản lý sản phẩm", "Vào bán hàng POS", "Mở danh sách hóa đơn", "Cài đặt cửa hàng"). CHỈ khi intent là NAVIGATE mới điền target_screen, giá trị PHẢI là một trong đúng các chuỗi ngắn sau (không thêm tham số, query string hay bất kỳ ký tự nào khác): 'pos', 'products', 'invoices', 'reports', 'inventory', 'cashbook', 'customers', 'suppliers', 'settings'. Với TẤT CẢ intent khác (CREATE_ORDER, STOCK_IN, ADD_TO_CART, UPDATE_ORDER, CANCEL_ORDER, SEARCH_PRODUCT, CHECK_DEBT), BỎ TRỐNG hoàn toàn trường target_screen — tuyệt đối không tự chế ra đường dẫn, deep link hay chuỗi mô tả dài cho trường này.
 4. 'CREATE_ORDER': Người dùng muốn lập hóa đơn bán lẻ trực tiếp (VD: "Bán cho anh Minh 3 bóng LED 9w...", "Tính tiền cho chị Lan...", "Tạo đơn khách Tuấn...").
 5. 'ADD_TO_CART': Người dùng muốn thêm hàng vào giỏ hàng POS đang mở (VD: "Thêm vào giỏ 2 cái quạt...", "Lấy thêm 5 ổ cắm Sino...", "Cho vào đơn 3 cuộn băng dính").
 6. 'STOCK_IN': Người dùng muốn lập phiếu nhập hàng về kho (VD: "Nhập kho 20 cuộn dây Cadivi giá 150k từ NCC Hòa Phát...", "Mua về 50 bóng đèn giá vốn 30 nghìn").
 7. 'UPDATE_ORDER': Người dùng muốn cập nhật đơn hàng cũ (VD: "Sửa đơn HD123...", "Cập nhật đơn cũ...").
-8. 'CANCEL_ORDER': Người dùng muốn hủy đơn hoặc trả hàng.
+8. 'CANCEL_ORDER': Người dùng muốn hủy đơn hoặc trả hàng (VD: "Hủy đơn HD123...", "Hủy hóa đơn của anh Minh...", "Trả hàng đơn vừa nãy...").
 
 Quy tắc bóc tách dữ liệu:
 - Nhận diện sản phẩm thông minh: so khớp tên, từ khóa kỹ thuật (led, cadivi, lioa, panasonic, rạng đông, sino, tiền phong, aptomat/át, kìm, khóa, cút, co, ren, măng sông, tê, vít, sơn...).
 - Số lượng tiếng Việt: 'nửa tá' = 6, '1 tá' = 12, '1 đôi' / '1 cặp' = 2, 'chục' = 10, 'trăm' = 100.
 - Giá bán / Giá vốn: bóc tách tiền vnd ("45k" = 45000, "150 nghìn" = 150000).
 - Khách hàng & Công nợ: tách tên (loại bỏ từ xưng hô anh/chị/bác/chú/em).
-- Spoken feedback: Tạo câu trả lời tự nhiên, chuyên nghiệp, ngắn gọn bằng tiếng Việt để phát âm thanh lại cho người dùng nghe (VD: "Dạ bóng LED Rạng Đông 9W hiện còn 24 cái trong kho, giá bán 45.000 đồng", "Đã thêm 2 bóng LED vào giỏ hàng cho anh Tuấn").`;
+- Spoken feedback: Tạo câu trả lời tự nhiên, chuyên nghiệp, ngắn gọn bằng tiếng Việt để phát âm thanh lại cho người dùng nghe (VD: "Dạ bóng LED Rạng Đông 9W hiện còn 24 cái trong kho, giá bán 45.000 đồng", "Đã thêm 2 bóng LED vào giỏ hàng cho anh Tuấn"). LUÔN trả lời câu này TRƯỚC TIÊN, ngắn gọn súc tích, trước khi liệt kê chi tiết items.`;
+}
 
+// Đưa spoken_feedback + explanation lên ĐẦU schema để khi stream, câu thoại được sinh ra
+// trước phần items (nặng hơn) — cho phép client phát TTS sớm hơn nhiều so với đợi cả JSON xong.
+const VOICE_ORDER_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    spoken_feedback: { type: Type.STRING, description: 'Natural speech response in Vietnamese, said first' },
+    explanation: { type: Type.STRING, description: 'Brief reasoning breakdown' },
+    intent: {
+      type: Type.STRING,
+      description: 'SEARCH_PRODUCT, CHECK_DEBT, NAVIGATE, CREATE_ORDER, ADD_TO_CART, STOCK_IN, UPDATE_ORDER, CANCEL_ORDER',
+    },
+    target_screen: {
+      type: Type.STRING,
+      description:
+        'ONLY set when intent is NAVIGATE. Must be exactly one short value: pos, products, invoices, reports, inventory, cashbook, customers, suppliers, settings. Leave empty for every other intent — never a URL, query string, or long value.',
+    },
+    customer: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        phone: { type: Type.STRING },
+        address: { type: Type.STRING },
+      },
+    },
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          product_id: { type: Type.STRING, description: 'ID of matched product in database' },
+          product_name: { type: Type.STRING, description: 'Matched product name' },
+          quantity: { type: Type.NUMBER, description: 'Item quantity' },
+          unit_price: { type: Type.NUMBER, description: 'Selling price per unit' },
+          unit_cost: { type: Type.NUMBER, description: 'Cost price per unit' },
+          unit: { type: Type.STRING },
+          discount_percent: { type: Type.NUMBER },
+          note: { type: Type.STRING },
+        },
+        required: ['product_id', 'product_name', 'quantity', 'unit_price'],
+      },
+    },
+    discount: {
+      type: Type.OBJECT,
+      properties: {
+        amount: { type: Type.NUMBER },
+        percent: { type: Type.NUMBER },
+        type: { type: Type.STRING, description: 'AMOUNT or PERCENT' },
+      },
+    },
+    payment_method: {
+      type: Type.STRING,
+      description: 'CASH, TRANSFER, or CARD',
+    },
+    supplier_name: { type: Type.STRING },
+    order_code_to_update: { type: Type.STRING },
+    note: { type: Type.STRING },
+    confidence: { type: Type.NUMBER },
+  },
+  required: ['intent', 'spoken_feedback'],
+};
+
+// Streaming variant: sinh phản hồi qua generateContentStream và đẩy từng chunk xuống client qua SSE
+// để client có thể phát TTS ngay khi câu spoken_feedback vừa xuất hiện, thay vì đợi cả JSON hoàn tất.
+// Endpoint cũ /ai/parse-voice-order được giữ nguyên làm fallback (client tự rơi xuống khi stream lỗi).
+aiRouter.post('/ai/parse-voice-order-stream', async (req: Request, res: Response) => {
+  const { text, products = [], customers = [], suppliers = [], mode = 'POS_ORDER' } = req.body;
+
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ success: false, error: 'Text prompt is required' });
+  }
+
+  const ai = getGeminiClient();
+  if (!ai) {
+    return res.status(503).json({ success: false, error: 'AI service unavailable, use local NLP fallback' });
+  }
+
+  try {
+    const stream = await ai.models.generateContentStream({
+      model: 'gemini-3.7-flash',
+      contents: `Hãy phân tích câu lệnh sau: "${text}". Chế độ ngữ cảnh hiện tại: ${mode}.`,
+      config: {
+        systemInstruction: buildVoiceOrderPrompt(products, customers, suppliers),
+        responseMimeType: 'application/json',
+        responseSchema: VOICE_ORDER_RESPONSE_SCHEMA,
+        maxOutputTokens: 2048,
+      },
+    });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      for await (const chunk of stream) {
+        const delta = chunk.text;
+        if (delta) {
+          res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+        }
+      }
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    } catch (streamErr: unknown) {
+      const message = streamErr instanceof Error ? streamErr.message : 'Stream interrupted';
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+    } finally {
+      res.end();
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.warn('[SERVER] Gemini streaming init error, client will fall back:', message);
+    if (!res.headersSent) {
+      res.status(502).json({ success: false, error: message });
+    } else {
+      res.end();
+    }
+  }
+});
+
+aiRouter.post('/ai/parse-voice-order', async (req: Request, res: Response) => {
+  try {
+    const { text, products = [], customers = [], suppliers = [], mode = 'POS_ORDER', currentOrder } = req.body;
+
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ success: false, error: 'Text prompt is required' });
+    }
+
+    const ai = getGeminiClient();
+
+    // If Gemini client is available, use Gemini 3.7 Flash for deep intent and entity extraction
+    if (ai) {
+      try {
         const geminiResponse = await ai.models.generateContent({
           model: 'gemini-3.7-flash',
           contents: `Hãy phân tích câu lệnh sau: "${text}". Chế độ ngữ cảnh hiện tại: ${mode}.`,
           config: {
-            systemInstruction,
+            systemInstruction: buildVoiceOrderPrompt(products, customers, suppliers),
             responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                intent: {
-                  type: Type.STRING,
-                  description: 'SEARCH_PRODUCT, CHECK_DEBT, NAVIGATE, CREATE_ORDER, ADD_TO_CART, STOCK_IN, UPDATE_ORDER, CANCEL_ORDER',
-                },
-                target_screen: {
-                  type: Type.STRING,
-                  description: 'pos, products, invoices, reports, inventory, cashbook, customers, suppliers, settings',
-                },
-                customer: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    phone: { type: Type.STRING },
-                    address: { type: Type.STRING },
-                  },
-                },
-                items: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      product_id: { type: Type.STRING, description: 'ID of matched product in database' },
-                      product_name: { type: Type.STRING, description: 'Matched product name' },
-                      quantity: { type: Type.NUMBER, description: 'Item quantity' },
-                      unit_price: { type: Type.NUMBER, description: 'Selling price per unit' },
-                      unit_cost: { type: Type.NUMBER, description: 'Cost price per unit' },
-                      unit: { type: Type.STRING },
-                      discount_percent: { type: Type.NUMBER },
-                      note: { type: Type.STRING },
-                    },
-                    required: ['product_id', 'product_name', 'quantity', 'unit_price'],
-                  },
-                },
-                discount: {
-                  type: Type.OBJECT,
-                  properties: {
-                    amount: { type: Type.NUMBER },
-                    percent: { type: Type.NUMBER },
-                    type: { type: Type.STRING, description: 'AMOUNT or PERCENT' },
-                  },
-                },
-                payment_method: {
-                  type: Type.STRING,
-                  description: 'CASH, TRANSFER, or CARD',
-                },
-                supplier_name: { type: Type.STRING },
-                order_code_to_update: { type: Type.STRING },
-                note: { type: Type.STRING },
-                spoken_feedback: { type: Type.STRING, description: 'Natural speech response in Vietnamese' },
-                explanation: { type: Type.STRING, description: 'Brief reasoning breakdown' },
-                confidence: { type: Type.NUMBER },
-              },
-              required: ['intent', 'spoken_feedback'],
-            },
+            responseSchema: VOICE_ORDER_RESPONSE_SCHEMA,
+            maxOutputTokens: 2048,
           },
         });
 
@@ -235,8 +300,13 @@ function fallbackLocalParser(
   let intent = 'CREATE_ORDER';
   let targetScreen: string | undefined = undefined;
 
+  // Check explicit STOCK_IN phrasing first: "nhập kho ... từ nhà cung cấp X" must win over
+  // the loose "nhà cung cấp" NAVIGATE keyword match below.
+  if (lower.includes('nhập kho') || lower.includes('nhập hàng') || lower.includes('mua về')) {
+    intent = 'STOCK_IN';
+  }
   // 1. Check Navigation intent
-  if (lower.includes('mở sổ quỹ') || lower.includes('sổ quỹ') || lower.includes('thu chi')) {
+  else if (lower.includes('mở sổ quỹ') || lower.includes('sổ quỹ') || lower.includes('thu chi')) {
     intent = 'NAVIGATE';
     targetScreen = 'cashbook';
   } else if (lower.includes('báo cáo') || lower.includes('doanh thu') || lower.includes('lợi nhuận')) {
@@ -277,7 +347,7 @@ function fallbackLocalParser(
   ) {
     // 3. Check Product search inquiry
     intent = 'SEARCH_PRODUCT';
-  } else if (lower.includes('nhập kho') || lower.includes('nhập hàng') || lower.includes('mua về') || defaultMode === 'STOCK_IN') {
+  } else if (defaultMode === 'STOCK_IN') {
     intent = 'STOCK_IN';
   } else if (lower.includes('thêm vào giỏ') || lower.includes('cho vào giỏ') || lower.includes('cho vào đơn')) {
     intent = 'ADD_TO_CART';
@@ -285,6 +355,13 @@ function fallbackLocalParser(
     intent = 'UPDATE_ORDER';
   } else if (lower.includes('hủy đơn') || lower.includes('trả hàng')) {
     intent = 'CANCEL_ORDER';
+  }
+
+  // Order code (e.g. "sửa đơn HD-20260902-1234" or "hủy đơn HD1234") — needed for UPDATE_ORDER/CANCEL_ORDER lookup
+  let orderCodeToUpdate = '';
+  const orderCodeMatch = clean.match(/(?:HD[-_0-9a-zA-Z]+|\b\d{4,8}\b)/i);
+  if (orderCodeMatch) {
+    orderCodeToUpdate = orderCodeMatch[0];
   }
 
   // Customer Name & Phone
@@ -438,7 +515,7 @@ function fallbackLocalParser(
     },
     payment_method: paymentMethod,
     supplier_name: '',
-    order_code_to_update: '',
+    order_code_to_update: orderCodeToUpdate,
     note: 'Lập nhanh bằng giọng nói',
     spoken_feedback: feedback,
     explanation: 'Phân tích tự động bằng bộ máy xử lý ngôn ngữ tiếng Việt (NLP Engine)',

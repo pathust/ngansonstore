@@ -517,6 +517,7 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
                 <label className="font-bold text-slate-700 block mb-1">Số tiền (VNĐ) *</label>
                 <input
                   type="number"
+                  onFocus={(e) => e.target.select()}
                   min="1000"
                   required
                   value={amount}

@@ -524,6 +524,7 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
                           <div className="flex items-center justify-end gap-1">
                             <input
                               type="number"
+                              onFocus={(e) => e.target.select()}
                               min="0"
                               step="500"
                               value={edits.cost}
@@ -544,6 +545,7 @@ export const PriceAuditModal: React.FC<PriceAuditModalProps> = ({
                           <div className="flex items-center justify-end gap-1">
                             <input
                               type="number"
+                              onFocus={(e) => e.target.select()}
                               min="0"
                               step="500"
                               value={edits.sell}

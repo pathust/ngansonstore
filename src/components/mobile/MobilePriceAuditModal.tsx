@@ -514,6 +514,7 @@ export const MobilePriceAuditModal: React.FC<MobilePriceAuditModalProps> = ({
                       <div className="relative flex items-center">
                         <input
                           type="number"
+                          onFocus={(e) => e.target.select()}
                           inputMode="numeric"
                           min="0"
                           step="1000"
@@ -547,6 +548,7 @@ export const MobilePriceAuditModal: React.FC<MobilePriceAuditModalProps> = ({
                       <div className="relative flex items-center">
                         <input
                           type="number"
+                          onFocus={(e) => e.target.select()}
                           inputMode="numeric"
                           min="0"
                           step="1000"

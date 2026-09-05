@@ -106,6 +106,7 @@ export const MobileCustomItemModal: React.FC<MobileCustomItemModalProps> = ({
               <label className="text-xs font-bold text-slate-700 block mb-1">Đơn giá (VNĐ)</label>
               <input
                 type="number"
+                onFocus={(e) => e.target.select()}
                 value={price || ''}
                 onChange={(e) => setPrice(Number(e.target.value))}
                 step={5000}
@@ -116,6 +117,7 @@ export const MobileCustomItemModal: React.FC<MobileCustomItemModalProps> = ({
               <label className="text-xs font-bold text-slate-700 block mb-1">Số lượng</label>
               <input
                 type="number"
+                onFocus={(e) => e.target.select()}
                 min={1}
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}

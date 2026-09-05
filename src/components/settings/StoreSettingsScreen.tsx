@@ -732,6 +732,7 @@ export const StoreSettingsScreen: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     value={testAmount}
                     onChange={(e) => setTestAmount(Math.max(0, Number(e.target.value)))}
                     className="w-full px-2 py-1 text-xs font-bold text-blue-700 bg-white rounded border border-slate-300 focus:outline-none"

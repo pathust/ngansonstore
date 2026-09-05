@@ -176,6 +176,7 @@ export const MobileReturnsModal: React.FC<MobileReturnsModalProps> = ({
                 </label>
                 <input
                   type="number"
+                  onFocus={(e) => e.target.select()}
                   value={refundAmount || ''}
                   onChange={(e) => setRefundAmount(Number(e.target.value))}
                   placeholder="Nhập số tiền hoàn..."

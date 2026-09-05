@@ -232,6 +232,7 @@ export const MobilePurchaseOrderModal: React.FC<MobilePurchaseOrderModalProps> =
                   <label className="text-xs font-bold text-slate-700 block mb-1">Số lượng nhập</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     value={importQty}
                     onChange={(e) => setImportQty(Number(e.target.value))}
                     min={1}
@@ -242,6 +243,7 @@ export const MobilePurchaseOrderModal: React.FC<MobilePurchaseOrderModalProps> =
                   <label className="text-xs font-bold text-slate-700 block mb-1">Giá nhập (VNĐ)</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     value={importCost}
                     onChange={(e) => setImportCost(Number(e.target.value))}
                     step={1000}
@@ -263,6 +265,7 @@ export const MobilePurchaseOrderModal: React.FC<MobilePurchaseOrderModalProps> =
                 </label>
                 <input
                   type="number"
+                  onFocus={(e) => e.target.select()}
                   value={paidAmount}
                   onChange={(e) => setPaidAmount(Number(e.target.value))}
                   placeholder="0"

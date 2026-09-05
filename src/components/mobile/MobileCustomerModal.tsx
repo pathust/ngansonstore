@@ -427,6 +427,7 @@ export const MobileCustomerModal: React.FC<MobileCustomerModalProps> = ({
                   <label className="text-xs font-bold text-slate-700 block mb-1">Công nợ hiện tại (đ)</label>
                   <input
                     type="number"
+                    onFocus={(e) => e.target.select()}
                     min="0"
                     step="1000"
                     value={formData.debt || 0}

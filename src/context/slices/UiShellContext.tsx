@@ -13,6 +13,9 @@ interface UiShellContextType {
   setBranches: React.Dispatch<React.SetStateAction<Branch[]>>;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  voiceAssistantRequest: { mode: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER'; nonce: number } | null;
+  requestVoiceAssistant: (mode: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER') => void;
+  clearVoiceAssistantRequest: () => void;
 }
 
 const UiShellContext = createContext<UiShellContextType | undefined>(undefined);
@@ -43,9 +46,27 @@ export const UiShellProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  const [voiceAssistantRequest, setVoiceAssistantRequest] = useState<{ mode: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER'; nonce: number } | null>(null);
+  const requestVoiceAssistant = (mode: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER') => {
+    setVoiceAssistantRequest({ mode, nonce: Date.now() });
+  };
+  const clearVoiceAssistantRequest = () => setVoiceAssistantRequest(null);
+
   const value = useMemo<UiShellContextType>(
-    () => ({ currentView, setCurrentView, currentBranch, setCurrentBranch, branches, setBranches, searchQuery, setSearchQuery }),
-    [currentView, currentBranch, branches, searchQuery]
+    () => ({
+      currentView,
+      setCurrentView,
+      currentBranch,
+      setCurrentBranch,
+      branches,
+      setBranches,
+      searchQuery,
+      setSearchQuery,
+      voiceAssistantRequest,
+      requestVoiceAssistant,
+      clearVoiceAssistantRequest,
+    }),
+    [currentView, currentBranch, branches, searchQuery, voiceAssistantRequest]
   );
 
   return <UiShellContext.Provider value={value}>{children}</UiShellContext.Provider>;

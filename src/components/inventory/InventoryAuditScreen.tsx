@@ -427,6 +427,7 @@ export const InventoryAuditScreen: React.FC<InventoryAuditScreenProps> = ({
                             <td className="py-2.5 px-3 text-center">
                               <input
                                 type="number"
+                                onFocus={(e) => e.target.select()}
                                 min="0"
                                 value={item.actual_stock}
                                 onChange={(e) =>

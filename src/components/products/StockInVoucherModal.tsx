@@ -640,6 +640,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                     </label>
                     <input
                       type="number"
+                      onFocus={(e) => e.target.select()}
                       min="1"
                       required
                       value={quickAddForm.quantity}
@@ -660,6 +661,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                     </label>
                     <input
                       type="number"
+                      onFocus={(e) => e.target.select()}
                       min="0"
                       step="500"
                       required
@@ -681,6 +683,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                     </label>
                     <input
                       type="number"
+                      onFocus={(e) => e.target.select()}
                       min="0"
                       step="500"
                       value={quickAddForm.selling_price}
@@ -874,6 +877,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                                 </button>
                                 <input
                                   type="number"
+                                  onFocus={(e) => e.target.select()}
                                   min="1"
                                   value={it.quantity}
                                   onChange={(e) =>
@@ -898,6 +902,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                             <td className="py-2.5 px-3 text-right">
                               <input
                                 type="number"
+                                onFocus={(e) => e.target.select()}
                                 min="0"
                                 step="500"
                                 value={it.cost_price}

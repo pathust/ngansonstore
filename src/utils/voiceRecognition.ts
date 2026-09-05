@@ -238,7 +238,19 @@ export const parseVoiceCommand = (
   let intent: VoiceIntent = 'CREATE_ORDER';
   let targetScreen: string | undefined;
 
-  if (lowerTranscript.includes('mở sổ quỹ') || lowerTranscript.includes('sổ quỹ') || lowerTranscript.includes('thu chi')) {
+  // Check explicit STOCK_IN phrasing first: a specific, actionable command
+  // ("nhập kho ... từ nhà cung cấp X") must win over the loose "nhà cung cấp" NAVIGATE
+  // keyword match below. The defaultMode==='STOCK_IN' UI bias is still checked LAST
+  // (further below) so an explicit NAVIGATE command still wins while in stock-in mode.
+  if (
+    lowerTranscript.includes('nhập kho') ||
+    lowerTranscript.includes('nhập hàng') ||
+    lowerTranscript.includes('mua hàng từ') ||
+    lowerTranscript.includes('nhập về')
+  ) {
+    mode = 'STOCK_IN';
+    intent = 'STOCK_IN';
+  } else if (lowerTranscript.includes('mở sổ quỹ') || lowerTranscript.includes('sổ quỹ') || lowerTranscript.includes('thu chi')) {
     intent = 'NAVIGATE';
     mode = 'NAVIGATE';
     targetScreen = 'cashbook';
@@ -288,13 +300,7 @@ export const parseVoiceCommand = (
   ) {
     intent = 'SEARCH_PRODUCT';
     mode = 'SEARCH';
-  } else if (
-    lowerTranscript.includes('nhập kho') ||
-    lowerTranscript.includes('nhập hàng') ||
-    lowerTranscript.includes('mua hàng từ') ||
-    lowerTranscript.includes('nhập về') ||
-    defaultMode === 'STOCK_IN'
-  ) {
+  } else if (defaultMode === 'STOCK_IN') {
     mode = 'STOCK_IN';
     intent = 'STOCK_IN';
   } else if (lowerTranscript.includes('thêm vào giỏ') || lowerTranscript.includes('cho vào giỏ') || lowerTranscript.includes('cho vào đơn')) {
@@ -575,22 +581,216 @@ export const parseVoiceCommand = (
   };
 };
 
+// Map raw Gemini JSON response (same shape server-side and streamed-then-parsed) into VoiceOrderParseResult
+function mapGeminiDataToResult(
+  aiData: any,
+  transcript: string,
+  allProducts: Product[],
+  allCustomers: Customer[],
+  mode: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER'
+): VoiceOrderParseResult {
+  const resolvedItems: ParsedVoiceItem[] = [];
+  for (const item of aiData.items || []) {
+    let prod = allProducts.find((p) => p.id === item.product_id);
+    if (!prod) {
+      prod = allProducts.find(
+        (p) =>
+          p.name.toLowerCase().includes(item.product_name.toLowerCase()) ||
+          item.product_name.toLowerCase().includes(p.name.toLowerCase())
+      );
+    }
+
+    if (prod) {
+      resolvedItems.push({
+        product: prod,
+        quantity: Math.max(1, item.quantity || 1),
+        unitPrice: item.unit_price || prod.selling_price,
+        unitCost: item.unit_cost || prod.cost_price,
+        confidence: 0.95,
+        matchedText: item.product_name,
+      });
+    } else {
+      // Synthetic fallback product if user entered a custom new item
+      const syntheticProd: Product = {
+        id: 'prod-voice-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+        sku: 'SP-' + Math.floor(1000 + Math.random() * 9000),
+        barcode: '',
+        name: item.product_name,
+        selling_price: item.unit_price || 0,
+        cost_price: item.unit_cost || 0,
+        stock: 100,
+        min_stock: 5,
+        unit: item.unit || 'cái',
+        category: 'Thiết bị điện & kim khí',
+        status: 'ACTIVE',
+      };
+      resolvedItems.push({
+        product: syntheticProd,
+        quantity: Math.max(1, item.quantity || 1),
+        unitPrice: item.unit_price || 0,
+        unitCost: item.unit_cost || 0,
+        confidence: 0.8,
+        matchedText: item.product_name,
+      });
+    }
+  }
+
+  const intent = (aiData.intent as VoiceIntent) || (mode === 'STOCK_IN' ? 'STOCK_IN' : 'CREATE_ORDER');
+  const discountType = (aiData.discount?.type as 'AMOUNT' | 'PERCENT') || (aiData.discount?.percent ? 'PERCENT' : 'AMOUNT');
+  const discountAmount = aiData.discount?.amount || 0;
+  const discountPercent = aiData.discount?.percent || 0;
+
+  // Find matched customer if intent is CHECK_DEBT or customer specified
+  let matchedCust: Customer | undefined;
+  const custQuery = aiData.customer?.name?.toLowerCase() || '';
+  if (custQuery) {
+    matchedCust = allCustomers.find((c) => c.name.toLowerCase().includes(custQuery) || custQuery.includes(c.name.toLowerCase()));
+  }
+
+  let parsedMode: 'POS_ORDER' | 'STOCK_IN' | 'SEARCH' | 'NAVIGATE' | 'DEBT' = 'POS_ORDER';
+  if (intent === 'STOCK_IN') parsedMode = 'STOCK_IN';
+  else if (intent === 'SEARCH_PRODUCT') parsedMode = 'SEARCH';
+  else if (intent === 'NAVIGATE') parsedMode = 'NAVIGATE';
+  else if (intent === 'CHECK_DEBT') parsedMode = 'DEBT';
+
+  return {
+    mode: parsedMode,
+    intent,
+    targetScreen: aiData.target_screen,
+    items: resolvedItems,
+    customerName: aiData.customer?.name || (intent === 'STOCK_IN' ? undefined : 'Khách lẻ'),
+    customerPhone: aiData.customer?.phone || matchedCust?.phone || '',
+    matchedCustomer: matchedCust,
+    debtBalance: matchedCust?.debt || 0,
+    discountAmount,
+    discountPercent,
+    discountType,
+    paymentMethod: (aiData.payment_method as 'CASH' | 'TRANSFER' | 'CARD') || 'CASH',
+    supplierName: aiData.supplier_name || '',
+    orderCodeToUpdate: aiData.order_code_to_update || '',
+    note: aiData.note || 'Lập qua Trợ lý Giọng nói AI',
+    spokenFeedback: aiData.spoken_feedback || '',
+    explanation: aiData.explanation || 'Phân tích ý định tự động bằng Gemini 3.7 Flash',
+    confidence: aiData.confidence || 0.95,
+    rawTranscript: transcript,
+    unmatchedPhrases: [],
+    source: 'GEMINI_AI',
+  };
+}
+
+// Extract "spoken_feedback" from a partial (possibly incomplete) accumulated JSON string.
+// Used to trigger TTS as soon as that field appears in the stream, well before the full
+// JSON (items, discount, etc.) has finished arriving.
+function tryExtractSpokenFeedback(partialJson: string): string | null {
+  const match = partialJson.match(/"spoken_feedback"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (!match) return null;
+  try {
+    return JSON.parse(`"${match[1]}"`);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Deep Voice & Text Intent Analysis using Gemini 3.7 Flash on Server + Local Fallback
+ * Streams the Gemini intent-extraction response over SSE, firing onSpokenFeedback as soon as
+ * that field is decodable (well before the full JSON — items, discount, etc. — has arrived),
+ * then resolves with the fully parsed result once the stream completes.
+ * Falls back to the non-streaming endpoint, then to local NLP, on any failure.
  */
-export const analyzeVoiceOrderIntentWithAI = async (
+export const analyzeVoiceOrderIntentWithAIStreaming = async (
   transcript: string,
   allProducts: Product[],
   allCustomers: Customer[] = [],
   allSuppliers: Supplier[] = [],
   mode: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER' = 'POS_ORDER',
-  currentOrder?: Order
+  currentOrder?: Order,
+  onSpokenFeedback?: (text: string) => void
 ): Promise<VoiceOrderParseResult> => {
   if (!transcript || !transcript.trim()) {
     return parseVoiceCommand('', allProducts, allSuppliers, mode === 'STOCK_IN' ? 'STOCK_IN' : 'POS_ORDER');
   }
 
-  // 1. Call Backend Gemini AI Intent Extraction
+  // 1. Try the streaming endpoint first — lets us fire TTS as soon as spoken_feedback is available.
+  try {
+    const response = await apiClient.parseVoiceOrderStreamRaw({
+      text: transcript,
+      products: allProducts,
+      customers: allCustomers,
+      suppliers: allSuppliers,
+      mode,
+      currentOrder,
+    });
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let sseBuffer = '';
+    let accumulatedJson = '';
+    let spokenFeedbackFired = false;
+    let streamError: string | null = null;
+
+    // Gemini occasionally degenerates into a repetition loop on a field (e.g. target_screen)
+    // and keeps emitting tokens until it hits its output cap. A normal voice-order JSON response
+    // is at most a few thousand chars, so bail out early instead of waiting out the whole cap.
+    const MAX_STREAM_CHARS = 8000;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      sseBuffer += decoder.decode(value, { stream: true });
+
+      if (accumulatedJson.length > MAX_STREAM_CHARS) {
+        try {
+          await reader.cancel();
+        } catch {}
+        throw new Error('Streamed response exceeded expected size — likely a degenerate model output');
+      }
+
+      const events = sseBuffer.split('\n\n');
+      sseBuffer = events.pop() || '';
+
+      for (const evt of events) {
+        const line = evt.trim();
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
+
+        let parsed: { delta?: string; done?: boolean; error?: string };
+        try {
+          parsed = JSON.parse(payload);
+        } catch {
+          continue;
+        }
+
+        if (parsed.error) {
+          streamError = parsed.error;
+          continue;
+        }
+        if (parsed.delta) {
+          accumulatedJson += parsed.delta;
+          if (!spokenFeedbackFired && onSpokenFeedback) {
+            const feedback = tryExtractSpokenFeedback(accumulatedJson);
+            if (feedback) {
+              spokenFeedbackFired = true;
+              onSpokenFeedback(feedback);
+            }
+          }
+        }
+      }
+    }
+
+    if (streamError && !accumulatedJson.trim()) {
+      throw new Error(streamError);
+    }
+
+    const aiData = JSON.parse(accumulatedJson.trim() || '{}');
+    if (aiData && aiData.items !== undefined) {
+      return mapGeminiDataToResult(aiData, transcript, allProducts, allCustomers, mode);
+    }
+  } catch (err) {
+    console.warn('[VOICE] Streaming intent analysis error, falling back to non-streaming endpoint:', err);
+  }
+
+  // 2. Fallback: non-streaming endpoint
   try {
     const aiData = await apiClient.parseVoiceOrder({
       text: transcript,
@@ -600,102 +800,14 @@ export const analyzeVoiceOrderIntentWithAI = async (
       mode,
       currentOrder,
     });
-
     if (aiData && aiData.items) {
-      // Map matched product items
-      const resolvedItems: ParsedVoiceItem[] = [];
-      for (const item of aiData.items) {
-        let prod = allProducts.find((p) => p.id === item.product_id);
-        if (!prod) {
-          prod = allProducts.find(
-            (p) =>
-              p.name.toLowerCase().includes(item.product_name.toLowerCase()) ||
-              item.product_name.toLowerCase().includes(p.name.toLowerCase())
-          );
-        }
-
-        if (prod) {
-          resolvedItems.push({
-            product: prod,
-            quantity: Math.max(1, item.quantity || 1),
-            unitPrice: item.unit_price || prod.selling_price,
-            unitCost: item.unit_cost || prod.cost_price,
-            confidence: 0.95,
-            matchedText: item.product_name,
-          });
-        } else {
-          // Synthetic fallback product if user entered a custom new item
-          const syntheticProd: Product = {
-            id: 'prod-voice-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-            sku: 'SP-' + Math.floor(1000 + Math.random() * 9000),
-            barcode: '',
-            name: item.product_name,
-            selling_price: item.unit_price || 0,
-            cost_price: item.unit_cost || 0,
-            stock: 100,
-            min_stock: 5,
-            unit: item.unit || 'cái',
-            category: 'Thiết bị điện & kim khí',
-            status: 'ACTIVE',
-          };
-          resolvedItems.push({
-            product: syntheticProd,
-            quantity: Math.max(1, item.quantity || 1),
-            unitPrice: item.unit_price || 0,
-            unitCost: item.unit_cost || 0,
-            confidence: 0.8,
-            matchedText: item.product_name,
-          });
-        }
-      }
-
-      const intent = (aiData.intent as VoiceIntent) || (mode === 'STOCK_IN' ? 'STOCK_IN' : 'CREATE_ORDER');
-      const discountType = (aiData.discount?.type as 'AMOUNT' | 'PERCENT') || (aiData.discount?.percent ? 'PERCENT' : 'AMOUNT');
-      const discountAmount = aiData.discount?.amount || 0;
-      const discountPercent = aiData.discount?.percent || 0;
-
-      // Find matched customer if intent is CHECK_DEBT or customer specified
-      let matchedCust: Customer | undefined;
-      const custQuery = aiData.customer?.name?.toLowerCase() || '';
-      if (custQuery) {
-        matchedCust = allCustomers.find((c) => c.name.toLowerCase().includes(custQuery) || custQuery.includes(c.name.toLowerCase()));
-      }
-
-      let parsedMode: 'POS_ORDER' | 'STOCK_IN' | 'SEARCH' | 'NAVIGATE' | 'DEBT' = 'POS_ORDER';
-      if (intent === 'STOCK_IN') parsedMode = 'STOCK_IN';
-      else if (intent === 'SEARCH_PRODUCT') parsedMode = 'SEARCH';
-      else if (intent === 'NAVIGATE') parsedMode = 'NAVIGATE';
-      else if (intent === 'CHECK_DEBT') parsedMode = 'DEBT';
-
-      return {
-        mode: parsedMode,
-        intent,
-        targetScreen: aiData.target_screen,
-        items: resolvedItems,
-        customerName: aiData.customer?.name || (intent === 'STOCK_IN' ? undefined : 'Khách lẻ'),
-        customerPhone: aiData.customer?.phone || matchedCust?.phone || '',
-        matchedCustomer: matchedCust,
-        debtBalance: matchedCust?.debt || 0,
-        discountAmount,
-        discountPercent,
-        discountType,
-        paymentMethod: (aiData.payment_method as 'CASH' | 'TRANSFER' | 'CARD') || 'CASH',
-        supplierName: aiData.supplier_name || '',
-        orderCodeToUpdate: aiData.order_code_to_update || '',
-        note: aiData.note || 'Lập qua Trợ lý Giọng nói AI',
-        spokenFeedback: aiData.spoken_feedback || '',
-        explanation: aiData.explanation || 'Phân tích ý định tự động bằng Gemini 3.7 Flash',
-        confidence: aiData.confidence || 0.95,
-        rawTranscript: transcript,
-        unmatchedPhrases: [],
-        source: 'GEMINI_AI',
-      };
+      return mapGeminiDataToResult(aiData, transcript, allProducts, allCustomers, mode);
     }
   } catch (err) {
     console.warn('[VOICE] AI backend intent analysis error, falling back to local NLP:', err);
   }
 
-  // 2. Fallback to Local Rule-Based NLP Parser
+  // 3. Fallback to Local Rule-Based NLP Parser
   const localRes = parseVoiceCommand(
     transcript,
     allProducts,
@@ -708,6 +820,30 @@ export const analyzeVoiceOrderIntentWithAI = async (
     source: 'LOCAL_NLP',
     explanation: 'Phân tích nhanh qua bộ máy xử lý ngôn ngữ tiếng Việt (NLP Engine)',
   };
+};
+
+/**
+ * Deep Voice & Text Intent Analysis using Gemini 3.7 Flash on Server + Local Fallback.
+ * Thin wrapper over the streaming variant — pass onSpokenFeedback to get early TTS playback.
+ */
+export const analyzeVoiceOrderIntentWithAI = (
+  transcript: string,
+  allProducts: Product[],
+  allCustomers: Customer[] = [],
+  allSuppliers: Supplier[] = [],
+  mode: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER' = 'POS_ORDER',
+  currentOrder?: Order,
+  onSpokenFeedback?: (text: string) => void
+): Promise<VoiceOrderParseResult> => {
+  return analyzeVoiceOrderIntentWithAIStreaming(
+    transcript,
+    allProducts,
+    allCustomers,
+    allSuppliers,
+    mode,
+    currentOrder,
+    onSpokenFeedback
+  );
 };
 
 let lastSpokenText = '';

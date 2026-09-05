@@ -137,6 +137,7 @@ export const MobileShiftModal: React.FC<MobileShiftModalProps> = ({
             </label>
             <input
               type="number"
+              onFocus={(e) => e.target.select()}
               value={actualCash}
               onChange={(e) => setActualCash(Number(e.target.value))}
               className="w-full p-3 rounded-xl border border-slate-200 text-lg font-black text-slate-900 outline-none focus:border-[#0066FF]"

@@ -289,6 +289,7 @@ export const MobileProductModal: React.FC<MobileProductModalProps> = ({
               </label>
               <input
                 type="number"
+                onFocus={(e) => e.target.select()}
                 value={formData.selling_price || ''}
                 onChange={(e) => setFormData({ ...formData, selling_price: Number(e.target.value) })}
                 className="w-full p-2.5 bg-[#F9FAFB] border border-slate-200 rounded-xl text-sm font-black text-[#0066FF] focus:outline-none focus:border-[#0066FF] focus:bg-white"
@@ -299,6 +300,7 @@ export const MobileProductModal: React.FC<MobileProductModalProps> = ({
               <label className="text-xs font-bold text-slate-600 mb-1 block">Giá vốn (VNĐ)</label>
               <input
                 type="number"
+                onFocus={(e) => e.target.select()}
                 value={formData.cost_price || ''}
                 onChange={(e) => setFormData({ ...formData, cost_price: Number(e.target.value) })}
                 className="w-full p-2.5 bg-[#F9FAFB] border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-[#0066FF] focus:bg-white"
@@ -311,6 +313,7 @@ export const MobileProductModal: React.FC<MobileProductModalProps> = ({
               <label className="text-xs font-bold text-slate-600 mb-1 block">Tồn kho hiện tại</label>
               <input
                 type="number"
+                onFocus={(e) => e.target.select()}
                 value={formData.stock !== undefined ? formData.stock : ''}
                 onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
                 className="w-full p-2.5 bg-[#F9FAFB] border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-[#0066FF] focus:bg-white"
@@ -321,6 +324,7 @@ export const MobileProductModal: React.FC<MobileProductModalProps> = ({
               <label className="text-xs font-bold text-slate-600 mb-1 block">Định mức tồn tối thiểu</label>
               <input
                 type="number"
+                onFocus={(e) => e.target.select()}
                 value={formData.min_stock !== undefined ? formData.min_stock : ''}
                 onChange={(e) => setFormData({ ...formData, min_stock: Number(e.target.value) })}
                 className="w-full p-2.5 bg-[#F9FAFB] border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-[#0066FF] focus:bg-white"
