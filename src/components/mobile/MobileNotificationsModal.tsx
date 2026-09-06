@@ -68,10 +68,14 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
     else if (n.type === 'CASHBOOK' && onNavigateTab) onNavigateTab('MORE');
   };
 
-  const iconFor = (type: AppNotification['type']) => {
-    switch (type) {
+  const iconFor = (item: AppNotification) => {
+    switch (item.type) {
       case 'STOCK':
-        return <Package className="w-5 h-5 text-amber-500" />;
+        return item.meta?.stockState === 'OUT' ? (
+          <Package className="w-5 h-5 text-rose-500" />
+        ) : (
+          <Package className="w-5 h-5 text-amber-500" />
+        );
       case 'ORDER':
         return <ShoppingBag className="w-5 h-5 text-blue-500" />;
       case 'CASHBOOK':
@@ -174,7 +178,7 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
                 >
                   {/* Icon */}
                   <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                    {iconFor(item.type)}
+                    {iconFor(item)}
                   </div>
 
                   {/* Content */}

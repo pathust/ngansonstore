@@ -293,7 +293,11 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
                       {/* Icon */}
                       <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
                         {n.type === 'STOCK' ? (
-                          <Package className="w-4 h-4 text-amber-600" />
+                          n.meta?.stockState === 'OUT' ? (
+                            <Package className="w-4 h-4 text-rose-600" />
+                          ) : (
+                            <Package className="w-4 h-4 text-amber-600" />
+                          )
                         ) : n.type === 'ORDER' ? (
                           <ShoppingCart className="w-4 h-4 text-blue-600" />
                         ) : (

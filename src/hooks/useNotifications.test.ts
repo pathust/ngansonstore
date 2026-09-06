@@ -118,7 +118,8 @@ describe('useNotifications', () => {
 
     // Lần 1: Có 1 thông báo bút sắp hết
     expect(result.current.notifications.length).toBe(1);
-    expect(result.current.notifications[0].contentKey).toBe('stock:prod-pen');
+    expect(result.current.notifications[0].contentKey).toBe('stock:prod-pen:LOW');
+    expect(result.current.notifications[0].title).toBe('Hàng hóa sắp hết');
     expect(result.current.notifications[0].isRead).toBe(false);
 
     // Người dùng đánh dấu đã đọc
@@ -128,7 +129,7 @@ describe('useNotifications', () => {
     expect(result.current.notifications[0].isRead).toBe(true);
     expect(result.current.unreadCount).toBe(0);
 
-    // Lần sau: re-render hoặc dữ liệu products được cập nhật lại (bút vẫn còn stock: 2)
+    // Lần sau: re-render hoặc dữ liệu products được cập nhật lại (bút vẫn còn stock: 1, vẫn dưới tồn)
     mockProducts = [
       {
         ...mockProducts[0],
@@ -139,7 +140,73 @@ describe('useNotifications', () => {
 
     // Thông báo KHÔNG bị nhân đôi, không bị reset trạng thái isRead!
     expect(result.current.notifications.length).toBe(1);
+    expect(result.current.notifications[0].contentKey).toBe('stock:prod-pen:LOW');
     expect(result.current.notifications[0].isRead).toBe(true);
+    expect(result.current.unreadCount).toBe(0);
+  });
+
+  it('khi sản phẩm từ dưới tồn sang hết hàng thì có thông báo mới là hết để thay thế cho dưới tồn', () => {
+    mockProducts = [
+      {
+        id: 'prod-pencil',
+        sku: 'SP002',
+        barcode: '456',
+        name: 'Bút chì 2B',
+        category: 'Văn phòng phẩm',
+        unit: 'Cây',
+        cost_price: 2000,
+        selling_price: 4000,
+        stock: 2, // Dưới tồn (min_stock: 5)
+        min_stock: 5,
+        status: 'ACTIVE',
+      },
+    ];
+
+    const { result, rerender } = renderHook(() => useNotifications());
+
+    // Giai đoạn 1: Đang dưới định mức tồn
+    expect(result.current.notifications.length).toBe(1);
+    expect(result.current.notifications[0].title).toBe('Hàng hóa sắp hết');
+    expect(result.current.notifications[0].contentKey).toBe('stock:prod-pencil:LOW');
+    expect(result.current.notifications[0].isRead).toBe(false);
+
+    // Người dùng đã đọc thông báo dưới tồn
+    act(() => {
+      result.current.markAsRead(result.current.notifications[0].id);
+    });
+    expect(result.current.unreadCount).toBe(0);
+
+    // Giai đoạn 2: Bán hết hàng -> Tồn kho chuyển sang 0 (hết hàng)
+    mockProducts = [
+      {
+        ...mockProducts[0],
+        stock: 0, // Hết hàng!
+      },
+    ];
+    rerender();
+
+    // Thông báo "Hết hàng" MỚI được sinh ra để THAY THẾ cho thông báo dưới tồn cũ
+    expect(result.current.notifications.length).toBe(1);
+    expect(result.current.notifications[0].title).toBe('Hàng hóa đã hết hàng');
+    expect(result.current.notifications[0].contentKey).toBe('stock:prod-pencil:OUT');
+    expect(result.current.notifications[0].meta?.stockState).toBe('OUT');
+    expect(result.current.notifications[0].isRead).toBe(false); // Thông báo mới chưa đọc
+    expect(result.current.unreadCount).toBe(1);
+
+    // Giai đoạn 3: Re-render tiếp với tồn kho 0 -> Không bị lặp lại thông báo hết hàng
+    rerender();
+    expect(result.current.notifications.length).toBe(1);
+    expect(result.current.notifications[0].contentKey).toBe('stock:prod-pencil:OUT');
+
+    // Giai đoạn 4: Nhập hàng mới (tồn kho lên 50 vượt định mức tồn) -> Tự động dọn cảnh báo tồn cũ
+    mockProducts = [
+      {
+        ...mockProducts[0],
+        stock: 50,
+      },
+    ];
+    rerender();
+    expect(result.current.notifications.length).toBe(0);
     expect(result.current.unreadCount).toBe(0);
   });
 
