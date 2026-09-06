@@ -347,6 +347,20 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
                   ))
                 )}
               </div>
+
+              {/* Footer: Xem tất cả thông báo */}
+              <div className="p-2.5 border-t border-slate-100 bg-slate-50 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsNotifOpen(false);
+                    setCurrentView('notifications');
+                  }}
+                  className="w-full py-1 text-xs font-bold text-[#0B63E5] hover:text-blue-700 hover:underline transition-all cursor-pointer"
+                >
+                  Xem tất cả thông báo ({notifications.length})
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -25,6 +25,7 @@ const CustomerManagementScreen = React.lazy(() => import('./components/customers
 const InvoiceManagementScreen = React.lazy(() => import('./components/orders/InvoiceManagementScreen').then(m => ({ default: m.InvoiceManagementScreen })));
 const StoreSettingsScreen = React.lazy(() => import('./components/settings/StoreSettingsScreen').then(m => ({ default: m.StoreSettingsScreen })));
 const UserManagementScreen = React.lazy(() => import('./components/users/UserManagementScreen').then(m => ({ default: m.UserManagementScreen })));
+const NotificationsScreen = React.lazy(() => import('./components/notifications/NotificationsScreen').then(m => ({ default: m.NotificationsScreen })));
 
 const MainLayout: React.FC = () => {
   const {
@@ -221,6 +222,8 @@ const MainLayout: React.FC = () => {
               <AccessDeniedView moduleName="Quản trị Tài khoản & Phân quyền" />
             )
           )}
+
+          {currentView === 'notifications' && <NotificationsScreen />}
           </React.Suspense>
         </main>
 

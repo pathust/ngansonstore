@@ -264,4 +264,29 @@ describe('useNotifications', () => {
     });
     expect(result.current.notifications.length).toBe(1);
   });
+
+  it('giữ nguyên mốc thời gian gốc của sản phẩm đã hết hàng từ trước (không bị reset thành Vừa xong)', () => {
+    const historicalTime = new Date('2026-08-01T10:00:00.000Z').getTime();
+    mockProducts = [
+      {
+        id: 'prod-hist',
+        sku: 'SP-OLD',
+        barcode: '',
+        name: 'Hàng đã hết từ tháng trước',
+        category: 'Test',
+        unit: 'Cái',
+        cost_price: 10000,
+        selling_price: 20000,
+        stock: 0, // Hết hàng
+        min_stock: 5,
+        status: 'ACTIVE',
+        updated_at: new Date(historicalTime).toISOString(),
+      },
+    ];
+
+    const { result } = renderHook(() => useNotifications());
+    expect(result.current.notifications.length).toBe(1);
+    expect(result.current.notifications[0].timestamp).toBe(historicalTime);
+    expect(formatRelativeTime(result.current.notifications[0].timestamp)).not.toBe('Vừa xong');
+  });
 });

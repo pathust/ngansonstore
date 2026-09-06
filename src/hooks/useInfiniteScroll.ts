@@ -19,7 +19,8 @@ export function useInfiniteScroll(
   initialSize = 40,
   chunkSize = 20,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  deps: any[] = []
+  deps: any[] = [],
+  scrollContainerId?: string
 ) {
   const [visibleCount, setVisibleCount] = useState(initialSize);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -36,8 +37,10 @@ export function useInfiniteScroll(
   useEffect(() => {
     observerRef.current?.disconnect();
 
-    // Tìm scroll container — MobileAppContainer dùng id="mobile-scroll-root"
-    const scrollRoot = document.getElementById('mobile-scroll-root') ?? null;
+    // Tìm scroll container: ưu tiên scrollContainerId, nếu không có thì tìm mobile-scroll-root
+    const scrollRoot = scrollContainerId
+      ? document.getElementById(scrollContainerId)
+      : (document.getElementById('mobile-scroll-root') ?? null);
 
     observerRef.current = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) loadMore(); },
@@ -45,7 +48,7 @@ export function useInfiniteScroll(
     );
     if (sentinelRef.current) observerRef.current.observe(sentinelRef.current);
     return () => observerRef.current?.disconnect();
-  }, [loadMore]);
+  }, [loadMore, scrollContainerId]);
 
   return { visibleCount, sentinelRef, hasMore: visibleCount < total };
 }

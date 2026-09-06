@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { useNotifications, AppNotification, formatRelativeTime } from '../../hooks/useNotifications';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 
 type FilterType = 'ALL' | 'STOCK' | 'ORDER' | 'CASHBOOK' | 'AUDIT';
 
@@ -42,14 +43,12 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
     dismissNotification,
   } = useNotifications();
 
-  const [visibleCount, setVisibleCount] = useState(10);
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
-  // Reset state when modal closes
+  // Reset filter dropdown when modal closes
   React.useEffect(() => {
     if (!isOpen) {
-      setVisibleCount(10);
       setShowFilterMenu(false);
     }
   }, [isOpen]);
@@ -59,6 +58,14 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
   // Lọc theo loại thông báo
   const filtered =
     filter === 'ALL' ? notifications : notifications.filter((n) => n.type === filter);
+
+  const { visibleCount, sentinelRef, hasMore } = useInfiniteScroll(
+    filtered.length,
+    40,
+    20,
+    [filter, isOpen],
+    'mobile-notifications-scroll-root'
+  );
 
   const handleItemClick = (n: AppNotification) => {
     markAsRead(n.id);
@@ -86,7 +93,6 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
   };
 
   const visible = filtered.slice(0, visibleCount);
-  const hasMore = filtered.length > visibleCount;
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col animate-in fade-in duration-150">
@@ -124,7 +130,6 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
                   onClick={() => {
                     setFilter(key);
                     setShowFilterMenu(false);
-                    setVisibleCount(10);
                   }}
                   className={`w-full text-left px-4 py-2.5 text-sm cursor-pointer ${
                     filter === key
@@ -154,6 +159,7 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
 
       {/* ── List (Sắp xếp theo trình tự thời gian, không lặp lại cùng nội dung) ── */}
       <div
+        id="mobile-notifications-scroll-root"
         className="flex-1 overflow-y-auto bg-white"
         onClick={() => showFilterMenu && setShowFilterMenu(false)}
       >
@@ -224,15 +230,12 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
               </div>
             ))}
 
-            {/* Xem thêm */}
+            {/* Sentinel: trigger load more when scrolled near bottom */}
+            <div ref={sentinelRef} className="h-4" />
             {hasMore && (
-              <button
-                type="button"
-                onClick={() => setVisibleCount((c) => c + 10)}
-                className="w-full py-4 text-sm font-semibold text-[#0066FF] border-t border-slate-100 bg-white active:bg-blue-50 transition-colors cursor-pointer"
-              >
-                Xem thêm ({filtered.length - visibleCount} thông báo)
-              </button>
+              <div className="py-3 flex justify-center">
+                <div className="w-5 h-5 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+              </div>
             )}
           </>
         )}

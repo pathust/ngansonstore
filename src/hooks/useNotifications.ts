@@ -70,9 +70,31 @@ export function useNotifications() {
     loadPersistedNotifications()
   );
 
-  // Đồng bộ và sinh thông báo mới với quy tắc:
-  // 1. Sắp xếp theo trình tự thời gian (mới nhất trước).
-  // 2. Cùng 1 nội dung / sản phẩm thì KHÔNG lặp lại (đã thông báo rồi thì không sinh thêm lần nữa).
+  // 1. Tải thông báo từ backend API để lấy mốc thời gian chính xác đã lưu
+  const fetchBackend = useCallback(async () => {
+    try {
+      if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+      const res = await fetch('/api/notifications');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setNotifications(json.data);
+          savePersistedNotifications(json.data);
+        }
+      }
+    } catch {
+      // Fallback offline / test environment
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBackend();
+  }, [fetchBackend]);
+
+  // 2. Đồng bộ và sinh thông báo mới với quy tắc:
+  // - Sắp xếp theo trình tự thời gian (mới nhất trước).
+  // - Cùng 1 nội dung / sản phẩm thì KHÔNG lặp lại.
+  // - Hàng hết từ trước thì giữ nguyên mốc thời gian gốc (không reset thành "vừa xong").
   useEffect(() => {
     setNotifications((prevList) => {
       // Map lưu các thông báo đã có theo contentKey để kiểm tra trùng lặp
@@ -109,12 +131,15 @@ export function useNotifications() {
       // QUY TẮC CÁCH 3:
       // - Dưới định mức tồn (0 < stock <= min_stock): Báo "Hàng hóa sắp hết" (không lặp lại cùng nội dung).
       // - Hết hàng (stock <= 0): Tạo thông báo mới "Hàng hóa đã hết hàng" THAY THẾ cho thông báo dưới tồn cũ.
-      // - Đã nạp đầy hàng (stock > min_stock): KHÔNG tự động xóa thông báo! Thông báo vẫn lưu trong danh sách
-      //   đến khi người dùng tự bấm xóa. Hệ thống đánh dấu isResolved = true để chu kỳ tiếp theo nếu thiếu/hết hàng
-      //   thì sẽ phát thông báo mới.
+      // - Đã nạp đầy hàng (stock > min_stock): KHÔNG tự động xóa thông báo! Đánh dấu isResolved = true.
+      // - GIỮ NGUYÊN mốc thời gian gốc (updated_at/created_at của sản phẩm) để không bị báo "vừa xong" khi đã hết từ trước!
       products.forEach((p) => {
         const minStock = p.min_stock ?? 5;
         const currentStock = p.stock ?? 0;
+
+        // Xác định mốc thời gian gốc của sản phẩm
+        const pTime = p.updated_at ? new Date(p.updated_at).getTime() : (p.created_at ? new Date(p.created_at).getTime() : now);
+        const originalTimestamp = isNaN(pTime) ? now : pTime;
 
         // Tìm thông báo tồn kho CHƯA GIẢI QUYẾT của sản phẩm này trong chu kỳ hiện tại
         const oldNotifIndex = updatedList.findIndex(
@@ -134,17 +159,17 @@ export function useNotifications() {
             oldNotif?.contentKey.startsWith(`stock:${p.id}:OUT`);
 
           if (!isAlreadyOutNotified) {
-            // Nếu trước đó đang có thông báo "dưới tồn" trong cùng chu kỳ -> xóa bỏ để thay thế bằng thông báo "hết hàng" mới
+            // Nếu trước đó đang có thông báo "dưới tồn" trong cùng chu kỳ -> xóa bỏ để thay thế bằng "hết hàng"
             if (oldNotifIndex !== -1) {
               updatedList.splice(oldNotifIndex, 1);
             }
             const newNotif: AppNotification = {
-              id: `stock-out-${p.id}-${now}`,
-              contentKey: `stock:${p.id}:OUT:${now}`,
+              id: `notif-stock-out-${p.id}`,
+              contentKey: `stock:${p.id}:OUT`,
               type: 'STOCK',
               title: 'Hàng hóa đã hết hàng',
               description: `${p.name} hiện đã hết hàng trong kho (tồn: ${currentStock} ${p.unit || 'Cái'})`,
-              timestamp: now,
+              timestamp: originalTimestamp,
               isRead: false,
               meta: { productId: p.id, stockState: 'OUT', isResolved: false },
             };
@@ -159,17 +184,16 @@ export function useNotifications() {
             oldNotif?.contentKey === `stock:${p.id}`;
 
           if (!isAlreadyLowNotified) {
-            // Nếu có thông báo cũ chưa giải quyết khác trạng thái -> thay thế
             if (oldNotifIndex !== -1) {
               updatedList.splice(oldNotifIndex, 1);
             }
             const newNotif: AppNotification = {
-              id: `stock-low-${p.id}-${now}`,
-              contentKey: `stock:${p.id}:LOW:${now}`,
+              id: `notif-stock-low-${p.id}`,
+              contentKey: `stock:${p.id}:LOW`,
               type: 'STOCK',
               title: 'Hàng hóa sắp hết',
               description: `${p.name} chỉ còn ${currentStock} ${p.unit || 'Cái'}`,
-              timestamp: now,
+              timestamp: originalTimestamp,
               isRead: false,
               meta: { productId: p.id, stockState: 'LOW', isResolved: false },
             };
@@ -178,9 +202,6 @@ export function useNotifications() {
           }
         } else {
           // Trạng thái: ĐÃ NẠP ĐỦ HÀNG (stock > min_stock)
-          // THEO CÁCH 3: KHÔNG tự động xóa thông báo khi nạp đầy hàng!
-          // Thông báo vẫn giữ nguyên trong danh sách để người dùng xem và chỉ xóa khi người dùng bấm xóa (thùng rác).
-          // Đánh dấu isResolved = true để chu kỳ tiếp theo nếu lại thiếu hàng thì sẽ phát thông báo mới.
           if (oldNotif && !oldNotif.meta?.isResolved) {
             oldNotif.meta = { ...oldNotif.meta, isResolved: true };
             hasChanges = true;
@@ -231,6 +252,9 @@ export function useNotifications() {
       savePersistedNotifications(updated);
       return updated;
     });
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      fetch(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PUT' }).catch(() => {});
+    }
   }, []);
 
   // Đọc tất cả thông báo
@@ -240,6 +264,9 @@ export function useNotifications() {
       savePersistedNotifications(updated);
       return updated;
     });
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      fetch('/api/notifications/read-all', { method: 'PUT' }).catch(() => {});
+    }
   }, []);
 
   // Xóa / Bỏ qua thông báo
@@ -249,12 +276,18 @@ export function useNotifications() {
       savePersistedNotifications(updated);
       return updated;
     });
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      fetch(`/api/notifications/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    }
   }, []);
 
   // Xóa tất cả thông báo
   const clearAllNotifications = useCallback(() => {
     setNotifications([]);
     savePersistedNotifications([]);
+    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
+      fetch('/api/notifications', { method: 'DELETE' }).catch(() => {});
+    }
   }, []);
 
   // Danh sách hiển thị (loại bỏ những mục đã dismiss, sắp xếp theo thời gian)
@@ -276,5 +309,6 @@ export function useNotifications() {
     markAllAsRead,
     dismissNotification,
     clearAllNotifications,
+    refetch: fetchBackend,
   };
 }

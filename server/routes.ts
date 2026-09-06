@@ -14,6 +14,7 @@ import { categoriesRouter } from './routes/categories.routes.js';
 import { authRouter } from './routes/auth.routes.js';
 import { usersRouter } from './routes/users.routes.js';
 import { settingsRouter } from './routes/settings.routes.js';
+import { notificationsRouter } from './routes/notifications.routes.js';
 
 // File này chỉ còn ghép các router con theo domain (server/routes/*.routes.ts).
 // Xem .claude/skills/refactor-roadmap/SKILL.md (Pha D) để biết lý do và bản đồ file.
@@ -44,3 +45,4 @@ apiRouter.use(categoriesRouter);
 apiRouter.use(authRouter);
 apiRouter.use(usersRouter);
 apiRouter.use(settingsRouter);
+apiRouter.use(notificationsRouter);

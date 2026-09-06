@@ -14,6 +14,7 @@ import {
   SyncPayload,
   ServerStats,
   StoreSettings,
+  AppNotification,
 } from '../src/types/index.js';
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient.js';
 
@@ -30,6 +31,7 @@ interface DatabaseSchema {
   customers: Customer[];
   inventory_audits: InventoryAudit[];
   cashbook: CashbookEntry[];
+  notifications: AppNotification[];
   deletedIds: {
     products: string[];
     orders: string[];
@@ -37,6 +39,7 @@ interface DatabaseSchema {
     customers: string[];
     inventory_audits: string[];
     cashbook: string[];
+    notifications: string[];
   };
   metadata: {
     storeName: string;
@@ -142,6 +145,7 @@ const DEFAULT_DB: DatabaseSchema = {
   customers: [],
   inventory_audits: [],
   cashbook: [],
+  notifications: [],
   deletedIds: {
     products: [],
     orders: [],
@@ -149,6 +153,7 @@ const DEFAULT_DB: DatabaseSchema = {
     customers: [],
     inventory_audits: [],
     cashbook: [],
+    notifications: [],
   },
   metadata: {
     storeName: 'Cửa hàng Ngân Sơn',
@@ -208,6 +213,7 @@ class DatabaseManager {
           customers: parsed.customers || [],
           inventory_audits: parsed.inventory_audits || [],
           cashbook: parsed.cashbook || [],
+          notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
           deletedIds: parsed.deletedIds || {
             products: [],
             orders: [],
@@ -215,6 +221,7 @@ class DatabaseManager {
             customers: [],
             inventory_audits: [],
             cashbook: [],
+            notifications: [],
           },
           metadata: parsed.metadata || DEFAULT_DB.metadata,
         };
@@ -713,6 +720,21 @@ class DatabaseManager {
           this.syncToSupabase('customers', 'upsert', db.customers[cIndex]);
         }
       }
+
+      // Tự động tạo thông báo đơn hàng và đồng bộ cảnh báo tồn kho với mốc thời gian thực tế
+      const orderTs = (order.created_at ? new Date(order.created_at).getTime() : Date.now()) || Date.now();
+      const orderNotif: AppNotification = {
+        id: `notif-order-${order.id}`,
+        contentKey: `order:${order.id}`,
+        type: 'ORDER',
+        title: `Đã bán đơn hàng trị giá ${(order.final_amount || 0).toLocaleString('vi-VN')} đ`,
+        description: `Mã đơn: #${order.code} - ${order.customer_name || 'Khách lẻ'}`,
+        timestamp: isNaN(orderTs) ? Date.now() : orderTs,
+        isRead: false,
+        meta: { orderId: order.id },
+      };
+      this.createNotification(orderNotif);
+      this.syncStockNotifications();
     }
 
     this.schedulePersist();
@@ -1542,6 +1564,7 @@ class DatabaseManager {
   // ==================== MOBILE & WEB DIFFERENTIAL SYNC ====================
   public pullSync(sinceTimestamp: number = 0): SyncPayload {
     const db = this.getDB();
+    this.syncStockNotifications();
     if (sinceTimestamp > 0) {
       const filterByTime = (item: any) => (item.updated_at && item.updated_at > sinceTimestamp) || (item.created_at && item.created_at > sinceTimestamp);
       return {
@@ -1555,6 +1578,7 @@ class DatabaseManager {
         inventory_audits: db.inventory_audits.filter(filterByTime),
         cashbook: db.cashbook.filter(filterByTime),
         users: db.users,
+        notifications: (db.notifications || []).filter((n) => !n.isDismissed),
         deletedIds: db.deletedIds,
       };
     }
@@ -1570,6 +1594,7 @@ class DatabaseManager {
       inventory_audits: db.inventory_audits,
       cashbook: db.cashbook,
       users: db.users,
+      notifications: (db.notifications || []).filter((n) => !n.isDismissed),
       deletedIds: db.deletedIds,
     };
   }
@@ -1625,8 +1650,18 @@ class DatabaseManager {
         else db.users.push(u);
       });
     }
+    if (payload.notifications) {
+      if (!db.notifications) db.notifications = [];
+      payload.notifications.forEach((n) => {
+        const idx = db.notifications.findIndex((x) => x.id === n.id);
+        if (idx >= 0) db.notifications[idx] = { ...db.notifications[idx], ...n };
+        else db.notifications.push(n);
+      });
+    }
 
     this.schedulePersist();
+
+    if (payload.products?.length) this.syncBatchToSupabase('products', payload.products);
     if (payload.orders?.length) this.syncBatchToSupabase('orders', payload.orders);
     if (payload.suppliers?.length) this.syncBatchToSupabase('suppliers', payload.suppliers);
     if (payload.customers?.length) this.syncBatchToSupabase('customers', payload.customers);
@@ -1641,6 +1676,183 @@ class DatabaseManager {
     return { success: true, serverTimestamp: db.lastUpdated };
   }
 
+  // ==================== NOTIFICATIONS ====================
+  public syncStockNotifications() {
+    const db = this.getDB();
+    if (!db.notifications) db.notifications = [];
+    let hasChanges = false;
+    const now = Date.now();
+
+    // Map các thông báo tồn kho chưa giải quyết theo productId
+    const activeStockNotifs = new Map<string, AppNotification>();
+    db.notifications.forEach((n) => {
+      if (n.type === 'STOCK' && !n.isDismissed && !n.meta?.isResolved && n.meta?.productId) {
+        activeStockNotifs.set(n.meta.productId, n);
+      }
+    });
+
+    db.products.forEach((p) => {
+      const minStock = p.min_stock ?? 5;
+      const currentStock = p.stock ?? 0;
+      const existingNotif = activeStockNotifs.get(p.id);
+
+      if (currentStock <= 0) {
+        // Trạng thái: HẾT HÀNG
+        if (!existingNotif) {
+          // Chưa từng có thông báo hết hàng: LƯU MỐC THỜI GIAN GỐC
+          // Ưu tiên lấy p.updated_at nếu có, fallback về now
+          const pTime = p.updated_at ? new Date(p.updated_at).getTime() : now;
+          const originalTimestamp = isNaN(pTime) ? now : pTime;
+          const newNotif: AppNotification = {
+            id: `notif-stock-out-${p.id}`,
+            contentKey: `stock:${p.id}:OUT`,
+            type: 'STOCK',
+            title: 'Hàng hóa đã hết hàng',
+            description: `${p.name} hiện đã hết hàng trong kho (tồn: ${currentStock} ${p.unit || 'Cái'})`,
+            timestamp: originalTimestamp,
+            isRead: false,
+            meta: { productId: p.id, stockState: 'OUT', isResolved: false },
+          };
+          db.notifications.unshift(newNotif);
+          activeStockNotifs.set(p.id, newNotif);
+          hasChanges = true;
+        } else if (existingNotif.meta?.stockState === 'LOW') {
+          // Chuyển từ DƯỚI TỒN -> HẾT HÀNG: Cập nhật thay thế
+          existingNotif.title = 'Hàng hóa đã hết hàng';
+          existingNotif.description = `${p.name} hiện đã hết hàng trong kho (tồn: ${currentStock} ${p.unit || 'Cái'})`;
+          existingNotif.meta = { ...existingNotif.meta, stockState: 'OUT' };
+          existingNotif.isRead = false;
+          existingNotif.timestamp = now;
+          hasChanges = true;
+        }
+        // Nếu đã là OUT -> TUYỆT ĐỐI KHÔNG SỬA TIMESTAMP! Giữ nguyên thời điểm đã hết từ trước!
+      } else if (currentStock <= minStock) {
+        // Trạng thái: DƯỚI ĐỊNH MỨC TỒN
+        if (!existingNotif) {
+          const pTime = p.updated_at ? new Date(p.updated_at).getTime() : now;
+          const originalTimestamp = isNaN(pTime) ? now : pTime;
+          const newNotif: AppNotification = {
+            id: `notif-stock-low-${p.id}`,
+            contentKey: `stock:${p.id}:LOW`,
+            type: 'STOCK',
+            title: 'Hàng hóa sắp hết',
+            description: `${p.name} chỉ còn ${currentStock} ${p.unit || 'Cái'}`,
+            timestamp: originalTimestamp,
+            isRead: false,
+            meta: { productId: p.id, stockState: 'LOW', isResolved: false },
+          };
+          db.notifications.unshift(newNotif);
+          activeStockNotifs.set(p.id, newNotif);
+          hasChanges = true;
+        }
+        // Nếu đã có thông báo LOW -> GIỮ NGUYÊN TIMESTAMP!
+      } else {
+        // Trạng thái: ĐÃ NẠP ĐẦY HÀNG (stock > min_stock)
+        // THEO CÁCH 3: KHÔNG xóa thông báo cũ! Đánh dấu isResolved = true
+        if (existingNotif && !existingNotif.meta?.isResolved) {
+          existingNotif.meta = { ...existingNotif.meta, isResolved: true };
+          activeStockNotifs.delete(p.id);
+          hasChanges = true;
+        }
+      }
+    });
+
+    if (hasChanges) {
+      this.schedulePersist();
+    }
+  }
+
+  public getNotifications(options?: {
+    type?: string;
+    isRead?: boolean;
+    limit?: number;
+    offset?: number;
+  }) {
+    this.syncStockNotifications();
+
+    const db = this.getDB();
+    let result = (db.notifications || []).filter((n) => !n.isDismissed);
+
+    if (options?.type && options.type !== 'ALL') {
+      result = result.filter((n) => n.type === options.type);
+    }
+    if (options?.isRead !== undefined) {
+      result = result.filter((n) => n.isRead === options.isRead);
+    }
+
+    result.sort((a, b) => b.timestamp - a.timestamp);
+
+    const total = result.length;
+    const unreadCount = result.filter((n) => !n.isRead).length;
+
+    if (options?.offset !== undefined && options?.limit !== undefined) {
+      result = result.slice(options.offset, options.offset + options.limit);
+    }
+
+    return { total, unreadCount, items: result };
+  }
+
+  public createNotification(notif: AppNotification): AppNotification {
+    const db = this.getDB();
+    if (!db.notifications) db.notifications = [];
+    const idx = db.notifications.findIndex((n) => n.id === notif.id);
+    if (idx >= 0) {
+      db.notifications[idx] = notif;
+    } else {
+      db.notifications.unshift(notif);
+    }
+    this.schedulePersist();
+    return notif;
+  }
+
+  public markNotificationAsRead(id: string): boolean {
+    const db = this.getDB();
+    if (!db.notifications) return false;
+    const notif = db.notifications.find((n) => n.id === id);
+    if (notif) {
+      notif.isRead = true;
+      this.schedulePersist();
+      return true;
+    }
+    return false;
+  }
+
+  public markAllNotificationsAsRead(): boolean {
+    const db = this.getDB();
+    if (!db.notifications) return false;
+    let changed = false;
+    db.notifications.forEach((n) => {
+      if (!n.isRead) {
+        n.isRead = true;
+        changed = true;
+      }
+    });
+    if (changed) {
+      this.schedulePersist();
+    }
+    return true;
+  }
+
+  public dismissNotification(id: string): boolean {
+    const db = this.getDB();
+    if (!db.notifications) return false;
+    const notif = db.notifications.find((n) => n.id === id);
+    if (notif) {
+      notif.isDismissed = true;
+      this.schedulePersist();
+      return true;
+    }
+    return false;
+  }
+
+  public clearAllNotifications(): boolean {
+    const db = this.getDB();
+    if (!db.notifications) return false;
+    db.notifications = [];
+    this.schedulePersist();
+    return true;
+  }
+
   // ==================== SYSTEM CLEAN & STATS ====================
   public cleanMockData(): boolean {
     const db = this.getDB();
@@ -1650,6 +1862,7 @@ class DatabaseManager {
     db.customers = [];
     db.inventory_audits = [];
     db.cashbook = [];
+    db.notifications = [];
     db.deletedIds = {
       products: [],
       orders: [],
@@ -1657,6 +1870,7 @@ class DatabaseManager {
       customers: [],
       inventory_audits: [],
       cashbook: [],
+      notifications: [],
     };
     this.schedulePersist();
     return true;

@@ -333,6 +333,24 @@ export interface BackgroundTask {
   errorMessage?: string;
 }
 
+export interface AppNotification {
+  id: string;
+  contentKey: string;
+  type: 'STOCK' | 'ORDER' | 'CASHBOOK' | 'AUDIT';
+  title: string;
+  description: string;
+  timestamp: number; // Thời gian thực tế của sự kiện
+  isRead: boolean;
+  isDismissed?: boolean;
+  meta?: {
+    productId?: string;
+    stockState?: 'LOW' | 'OUT';
+    isResolved?: boolean;
+    orderId?: string;
+    customerId?: string;
+  };
+}
+
 export interface SyncPayload {
   lastSyncTimestamp: number;
   settings?: StoreSettings;
@@ -345,6 +363,7 @@ export interface SyncPayload {
   inventory_audits?: InventoryAudit[];
   cashbook?: CashbookEntry[];
   users?: AppUser[];
+  notifications?: AppNotification[];
   deletedIds?: {
     products?: string[];
     orders?: string[];
@@ -352,6 +371,7 @@ export interface SyncPayload {
     customers?: string[];
     inventory_audits?: string[];
     cashbook?: string[];
+    notifications?: string[];
   };
 }
 
