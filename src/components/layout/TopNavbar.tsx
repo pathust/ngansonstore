@@ -19,6 +19,7 @@ import {
   BookOpen,
   AlertTriangle,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react';
 import { useNotifications, formatRelativeTime, AppNotification } from '../../hooks/useNotifications';
 
@@ -54,6 +55,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
     unreadCount,
     markAsRead,
     markAllAsRead,
+    dismissNotification,
   } = useNotifications();
 
   useEffect(() => {
@@ -286,7 +288,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
                         else if (n.type === 'ORDER') setCurrentView('orders');
                         else if (n.type === 'CASHBOOK') setCurrentView('customers');
                       }}
-                      className={`p-3 flex items-start gap-2.5 transition-colors cursor-pointer hover:bg-slate-50 ${
+                      className={`p-3 flex items-start gap-2.5 transition-colors cursor-pointer hover:bg-slate-50 group relative ${
                         !n.isRead ? 'bg-blue-50/40' : 'bg-white'
                       }`}
                     >
@@ -306,7 +308,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
                       </div>
 
                       {/* Content */}
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 pr-1">
                         <div className="flex items-start justify-between gap-1">
                           <p
                             className={`text-xs leading-snug line-clamp-2 ${
@@ -328,6 +330,19 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
                           {formatRelativeTime(n.timestamp)}
                         </p>
                       </div>
+
+                      {/* Dismiss / Delete button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissNotification(n.id);
+                        }}
+                        title="Xóa thông báo này"
+                        className="p-1 text-slate-300 hover:text-rose-500 rounded transition-colors cursor-pointer shrink-0 self-center opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))
                 )}

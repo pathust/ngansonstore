@@ -14,6 +14,7 @@ export interface AppNotification {
   meta?: {
     productId?: string;
     stockState?: 'LOW' | 'OUT';
+    isResolved?: boolean;
     orderId?: string;
     customerId?: string;
   };
@@ -105,21 +106,23 @@ export function useNotifications() {
       });
 
       // 2. Thông báo tồn kho (Dưới định mức tồn & Hết hàng)
-      // QUY TẮC:
+      // QUY TẮC CÁCH 3:
       // - Dưới định mức tồn (0 < stock <= min_stock): Báo "Hàng hóa sắp hết" (không lặp lại cùng nội dung).
       // - Hết hàng (stock <= 0): Tạo thông báo mới "Hàng hóa đã hết hàng" THAY THẾ cho thông báo dưới tồn cũ.
-      // - Đã nhập hàng đủ (stock > min_stock): Xóa cảnh báo cũ để sẵn sàng báo đợt mới khi thiếu hàng.
+      // - Đã nạp đầy hàng (stock > min_stock): KHÔNG tự động xóa thông báo! Thông báo vẫn lưu trong danh sách
+      //   đến khi người dùng tự bấm xóa. Hệ thống đánh dấu isResolved = true để chu kỳ tiếp theo nếu thiếu/hết hàng
+      //   thì sẽ phát thông báo mới.
       products.forEach((p) => {
         const minStock = p.min_stock ?? 5;
         const currentStock = p.stock ?? 0;
 
-        // Tìm thông báo tồn kho hiện tại của sản phẩm này (hỗ trợ cả contentKey cũ dạng stock:id)
+        // Tìm thông báo tồn kho CHƯA GIẢI QUYẾT của sản phẩm này trong chu kỳ hiện tại
         const oldNotifIndex = updatedList.findIndex(
           (n) =>
             n.type === 'STOCK' &&
+            !n.meta?.isResolved &&
             (n.meta?.productId === p.id ||
-              n.contentKey === `stock:${p.id}:LOW` ||
-              n.contentKey === `stock:${p.id}:OUT` ||
+              n.contentKey.startsWith(`stock:${p.id}:`) ||
               n.contentKey === `stock:${p.id}`)
         );
         const oldNotif = oldNotifIndex !== -1 ? updatedList[oldNotifIndex] : undefined;
@@ -128,22 +131,22 @@ export function useNotifications() {
           // Trạng thái: HẾT HÀNG
           const isAlreadyOutNotified =
             oldNotif?.meta?.stockState === 'OUT' ||
-            oldNotif?.contentKey === `stock:${p.id}:OUT`;
+            oldNotif?.contentKey.startsWith(`stock:${p.id}:OUT`);
 
           if (!isAlreadyOutNotified) {
-            // Nếu trước đó đang có thông báo "dưới tồn" -> xóa bỏ để thay thế bằng thông báo "hết hàng" mới
+            // Nếu trước đó đang có thông báo "dưới tồn" trong cùng chu kỳ -> xóa bỏ để thay thế bằng thông báo "hết hàng" mới
             if (oldNotifIndex !== -1) {
               updatedList.splice(oldNotifIndex, 1);
             }
             const newNotif: AppNotification = {
-              id: `stock-out-${p.id}`,
-              contentKey: `stock:${p.id}:OUT`,
+              id: `stock-out-${p.id}-${now}`,
+              contentKey: `stock:${p.id}:OUT:${now}`,
               type: 'STOCK',
               title: 'Hàng hóa đã hết hàng',
               description: `${p.name} hiện đã hết hàng trong kho (tồn: ${currentStock} ${p.unit || 'Cái'})`,
               timestamp: now,
               isRead: false,
-              meta: { productId: p.id, stockState: 'OUT' },
+              meta: { productId: p.id, stockState: 'OUT', isResolved: false },
             };
             updatedList.push(newNotif);
             hasChanges = true;
@@ -152,32 +155,34 @@ export function useNotifications() {
           // Trạng thái: DƯỚI ĐỊNH MỨC TỒN (Sắp hết)
           const isAlreadyLowNotified =
             oldNotif?.meta?.stockState === 'LOW' ||
-            oldNotif?.contentKey === `stock:${p.id}:LOW` ||
+            oldNotif?.contentKey.startsWith(`stock:${p.id}:LOW`) ||
             oldNotif?.contentKey === `stock:${p.id}`;
 
           if (!isAlreadyLowNotified) {
-            // Nếu có thông báo cũ khác trạng thái -> xóa bỏ để thay thế
+            // Nếu có thông báo cũ chưa giải quyết khác trạng thái -> thay thế
             if (oldNotifIndex !== -1) {
               updatedList.splice(oldNotifIndex, 1);
             }
             const newNotif: AppNotification = {
-              id: `stock-low-${p.id}`,
-              contentKey: `stock:${p.id}:LOW`,
+              id: `stock-low-${p.id}-${now}`,
+              contentKey: `stock:${p.id}:LOW:${now}`,
               type: 'STOCK',
               title: 'Hàng hóa sắp hết',
               description: `${p.name} chỉ còn ${currentStock} ${p.unit || 'Cái'}`,
               timestamp: now,
               isRead: false,
-              meta: { productId: p.id, stockState: 'LOW' },
+              meta: { productId: p.id, stockState: 'LOW', isResolved: false },
             };
             updatedList.push(newNotif);
             hasChanges = true;
           }
         } else {
-          // Trạng thái: ĐÃ NHẬP ĐỦ HÀNG (stock > min_stock)
-          // Xóa cảnh báo cũ để khi bán hết ở đợt sau thì sẽ kích hoạt thông báo mới
-          if (oldNotifIndex !== -1) {
-            updatedList.splice(oldNotifIndex, 1);
+          // Trạng thái: ĐÃ NẠP ĐỦ HÀNG (stock > min_stock)
+          // THEO CÁCH 3: KHÔNG tự động xóa thông báo khi nạp đầy hàng!
+          // Thông báo vẫn giữ nguyên trong danh sách để người dùng xem và chỉ xóa khi người dùng bấm xóa (thùng rác).
+          // Đánh dấu isResolved = true để chu kỳ tiếp theo nếu lại thiếu hàng thì sẽ phát thông báo mới.
+          if (oldNotif && !oldNotif.meta?.isResolved) {
+            oldNotif.meta = { ...oldNotif.meta, isResolved: true };
             hasChanges = true;
           }
         }
