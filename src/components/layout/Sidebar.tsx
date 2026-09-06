@@ -91,15 +91,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'products',
           label: 'Hàng hóa & Giá',
           icon: Package,
-          badges:
+          // A single compact badge — the sidebar row is too narrow to safely fit 2 verbose text
+          // pills (they overflowed the nav item and pushed the label down to "H..."). Colored by
+          // severity; the full "N hết hàng / M dưới ngưỡng" breakdown lives on the Products page
+          // itself (as clickable filter chips), where there's actual room to show it clearly.
+          badge:
             outOfStockCount > 0 || belowMinStockCount > 0
-              ? [
-                  outOfStockCount > 0 ? { text: `${outOfStockCount} hết hàng`, color: 'bg-rose-100 text-rose-700' } : null,
-                  belowMinStockCount > 0 ? { text: `${belowMinStockCount} dưới ngưỡng`, color: 'bg-amber-100 text-amber-800' } : null,
-                ].filter((b): b is { text: string; color: string } => b !== null)
+              ? `${outOfStockCount + belowMinStockCount} cảnh báo`
+              : `${products.length}`,
+          badgeColor: outOfStockCount > 0 ? 'bg-rose-100 text-rose-700' : belowMinStockCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600',
+          badgeTitle:
+            outOfStockCount > 0 || belowMinStockCount > 0
+              ? `${outOfStockCount} hết hàng, ${belowMinStockCount} dưới ngưỡng tối thiểu`
               : undefined,
-          badge: outOfStockCount === 0 && belowMinStockCount === 0 ? `${products.length}` : undefined,
-          badgeColor: 'bg-slate-100 text-slate-600',
           isRestricted: !currentUser.permissions.canManageProducts,
         },
         {
@@ -261,30 +265,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <Lock className="w-3 h-3" />
                         </span>
                       )}
-                      {(item as any).badges && !isRestricted ? (
-                        (item as any).badges.map((b: { text: string; color: string }, idx: number) => (
-                          <span
-                            key={idx}
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
-                              isActive ? 'bg-[#0B63E5] text-white' : b.color
-                            }`}
-                          >
-                            {b.text}
-                          </span>
-                        ))
-                      ) : (
-                        item.badge &&
-                        !isRestricted && (
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                              isActive
-                                ? 'bg-[#0B63E5] text-white'
-                                : (item as any).badgeColor || (item.badge === 'HOT' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')
-                            }`}
-                          >
-                            {item.badge}
-                          </span>
-                        )
+                      {item.badge && !isRestricted && (
+                        <span
+                          title={(item as any).badgeTitle}
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
+                            isActive
+                              ? 'bg-[#0B63E5] text-white'
+                              : (item as any).badgeColor || (item.badge === 'HOT' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
                       )}
                     </div>
                   </button>

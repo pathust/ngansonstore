@@ -73,6 +73,12 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [stockFilter, setStockFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
+
+  // Same breakdown shown as a single compact badge on the sidebar — here there's room to show
+  // both counts clearly and let clicking one jump straight to that filter (matches
+  // useProductFilters' own OUT_OF_STOCK / LOW_STOCK definitions exactly).
+  const outOfStockCount = useMemo(() => products.filter((p) => p.stock <= 0).length, [products]);
+  const belowMinStockCount = useMemo(() => products.filter((p) => p.stock > 0 && p.stock <= p.min_stock).length, [products]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
@@ -379,6 +385,34 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
           <p className="text-xs text-slate-500 mt-0.5">
             Quản lý {products.length} mặt hàng, phân bổ tồn kho và tính giá vốn bình quân gia quyền
           </p>
+          {(outOfStockCount > 0 || belowMinStockCount > 0) && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              {outOfStockCount > 0 && (
+                <button
+                  onClick={() => {
+                    setStockFilter('OUT_OF_STOCK');
+                    setCurrentPage(1);
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-[11px] font-bold text-rose-700 transition-colors cursor-pointer"
+                  title="Lọc sản phẩm đã hết hàng"
+                >
+                  {outOfStockCount} hết hàng
+                </button>
+              )}
+              {belowMinStockCount > 0 && (
+                <button
+                  onClick={() => {
+                    setStockFilter('LOW_STOCK');
+                    setCurrentPage(1);
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-[11px] font-bold text-amber-800 transition-colors cursor-pointer"
+                  title="Lọc sản phẩm dưới ngưỡng tồn kho tối thiểu"
+                >
+                  {belowMinStockCount} dưới ngưỡng
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
