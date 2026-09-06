@@ -18,6 +18,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { MobileNotificationsModal } from './MobileNotificationsModal';
+import { useNotifications } from '../../hooks/useNotifications';
 import { MobileSupportModal } from './MobileSupportModal';
 import { MobileCashbookModal } from './MobileCashbookModal';
 import { MobileStaffModal } from './MobileStaffModal';
@@ -30,6 +31,7 @@ interface MobileOverviewScreenProps {
 
 export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNavigateTab }) => {
   const { orders } = useOrdersData();
+  const { unreadCount } = useNotifications();
   const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'last_7_days' | 'this_month' | 'last_month' | 'all'>('this_month');
   const [showProfit, setShowProfit] = useState(false);
   const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
@@ -265,9 +267,11 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
             title="Thông báo"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
-              3
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => {

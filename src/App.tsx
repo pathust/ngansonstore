@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/layout/Sidebar';
+import { TopNavbar } from './components/layout/TopNavbar';
 import { ToastContainer } from './components/common/ToastContainer';
 import { ThermalReceiptModal } from './components/common/ThermalReceiptModal';
 import { UserSwitcherModal } from './components/common/UserSwitcherModal';
@@ -127,30 +128,25 @@ const MainLayout: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F3F4F6] font-sans antialiased text-slate-800 relative">
-      {/* Navigation Sidebar */}
-      <Sidebar
-        isMobileOpen={isMobileOpen}
-        setIsMobileOpen={setIsMobileOpen}
-        onOpenMobileMode={switchToMobile}
-        isManualOverride={manualModeOverride !== 'AUTO'}
-        onResetAutoView={resetToAutoView}
-      />
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F3F4F6] font-sans antialiased text-slate-800 relative">
+      {/* KiotViet Top Navigation Bar */}
+      <TopNavbar onOpenMobileMode={switchToMobile} />
 
-      {/* Floating Mobile Menu Button for Small Screens */}
-      <button
-        onClick={() => setIsMobileOpen(true)}
-        className="md:hidden fixed top-3 left-3 z-30 p-2 rounded-xl bg-white/95 text-slate-700 shadow-md border border-slate-200/90 backdrop-blur-xs hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-        title="Mở menu điều hướng"
-      >
-        <Menu className="w-4 h-4 text-[#0B63E5]" />
-        <span className="text-[11px] font-bold text-slate-800">Menu</span>
-      </button>
+      {/* Navigation Sidebar Drawer for Small/Tablet Screens */}
+      {isMobileOpen && (
+        <Sidebar
+          isMobileOpen={isMobileOpen}
+          setIsMobileOpen={setIsMobileOpen}
+          onOpenMobileMode={switchToMobile}
+          isManualOverride={manualModeOverride !== 'AUTO'}
+          onResetAutoView={resetToAutoView}
+        />
+      )}
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden md:pl-64">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* View Content Area */}
-        <main className="flex-1 overflow-y-auto relative p-3 md:p-5 scroll-hide">
+        <main className="flex-1 overflow-y-auto relative p-2.5 md:p-3.5 scroll-hide">
           <React.Suspense fallback={<div className="flex items-center justify-center h-64 text-slate-400 font-medium text-sm animate-pulse">Đang tải phân hệ...</div>}>
             {currentView === 'pos' && <PosSalesScreen />}
           

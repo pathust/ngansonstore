@@ -2,11 +2,17 @@ import { useMemo } from 'react';
 import { Order } from '../../types';
 import { parseDateToTimestamp } from '../../utils/formatters';
 
-interface UseInvoiceFiltersParams {
+export interface UseInvoiceFiltersParams {
   orders: Order[];
   statusFilter: 'ALL' | 'COMPLETED' | 'CANCELLED';
   paymentFilter: 'ALL' | 'CASH' | 'TRANSFER' | 'CARD';
   searchTerm: string;
+  advancedSearch?: {
+    code: string;
+    productKeyword: string;
+    customerKeyword: string;
+  };
+  cashierFilter?: string;
   dateFilter: 'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH' | 'LAST_MONTH' | 'CUSTOM';
   customStartDate: string;
   customEndDate: string;
@@ -22,6 +28,8 @@ export function useInvoiceFilters({
   statusFilter,
   paymentFilter,
   searchTerm,
+  advancedSearch,
+  cashierFilter,
   dateFilter,
   customStartDate,
   customEndDate,
@@ -32,9 +40,40 @@ export function useInvoiceFilters({
   const filteredOrders = useMemo(() => {
     return orders
       .filter((order) => {
+        // Lọc theo trạng thái
         if (statusFilter !== 'ALL' && order.status !== statusFilter) return false;
+
+        // Lọc theo hình thức thanh toán
         if (paymentFilter !== 'ALL' && order.payment_method !== paymentFilter) return false;
 
+        // Lọc theo thu ngân
+        if (cashierFilter && cashierFilter !== 'ALL') {
+          const orderCashier = (order.cashier || '').trim().toLowerCase();
+          if (orderCashier !== cashierFilter.trim().toLowerCase()) return false;
+        }
+
+        // Tìm kiếm đa tiêu chí KiotViet
+        if (advancedSearch) {
+          if (advancedSearch.code.trim() !== '') {
+            const codeQ = advancedSearch.code.trim().toLowerCase();
+            if (!order.code.toLowerCase().includes(codeQ)) return false;
+          }
+          if (advancedSearch.productKeyword.trim() !== '') {
+            const prodQ = advancedSearch.productKeyword.trim().toLowerCase();
+            const matchesItem = order.items.some(
+              (i) => i.name.toLowerCase().includes(prodQ) || i.sku.toLowerCase().includes(prodQ)
+            );
+            if (!matchesItem) return false;
+          }
+          if (advancedSearch.customerKeyword.trim() !== '') {
+            const custQ = advancedSearch.customerKeyword.trim().toLowerCase();
+            const matchesCustName = order.customer_name.toLowerCase().includes(custQ);
+            const matchesPhone = order.phone.toLowerCase().includes(custQ);
+            if (!matchesCustName && !matchesPhone) return false;
+          }
+        }
+
+        // Tìm kiếm đơn giản (General Search)
         if (searchTerm.trim() !== '') {
           const q = searchTerm.toLowerCase();
           const matchesCode = order.code.toLowerCase().includes(q);
@@ -47,6 +86,7 @@ export function useInvoiceFilters({
           }
         }
 
+        // Lọc theo thời gian
         if (dateFilter !== 'ALL') {
           const orderTs = parseDateToTimestamp(order.created_at);
           const now = new Date();
@@ -105,7 +145,7 @@ export function useInvoiceFilters({
         }
         return parseDateToTimestamp(b.created_at) - parseDateToTimestamp(a.created_at);
       });
-  }, [orders, statusFilter, paymentFilter, searchTerm, dateFilter, customStartDate, customEndDate, sortBy]);
+  }, [orders, statusFilter, paymentFilter, cashierFilter, searchTerm, advancedSearch, dateFilter, customStartDate, customEndDate, sortBy]);
 
   const paginatedOrders = useMemo(() => {
     return filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -116,14 +156,21 @@ export function useInvoiceFilters({
     const completedOrders = filteredOrders.filter((o) => o.status === 'COMPLETED');
     const cancelledOrders = filteredOrders.filter((o) => o.status === 'CANCELLED');
 
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.final_amount || 0), 0);
+    // Thống kê chuẩn KiotViet: Tổng tiền hàng (trước giảm), Giảm giá, Khách đã trả (thực thu)
+    const totalGrossAmount = completedOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    const totalDiscount = completedOrders.reduce((sum, o) => sum + (o.discount || 0), 0);
+    const totalPaid = completedOrders.reduce((sum, o) => sum + (o.final_amount || 0), 0);
+    const totalRevenue = totalPaid;
     const totalProfit = completedOrders.reduce((sum, o) => sum + (o.profit || 0), 0);
-    const averageOrderValue = completedOrders.length > 0 ? Math.round(totalRevenue / completedOrders.length) : 0;
+    const averageOrderValue = completedOrders.length > 0 ? Math.round(totalPaid / completedOrders.length) : 0;
 
     return {
       totalOrdersCount,
       completedCount: completedOrders.length,
       cancelledCount: cancelledOrders.length,
+      totalGrossAmount,
+      totalDiscount,
+      totalPaid,
       totalRevenue,
       totalProfit,
       averageOrderValue,
@@ -132,15 +179,23 @@ export function useInvoiceFilters({
   }, [filteredOrders, orders.length]);
 
   const isFiltered = useMemo(() => {
+    const hasAdvanced =
+      !!advancedSearch &&
+      (advancedSearch.code.trim() !== '' ||
+        advancedSearch.productKeyword.trim() !== '' ||
+        advancedSearch.customerKeyword.trim() !== '');
+
     return (
       statusFilter !== 'ALL' ||
       paymentFilter !== 'ALL' ||
+      (cashierFilter !== undefined && cashierFilter !== 'ALL') ||
       dateFilter !== 'ALL' ||
       searchTerm.trim() !== '' ||
+      hasAdvanced ||
       customStartDate !== '' ||
       customEndDate !== ''
     );
-  }, [statusFilter, paymentFilter, dateFilter, searchTerm, customStartDate, customEndDate]);
+  }, [statusFilter, paymentFilter, cashierFilter, dateFilter, searchTerm, advancedSearch, customStartDate, customEndDate]);
 
   return { filteredOrders, paginatedOrders, stats, isFiltered };
 }

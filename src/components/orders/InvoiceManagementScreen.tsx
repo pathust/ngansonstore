@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Order, OrderItemRecord, DuplicateStrategy } from '../../types';
 import {
   formatCurrency,
+  formatNumber,
   formatDateTime,
   formatDate,
   exportToExcel,
@@ -16,6 +17,8 @@ import { InvoicePdfModal } from '../common/InvoicePdfModal';
 import { useInvoiceFilters } from './useInvoiceFilters';
 import { useUiShell } from '../../context/slices/UiShellContext';
 import { Pagination } from '../common/Pagination';
+import { KiotVietDateRangePicker } from '../common/KiotVietDateRangePicker';
+import { InvoiceSearchPopover, InvoiceSearchParams } from './InvoiceSearchPopover';
 import {
   Search,
   Filter,
@@ -40,6 +43,7 @@ import {
   Minus,
   AlertTriangle,
   ChevronDown,
+  ChevronRight,
   X,
   Sparkles,
   ShoppingBag,
@@ -52,6 +56,9 @@ import {
   Download,
   FileText,
   Mic,
+  Star,
+  SlidersHorizontal,
+  MoreHorizontal,
 } from 'lucide-react';
 
 export const InvoiceManagementScreen: React.FC = () => {
@@ -77,16 +84,39 @@ export const InvoiceManagementScreen: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'CASH' | 'TRANSFER' | 'CARD'>('ALL');
-  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH' | 'LAST_MONTH' | 'CUSTOM'>('ALL');
+  const [cashierFilter, setCashierFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST7' | 'MONTH' | 'LAST_MONTH' | 'CUSTOM'>('MONTH');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [sortBy, setSortBy] = useState<'NEWEST' | 'OLDEST' | 'AMOUNT_DESC' | 'AMOUNT_ASC'>('NEWEST');
 
+  // KiotViet Date Range Picker & Search Popover State
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isSearchPopoverOpen, setIsSearchPopoverOpen] = useState(false);
+  const [advancedSearch, setAdvancedSearch] = useState<InvoiceSearchParams>({
+    code: '',
+    productKeyword: '',
+    customerKeyword: '',
+  });
+
+  // Starred & Selected orders
+  const [starredOrderIds, setStarredOrderIds] = useState<Set<string>>(() => new Set());
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(() => new Set());
+
+  const datePickerAnchorRef = useRef<HTMLDivElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   const productByIdMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  // Unique Cashiers for sidebar filter
+  const uniqueCashiers = useMemo(() => {
+    const list = orders.map((o) => (o.cashier || 'Admin').trim()).filter(Boolean);
+    return Array.from(new Set(list));
+  }, [orders]);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(15);
 
   // PDF Modal State
   const [selectedPdfOrder, setSelectedPdfOrder] = useState<Order | null>(null);
@@ -146,7 +176,9 @@ export const InvoiceManagementScreen: React.FC = () => {
     orders,
     statusFilter,
     paymentFilter,
+    cashierFilter,
     searchTerm,
+    advancedSearch,
     dateFilter,
     customStartDate,
     customEndDate,
@@ -584,507 +616,716 @@ export const InvoiceManagementScreen: React.FC = () => {
     setPreviewOrders([]);
   };
 
+  const toggleStar = (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStarredOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedOrderIds.size === paginatedOrders.length && paginatedOrders.length > 0) {
+      setSelectedOrderIds(new Set());
+    } else {
+      setSelectedOrderIds(new Set(paginatedOrders.map((o) => o.id)));
+    }
+  };
+
+  const handleToggleSelectOrder = (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
+
   return (
-    <div className="space-y-4 pb-12">
-      {/* Top Header Bar */}
-      <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 text-[#0B63E5] flex items-center justify-center font-bold">
-              <Receipt className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-                Quản lý & Cập nhật Hóa đơn
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-[#0B63E5] font-semibold">
-                  {orders.length} Đơn
-                </span>
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Xem lịch sử bán hàng, chỉnh sửa thông tin hóa đơn cũ, điều chỉnh số lượng/giá bán và in lại phiếu thu K80
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <button
-            onClick={() => requestVoiceAssistant('POS_ORDER')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-md shadow-blue-500/20 active:scale-95"
-          >
-            <Mic className="w-4 h-4 text-amber-300" />
-            Lập HĐ bằng giọng nói
-          </button>
-
-          {currentUser.role === 'ADMIN' && (
-            <button
-              onClick={() => setIsImportModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-[#0B63E5] border border-blue-200 text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-2xs"
-            >
-              <Upload className="w-4 h-4 text-[#0B63E5]" />
-              <span>Nhập hóa đơn</span>
-            </button>
-          )}
-
-          <button
-            onClick={handleExportOrdersToExcel}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-2xs"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            Xuất Excel ({filteredOrders.length})
-          </button>
-
-          <button
-            onClick={() => setCurrentView('pos')}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#0B63E5] hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all cursor-pointer shadow-2xs"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            Bán hàng POS
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Stats Overview Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1.5">
-            <span className="flex items-center gap-1.5">
-              <span>Doanh thu thực tế</span>
-              {isFiltered && (
-                <span className="text-[10px] bg-blue-100 text-[#0B63E5] px-1.5 py-0.5 rounded font-bold">
-                  Bộ lọc
-                </span>
-              )}
-            </span>
-            <DollarSign className="w-4 h-4 text-[#0B63E5]" />
-          </div>
-          <div className="text-lg md:text-xl font-bold text-slate-900">
-            {formatCurrency(stats.totalRevenue)}
-          </div>
-          <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            {stats.completedCount} đơn thành công {isFiltered ? `(${stats.totalOrdersCount} đơn lọc)` : `(tổng ${stats.allOrdersCount})`}
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1.5">
-            <span className="flex items-center gap-1.5">
-              <span>Tổng lợi nhuận gộp</span>
-              {isFiltered && (
-                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">
-                  Bộ lọc
-                </span>
-              )}
-            </span>
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-lg md:text-xl font-bold text-emerald-700">
-            {formatCurrency(stats.totalProfit)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Tỷ suất LN: {stats.totalRevenue > 0 ? Math.round((stats.totalProfit / stats.totalRevenue) * 100) : 0}%
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1.5">
-            <span>Giá trị TB đơn (AOV)</span>
-            <Tag className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-lg md:text-xl font-bold text-slate-900">
-            {formatCurrency(stats.averageOrderValue)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">Trung bình mỗi khách chi tiêu</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium mb-1.5">
-            <span>Đơn đã hủy / Hoàn trả</span>
-            <Ban className="w-4 h-4 text-rose-500" />
-          </div>
-          <div className="text-lg md:text-xl font-bold text-rose-600">
-            {stats.cancelledCount} <span className="text-xs font-normal text-slate-500">đơn</span>
-          </div>
-          <div className="text-[11px] text-rose-500 mt-1">
-            {isFiltered ? 'Trong danh sách kết quả lọc' : 'Đã hoàn trả số lượng vào kho'}
-          </div>
-        </div>
-      </div>
-
-      {/* Filter & Search Bar */}
-      <div className="bg-white p-3.5 md:p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm theo Mã hóa đơn (HD-...), Tên khách, Số điện thoại, Tên sản phẩm, Thu ngân..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-xs text-slate-900 border border-slate-200 rounded-lg focus:border-[#0B63E5] focus:ring-1 focus:ring-[#0B63E5] outline-none transition-all"
-            />
-            {searchTerm && (
+    <div className="space-y-3 pb-8">
+      {/* KiotViet 2-Column Main Layout */}
+      <div className="flex flex-col md:flex-row items-start gap-3">
+        {/* ==================== CỘT TRÁI: BỘ LỌC KIOTVIET ==================== */}
+        <div className="w-full md:w-60 lg:w-64 shrink-0 bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5 space-y-4">
+          {/* Sidebar Header: Hóa đơn & Đặt lại */}
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">Hóa đơn</h2>
+            {isFiltered && (
               <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setAdvancedSearch({ code: '', productKeyword: '', customerKeyword: '' });
+                  setStatusFilter('ALL');
+                  setPaymentFilter('ALL');
+                  setCashierFilter('ALL');
+                  setDateFilter('MONTH');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setCurrentPage(1);
+                }}
+                className="text-[11px] text-[#0B63E5] hover:underline font-semibold cursor-pointer"
+                title="Xóa tất cả điều kiện lọc"
               >
-                <X className="w-3.5 h-3.5" />
+                Đặt lại
               </button>
             )}
           </div>
 
-          {/* Quick Filters */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs flex-wrap">
-            {/* Date Filter */}
-            <select
-              value={dateFilter}
-              onChange={(e) => {
-                setDateFilter(e.target.value as any);
-                setCurrentPage(1);
-              }}
-              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B63E5] text-xs cursor-pointer"
-            >
-              <option value="ALL">📅 Tất cả thời gian</option>
-              <option value="TODAY">📅 Hôm nay</option>
-              <option value="YESTERDAY">📅 Hôm qua</option>
-              <option value="LAST7">📅 7 ngày qua</option>
-              <option value="MONTH">📅 Tháng này</option>
-              <option value="LAST_MONTH">📅 Tháng trước</option>
-              <option value="CUSTOM">📅 Tùy chọn ngày...</option>
-            </select>
+          {/* Group 1: Thời gian */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-800">Thời gian</label>
+            <div className="space-y-1.5 text-xs">
+              {/* Radio: Tháng này (Mặc định chuẩn KiotViet) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter('MONTH');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setCurrentPage(1);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  dateFilter === 'MONTH'
+                    ? 'bg-blue-50 text-[#0B63E5] font-bold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                      dateFilter === 'MONTH' ? 'border-[#0B63E5]' : 'border-slate-300'
+                    }`}
+                  >
+                    {dateFilter === 'MONTH' && (
+                      <div className="w-2 h-2 rounded-full bg-[#0B63E5]" />
+                    )}
+                  </div>
+                  <span>Tháng này</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              </button>
 
-            {/* Custom Date Inputs */}
-            {dateFilter === 'CUSTOM' && (
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 border border-slate-200 rounded-lg">
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => {
-                    setCustomStartDate(e.target.value);
+              {/* Radio: Hôm nay */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter('TODAY');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setCurrentPage(1);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  dateFilter === 'TODAY'
+                    ? 'bg-blue-50 text-[#0B63E5] font-bold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                      dateFilter === 'TODAY' ? 'border-[#0B63E5]' : 'border-slate-300'
+                    }`}
+                  >
+                    {dateFilter === 'TODAY' && (
+                      <div className="w-2 h-2 rounded-full bg-[#0B63E5]" />
+                    )}
+                  </div>
+                  <span>Hôm nay</span>
+                </div>
+              </button>
+
+              {/* Radio: Tháng trước */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter('LAST_MONTH');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setCurrentPage(1);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  dateFilter === 'LAST_MONTH'
+                    ? 'bg-blue-50 text-[#0B63E5] font-bold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                      dateFilter === 'LAST_MONTH' ? 'border-[#0B63E5]' : 'border-slate-300'
+                    }`}
+                  >
+                    {dateFilter === 'LAST_MONTH' && (
+                      <div className="w-2 h-2 rounded-full bg-[#0B63E5]" />
+                    )}
+                  </div>
+                  <span>Tháng trước</span>
+                </div>
+              </button>
+
+              {/* Radio: Toàn thời gian */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter('ALL');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setCurrentPage(1);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                  dateFilter === 'ALL'
+                    ? 'bg-blue-50 text-[#0B63E5] font-bold'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                      dateFilter === 'ALL' ? 'border-[#0B63E5]' : 'border-slate-300'
+                    }`}
+                  >
+                    {dateFilter === 'ALL' && (
+                      <div className="w-2 h-2 rounded-full bg-[#0B63E5]" />
+                    )}
+                  </div>
+                  <span>Toàn thời gian</span>
+                </div>
+              </button>
+
+              {/* Radio: Tùy chỉnh (Gắn Popover KiotVietDateRangePicker chuẩn) */}
+              <div ref={datePickerAnchorRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDateFilter('CUSTOM');
+                    setIsDatePickerOpen(true);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer text-left ${
+                    dateFilter === 'CUSTOM'
+                      ? 'bg-blue-50 text-[#0B63E5] font-bold'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        dateFilter === 'CUSTOM' ? 'border-[#0B63E5]' : 'border-slate-300'
+                      }`}
+                    >
+                      {dateFilter === 'CUSTOM' && (
+                        <div className="w-2 h-2 rounded-full bg-[#0B63E5]" />
+                      )}
+                    </div>
+                    <span>Tùy chỉnh</span>
+                  </div>
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+
+                {/* Popover Bộ chọn ngày 2 lịch song song chuẩn KiotViet */}
+                <KiotVietDateRangePicker
+                  isOpen={isDatePickerOpen}
+                  onClose={() => setIsDatePickerOpen(false)}
+                  startDate={customStartDate}
+                  endDate={customEndDate}
+                  onApply={(start, end) => {
+                    setCustomStartDate(start);
+                    setCustomEndDate(end);
+                    setDateFilter('CUSTOM');
                     setCurrentPage(1);
                   }}
-                  className="bg-transparent text-xs text-slate-700 outline-none"
-                  title="Từ ngày"
+                  anchorRef={datePickerAnchorRef}
                 />
-                <span className="text-slate-400 text-xs">-</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => {
-                    setCustomEndDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="bg-transparent text-xs text-slate-700 outline-none"
-                  title="Đến ngày"
-                />
+
+                {/* Badge dải ngày đã chọn */}
+                {dateFilter === 'CUSTOM' && customStartDate && customEndDate && (
+                  <div className="mt-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-[11px] font-medium flex items-center justify-between">
+                    <span className="truncate">
+                      {formatDate(customStartDate)} - {formatDate(customEndDate)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomStartDate('');
+                        setCustomEndDate('');
+                        setDateFilter('MONTH');
+                      }}
+                      className="text-blue-500 hover:text-blue-800 p-0.5 ml-1"
+                      title="Hủy tùy chỉnh"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+          </div>
 
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as any);
-                setCurrentPage(1);
-              }}
-              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B63E5] text-xs cursor-pointer"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="COMPLETED">✅ Hoàn thành</option>
-              <option value="CANCELLED">❌ Đã hủy</option>
-            </select>
+          {/* Group 2: Trạng thái hóa đơn */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label className="block text-xs font-bold text-slate-800">Trạng thái hóa đơn</label>
+            <div className="space-y-1.5 text-xs text-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer hover:text-slate-900">
+                <input
+                  type="checkbox"
+                  checked={statusFilter === 'ALL' || statusFilter === 'COMPLETED'}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setStatusFilter(statusFilter === 'CANCELLED' ? 'ALL' : 'COMPLETED');
+                    } else {
+                      setStatusFilter(statusFilter === 'ALL' ? 'CANCELLED' : 'COMPLETED');
+                    }
+                    setCurrentPage(1);
+                  }}
+                  className="rounded text-[#0B63E5] focus:ring-0 cursor-pointer"
+                />
+                <span>Hoàn thành</span>
+              </label>
 
-            {/* Payment Method Filter */}
+              <label className="flex items-center gap-2 cursor-pointer hover:text-slate-900">
+                <input
+                  type="checkbox"
+                  checked={statusFilter === 'ALL' || statusFilter === 'CANCELLED'}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'CANCELLED');
+                    } else {
+                      setStatusFilter(statusFilter === 'ALL' ? 'COMPLETED' : 'CANCELLED');
+                    }
+                    setCurrentPage(1);
+                  }}
+                  className="rounded text-[#0B63E5] focus:ring-0 cursor-pointer"
+                />
+                <span>Đã hủy</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Group 3: Phương thức thanh toán */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-100">
+            <label className="block text-xs font-bold text-slate-800">Phương thức thanh toán</label>
             <select
               value={paymentFilter}
               onChange={(e) => {
                 setPaymentFilter(e.target.value as any);
                 setCurrentPage(1);
               }}
-              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B63E5] text-xs cursor-pointer"
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 outline-none focus:border-[#0B63E5] cursor-pointer"
             >
-              <option value="ALL">Tất cả thanh toán</option>
-              <option value="CASH">💵 Tiền mặt</option>
-              <option value="TRANSFER">📱 Chuyển khoản QR</option>
-              <option value="CARD">💳 Quẹt thẻ</option>
+              <option value="ALL">Tất cả phương thức</option>
+              <option value="CASH">Tiền mặt</option>
+              <option value="TRANSFER">Chuyển khoản QR</option>
+              <option value="CARD">Quẹt thẻ ATM/Visa</option>
             </select>
+          </div>
 
-            {/* Sort Order */}
+          {/* Group 4: Người bán / Thu ngân */}
+          <div className="space-y-1.5 pt-2 border-t border-slate-100">
+            <label className="block text-xs font-bold text-slate-800">Người bán</label>
             <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-[#0B63E5] text-xs cursor-pointer"
+              value={cashierFilter}
+              onChange={(e) => {
+                setCashierFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 outline-none focus:border-[#0B63E5] cursor-pointer"
             >
-              <option value="NEWEST">Thời gian giảm dần (Mới nhất trước)</option>
-              <option value="OLDEST">Thời gian tăng dần (Cũ nhất trước)</option>
-              <option value="AMOUNT_DESC">Giá trị giảm dần (Cao nhất)</option>
-              <option value="AMOUNT_ASC">Giá trị tăng dần (Thấp nhất)</option>
+              <option value="ALL">Tất cả người bán</option>
+              {uniqueCashiers.map((cashier) => (
+                <option key={cashier} value={cashier}>
+                  {cashier}
+                </option>
+              ))}
             </select>
-
-            {/* Clear Filters Button */}
-            {(statusFilter !== 'ALL' || paymentFilter !== 'ALL' || dateFilter !== 'ALL' || searchTerm.trim() !== '' || customStartDate !== '' || customEndDate !== '') && (
-              <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setStatusFilter('ALL');
-                  setPaymentFilter('ALL');
-                  setDateFilter('ALL');
-                  setCustomStartDate('');
-                  setCustomEndDate('');
-                  setCurrentPage(1);
-                }}
-                className="flex items-center gap-1 px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold border border-rose-200 rounded-lg text-xs cursor-pointer transition-colors"
-                title="Xóa tất cả bộ lọc"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>Xóa lọc ({filteredOrders.length}/{orders.length})</span>
-              </button>
-            )}
           </div>
         </div>
-      </div>
 
-      {/* Orders Data Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs min-w-[950px]">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4 whitespace-nowrap">Mã Hóa Đơn</th>
-                <th className="py-3 px-4 whitespace-nowrap">Thời Gian</th>
-                <th className="py-3 px-4 min-w-[150px]">Khách Hàng</th>
-                <th className="py-3 px-4 min-w-[160px]">Mặt Hàng Mua</th>
-                <th className="py-3 px-4 text-right whitespace-nowrap">Khách Đã Trả</th>
-                <th className="py-3 px-4 text-right whitespace-nowrap">Lợi Nhuận</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">Thanh Toán</th>
-                <th className="py-3 px-4 text-center whitespace-nowrap">Trạng Thái</th>
-                <th className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-slate-50 z-20 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
-                    <Receipt className="w-12 h-12 mx-auto text-slate-300 mb-2" />
-                    <p className="font-semibold text-slate-600">Không tìm thấy hóa đơn nào phù hợp!</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Thử thay đổi bộ lọc hoặc tạo đơn bán hàng mới qua màn hình POS.
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                paginatedOrders.map((order) => {
-                  const isCompleted = order.status === 'COMPLETED';
-                  const totalItemsCount = order.items.reduce((s, i) => s + i.quantity, 0);
+        {/* ==================== CỘT PHẢI: BẢNG DỮ LIỆU & THANH CÔNG CỤ ==================== */}
+        <div className="flex-1 min-w-0 space-y-2.5 w-full">
+          {/* Thanh công cụ KiotViet (Top Action Bar) */}
+          <div className="bg-white p-2.5 md:p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+            {/* Ô tìm kiếm đa tiêu chí KiotViet */}
+            <div ref={searchContainerRef} className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTerm || advancedSearch.code}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setAdvancedSearch({ ...advancedSearch, code: e.target.value });
+                  setCurrentPage(1);
+                }}
+                onClick={() => setIsSearchPopoverOpen(true)}
+                placeholder="Theo mã hóa đơn"
+                className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-800 border border-slate-200 rounded-lg focus:border-[#0B63E5] focus:ring-1 focus:ring-[#0B63E5] outline-none transition-all placeholder:text-slate-400 shadow-2xs"
+              />
+              <button
+                type="button"
+                onClick={() => setIsSearchPopoverOpen(!isSearchPopoverOpen)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded transition-colors cursor-pointer"
+                title="Mở rộng tra cứu"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+              </button>
 
-                  return (
-                    <tr
-                      key={order.id}
-                      className={`hover:bg-slate-50/70 transition-colors ${
-                        !isCompleted ? 'bg-rose-50/30' : ''
-                      }`}
-                    >
-                      {/* Order Code */}
-                      <td className="py-3 px-4 font-bold text-[#0B63E5]">
-                        <div className="flex items-center gap-1.5">
-                          <span>{order.code}</span>
-                          {order.note && (
-                            <span
-                              title={`Ghi chú: ${order.note}`}
-                              className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"
-                            />
-                          )}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-normal mt-0.5">
-                          Thu ngân: {order.cashier || 'Admin'}
-                        </div>
-                      </td>
+              {/* Search Popover KiotViet */}
+              <InvoiceSearchPopover
+                isOpen={isSearchPopoverOpen}
+                onClose={() => setIsSearchPopoverOpen(false)}
+                searchParams={advancedSearch}
+                onChangeParams={(p) => {
+                  setAdvancedSearch(p);
+                  if (p.code) setSearchTerm(p.code);
+                }}
+                onSearch={() => setCurrentPage(1)}
+                onReset={() => {
+                  setAdvancedSearch({ code: '', productKeyword: '', customerKeyword: '' });
+                  setSearchTerm('');
+                  setCurrentPage(1);
+                }}
+                containerRef={searchContainerRef}
+              />
+            </div>
 
-                      {/* Created At */}
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        <div className="flex items-center gap-1 text-slate-700 font-medium">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{formatDateTime(order.created_at)}</span>
-                        </div>
-                      </td>
+            {/* Các nút thao tác chuẩn KiotViet */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              {/* Nút Tạo mới v (POS) */}
+              <button
+                type="button"
+                onClick={() => setCurrentView('pos')}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0B63E5] hover:bg-blue-600 active:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tạo mới</span>
+                <ChevronDown className="w-3 h-3 ml-0.5 opacity-80" />
+              </button>
 
-                      {/* Customer Info */}
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-slate-900 flex items-center gap-1">
-                          <User className="w-3 h-3 text-slate-400" />
-                          <span>{order.customer_name || 'Khách lẻ'}</span>
-                        </div>
-                        {order.phone && (
-                          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                            <Phone className="w-3 h-3 text-slate-400" />
-                            <span>{order.phone}</span>
-                          </div>
-                        )}
-                      </td>
+              {/* Nút Import file */}
+              {currentUser.role === 'ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-lg shadow-2xs transition-all cursor-pointer"
+                  title="Nhập danh sách hóa đơn từ file Excel"
+                >
+                  <Upload className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Import file</span>
+                </button>
+              )}
 
-                      {/* Items summary */}
-                      <td className="py-3 px-4 max-w-xs">
-                        <div className="font-medium text-slate-800 truncate" title={order.items.map((i) => `${i.name} (x${i.quantity})`).join(', ')}>
-                          {order.items[0]?.name || 'Không có sản phẩm'}
-                          {order.items.length > 1 && (
-                            <span className="text-[10px] font-semibold text-slate-500 ml-1.5 bg-slate-100 px-1.5 py-0.5 rounded">
-                              +{order.items.length - 1} món khác
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
-                          Tổng số lượng: <strong className="text-slate-700">{totalItemsCount}</strong> món
-                        </div>
-                      </td>
+              {/* Nút Xuất file */}
+              <button
+                type="button"
+                onClick={handleExportOrdersToExcel}
+                className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-lg shadow-2xs transition-all cursor-pointer"
+                title={`Xuất ${filteredOrders.length} hóa đơn ra file Excel`}
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span>Xuất file</span>
+                <ChevronDown className="w-3 h-3 ml-0.5 text-slate-400" />
+              </button>
 
-                      {/* Final Amount */}
-                      <td className="py-3 px-4 text-right">
-                        <div className="font-bold text-slate-900">
-                          {formatCurrency(order.final_amount)}
-                        </div>
-                        {order.discount > 0 && (
-                          <div className="text-[10px] text-rose-500">
-                            Giảm: -{formatCurrency(order.discount)}
-                          </div>
-                        )}
-                      </td>
+              {/* Nút Lập HĐ bằng giọng nói */}
+              <button
+                type="button"
+                onClick={() => requestVoiceAssistant('POS_ORDER')}
+                className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer"
+                title="Lập hóa đơn nhanh bằng trợ lý AI"
+              >
+                <Mic className="w-3.5 h-3.5 text-amber-300" />
+                <span>Giọng nói</span>
+              </button>
+            </div>
+          </div>
 
-                      {/* Profit */}
-                      <td className="py-3 px-4 text-right font-semibold text-emerald-600 whitespace-nowrap">
-                        {isCompleted ? (
-                          formatCurrency(order.profit)
-                        ) : (
-                          <span className="text-slate-400 font-normal">--</span>
-                        )}
-                      </td>
+          {/* Bảng Dữ Liệu Hóa Đơn Chuẩn KiotViet */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs min-w-[980px]">
+                <thead>
+                  <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                    <th className="py-2.5 px-3 w-8 text-center">
+                      <input
+                        type="checkbox"
+                        checked={paginatedOrders.length > 0 && selectedOrderIds.size === paginatedOrders.length}
+                        onChange={handleToggleSelectAll}
+                        className="rounded text-[#0B63E5] focus:ring-0 cursor-pointer"
+                        title="Chọn tất cả"
+                      />
+                    </th>
+                    <th className="py-2.5 px-2 w-7 text-center">
+                      <Star className="w-3.5 h-3.5 text-slate-300 mx-auto" />
+                    </th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Mã hóa đơn</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Thời gian</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Thời gian tạo</th>
+                    <th className="py-2.5 px-3 min-w-[140px]">Khách hàng</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Tổng tiền hàng</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Giảm giá</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Khách đã trả</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap sticky right-0 bg-slate-50/90 z-20">
+                      Thao tác
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {/* DÒNG TỔNG KẾT NỔI BẬT CHUẨN KIOTVIET (Ảnh 1, 4) */}
+                  <tr className="bg-slate-50/90 border-b border-slate-200 text-xs font-bold text-slate-900">
+                    <td className="py-2.5 px-3"></td>
+                    <td className="py-2.5 px-2"></td>
+                    <td className="py-2.5 px-3"></td>
+                    <td className="py-2.5 px-3"></td>
+                    <td className="py-2.5 px-3"></td>
+                    <td className="py-2.5 px-3 font-semibold text-slate-500">
+                      {filteredOrders.length > 0 && `${stats.totalOrdersCount} hóa đơn`}
+                    </td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap font-bold text-slate-900">
+                      {formatNumber(stats.totalGrossAmount)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap font-bold text-slate-900">
+                      {formatNumber(stats.totalDiscount)}
+                    </td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap font-bold text-slate-900">
+                      {formatNumber(stats.totalPaid)}
+                    </td>
+                    <td className="py-2.5 px-3 sticky right-0 bg-slate-50/90 z-10"></td>
+                  </tr>
 
-                      {/* Payment Method */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        {order.payment_method === 'CASH' && (
-                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-medium text-[11px]">
-                            <Banknote className="w-3 h-3" /> Tiền mặt
-                          </span>
-                        )}
-                        {order.payment_method === 'TRANSFER' && (
-                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#0B63E5] font-medium text-[11px]">
-                            <QrCode className="w-3 h-3" /> Chuyển khoản
-                          </span>
-                        )}
-                        {order.payment_method === 'CARD' && (
-                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-medium text-[11px]">
-                            <CreditCard className="w-3 h-3" /> Quẹt thẻ
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        {isCompleted ? (
-                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
-                            <CheckCircle2 className="w-3 h-3" /> Hoàn thành
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-semibold text-[10px]">
-                            <XCircle className="w-3 h-3" /> Đã hủy
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3 px-4 text-right whitespace-nowrap sticky right-0 bg-white hover:bg-slate-50/70 transition-colors z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.08)]">
-                        <div className="flex items-center justify-end gap-1">
-                          {/* Export PDF Button */}
-                          <button
-                            onClick={() => {
-                              setSelectedPdfOrder(order);
-                              setIsPdfModalOpen(true);
-                            }}
-                            title="Xuất hóa đơn PDF & In ấn (K80 / A4)"
-                            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-all cursor-pointer"
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
-
-                          {/* Print Receipt */}
-                          <button
-                            onClick={() => openOrderReceipt(order)}
-                            title="In lại hóa đơn K80"
-                            className="p-1.5 text-slate-500 hover:text-[#0B63E5] hover:bg-blue-50 rounded-md transition-all cursor-pointer"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
-
-                          {/* Edit Invoice Button */}
-                          {currentUser.permissions.canEditInvoices && (
-                            <button
-                              onClick={() => handleOpenEditModal(order)}
-                              title="Cập nhật / Sửa thông tin hóa đơn"
-                              className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-all cursor-pointer"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                          )}
-
-                          {/* Cancel / Restore button */}
-                          {currentUser.permissions.canCancelInvoices && (
-                            isCompleted ? (
-                              <button
-                                onClick={() => {
-                                  setCancelingOrder(order);
-                                  setCancelReason('Khách đổi ý / Trả hàng');
-                                  setReturnStockOnCancel(true);
-                                }}
-                                title="Hủy hóa đơn & Hoàn trả kho"
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all cursor-pointer"
-                              >
-                                <Ban className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => restoreOrder(order.id)}
-                                title="Khôi phục hóa đơn"
-                                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-all cursor-pointer"
-                              >
-                                <RotateCcw className="w-4 h-4" />
-                              </button>
-                            )
-                          )}
-
-                          {/* Delete permanently (Admin Only) */}
-                          {currentUser.permissions.canDeleteInvoices && (
-                            <button
-                              onClick={() => {
-                                setDeletingOrderId(order.id);
-                                setReturnStockOnDelete(order.status === 'COMPLETED');
-                              }}
-                              title="Xóa vĩnh viễn (Chỉ Admin)"
-                              className="p-1.5 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-md transition-all cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
+                  {/* Danh sách các hóa đơn */}
+                  {filteredOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-12 text-center text-slate-400">
+                        <Receipt className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                        <p className="font-semibold text-slate-600">Không tìm thấy hóa đơn nào phù hợp!</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Thử thay đổi điều kiện lọc thời gian hoặc tạo đơn bán hàng mới.
+                        </p>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                  ) : (
+                    paginatedOrders.map((order) => {
+                      const isCompleted = order.status === 'COMPLETED';
+                      const isStarred = starredOrderIds.has(order.id);
+                      const isSelected = selectedOrderIds.has(order.id);
 
-        {/* Pagination Footer */}
-        <Pagination
-          currentPage={currentPage}
-          totalItems={filteredOrders.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={setPageSize}
-          pageSizeOptions={[10, 20, 50, 100]}
-          itemLabel="hóa đơn"
-        />
+                      return (
+                        <tr
+                          key={order.id}
+                          className={`hover:bg-slate-50/80 transition-colors ${
+                            !isCompleted ? 'bg-rose-50/20 text-slate-400' : isSelected ? 'bg-blue-50/40' : ''
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <td className="py-2.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => handleToggleSelectOrder(order.id, e)}
+                              className="rounded text-[#0B63E5] focus:ring-0 cursor-pointer"
+                            />
+                          </td>
+
+                          {/* Star */}
+                          <td className="py-2.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => toggleStar(order.id, e)}
+                              className="text-slate-300 hover:text-amber-400 p-0.5 cursor-pointer transition-colors"
+                              title={isStarred ? 'Bỏ đánh dấu' : 'Đánh dấu sao'}
+                            >
+                              <Star
+                                className={`w-3.5 h-3.5 mx-auto ${
+                                  isStarred ? 'text-amber-400 fill-amber-400' : 'text-slate-300'
+                                }`}
+                              />
+                            </button>
+                          </td>
+
+                          {/* Mã hóa đơn */}
+                          <td className="py-2.5 px-3 font-semibold whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => setViewingOrder(order)}
+                              className="text-[#0B63E5] hover:underline font-bold text-xs cursor-pointer flex items-center gap-1"
+                              title="Xem chi tiết hóa đơn"
+                            >
+                              <span>{order.code}</span>
+                              {order.note && (
+                                <span
+                                  title={`Ghi chú: ${order.note}`}
+                                  className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"
+                                />
+                              )}
+                            </button>
+                            <div className="text-[10px] text-slate-400 font-normal">
+                              Thu ngân: {order.cashier || 'Admin'}
+                            </div>
+                          </td>
+
+                          {/* Thời gian */}
+                          <td className="py-2.5 px-3 text-slate-700 whitespace-nowrap">
+                            {formatDateTime(order.created_at)}
+                          </td>
+
+                          {/* Thời gian tạo */}
+                          <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">
+                            {formatDateTime(order.created_at)}
+                          </td>
+
+                          {/* Khách hàng */}
+                          <td className="py-2.5 px-3">
+                            <div className="font-medium text-slate-800">
+                              {order.customer_name || 'Khách lẻ'}
+                            </div>
+                            {order.phone && (
+                              <div className="text-[11px] text-slate-400">{order.phone}</div>
+                            )}
+                          </td>
+
+                          {/* Tổng tiền hàng */}
+                          <td className="py-2.5 px-3 text-right font-medium text-slate-800 whitespace-nowrap">
+                            {formatNumber(order.total)}
+                          </td>
+
+                          {/* Giảm giá */}
+                          <td className="py-2.5 px-3 text-right font-medium text-slate-800 whitespace-nowrap">
+                            {formatNumber(order.discount)}
+                          </td>
+
+                          {/* Khách đã trả */}
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap">
+                            {formatNumber(order.final_amount)}
+                          </td>
+
+                          {/* Thao tác */}
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap sticky right-0 bg-white hover:bg-slate-50/80 transition-colors z-10">
+                            <div className="flex items-center justify-end gap-1">
+                              {/* In phiếu thu K80 */}
+                              <button
+                                type="button"
+                                onClick={() => openOrderReceipt(order)}
+                                title="In lại hóa đơn K80"
+                                className="p-1 text-slate-500 hover:text-[#0B63E5] hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Xuất PDF */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPdfOrder(order);
+                                  setIsPdfModalOpen(true);
+                                }}
+                                title="Xuất hóa đơn PDF & In ấn (K80 / A4)"
+                                className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Sửa hóa đơn */}
+                              {currentUser.permissions.canEditInvoices && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditModal(order)}
+                                  title="Cập nhật / Sửa thông tin hóa đơn"
+                                  className="p-1 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {/* Hủy / Khôi phục hóa đơn */}
+                              {currentUser.permissions.canCancelInvoices && (
+                                isCompleted ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCancelingOrder(order);
+                                      setCancelReason('Khách đổi ý / Trả hàng');
+                                      setReturnStockOnCancel(true);
+                                    }}
+                                    title="Hủy hóa đơn & Hoàn trả kho"
+                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                                  >
+                                    <Ban className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => restoreOrder(order.id)}
+                                    title="Khôi phục hóa đơn"
+                                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </button>
+                                )
+                              )}
+
+                              {/* Xóa vĩnh viễn (Chỉ Admin) */}
+                              {currentUser.permissions.canDeleteInvoices && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDeletingOrderId(order.id);
+                                    setReturnStockOnDelete(order.status === 'COMPLETED');
+                                  }}
+                                  title="Xóa vĩnh viễn (Chỉ Admin)"
+                                  className="p-1 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Phân Trang & Chân Bảng KiotViet */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-2.5 bg-white border-t border-slate-200">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <span>Hiển thị</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                >
+                  <option value={15}>15 dòng</option>
+                  <option value={20}>20 dòng</option>
+                  <option value={50}>50 dòng</option>
+                  <option value={100}>100 dòng</option>
+                </select>
+                <span className="text-slate-400">|</span>
+                <span>
+                  Tổng <strong>{filteredOrders.length}</strong> hóa đơn
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Pagination
+                  currentPage={currentPage}
+                  totalItems={filteredOrders.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                  pageSizeOptions={[15, 20, 50, 100]}
+                  itemLabel="hóa đơn"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* MODAL 1: EDIT / UPDATE PAST INVOICE (Cập nhật Hóa Đơn Cũ) */}
