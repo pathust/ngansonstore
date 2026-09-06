@@ -52,7 +52,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
 
-  const lowStockCount = products.filter((p) => p.stock <= p.min_stock).length;
+  // Tách riêng "hết hàng hoàn toàn" và "dưới ngưỡng tồn kho tối thiểu đã cấu hình" — gộp chung
+  // vào 1 số "báo động" trước đây gây hiểu lầm vì phần lớn sản phẩm chưa từng đặt min_stock
+  // (mặc định 0), nên hễ hết hàng (stock=0) là tự động bị tính vào "báo động" dù không phải
+  // cảnh báo tồn kho tối thiểu thực sự.
+  const outOfStockCount = products.filter((p) => p.stock === 0).length;
+  const belowMinStockCount = products.filter((p) => p.stock > 0 && p.stock <= p.min_stock).length;
 
   const navGroups = [
     {
@@ -86,8 +91,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'products',
           label: 'Hàng hóa & Giá',
           icon: Package,
-          badge: lowStockCount > 0 ? `${lowStockCount} báo động` : `${products.length}`,
-          badgeColor: lowStockCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600',
+          badges:
+            outOfStockCount > 0 || belowMinStockCount > 0
+              ? [
+                  outOfStockCount > 0 ? { text: `${outOfStockCount} hết hàng`, color: 'bg-rose-100 text-rose-700' } : null,
+                  belowMinStockCount > 0 ? { text: `${belowMinStockCount} dưới ngưỡng`, color: 'bg-amber-100 text-amber-800' } : null,
+                ].filter((b): b is { text: string; color: string } => b !== null)
+              : undefined,
+          badge: outOfStockCount === 0 && belowMinStockCount === 0 ? `${products.length}` : undefined,
+          badgeColor: 'bg-slate-100 text-slate-600',
           isRestricted: !currentUser.permissions.canManageProducts,
         },
         {
@@ -249,16 +261,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <Lock className="w-3 h-3" />
                         </span>
                       )}
-                      {item.badge && !isRestricted && (
-                        <span
-                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                            isActive
-                              ? 'bg-[#0B63E5] text-white'
-                              : (item as any).badgeColor || (item.badge === 'HOT' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')
-                          }`}
-                        >
-                          {item.badge}
-                        </span>
+                      {(item as any).badges && !isRestricted ? (
+                        (item as any).badges.map((b: { text: string; color: string }, idx: number) => (
+                          <span
+                            key={idx}
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
+                              isActive ? 'bg-[#0B63E5] text-white' : b.color
+                            }`}
+                          >
+                            {b.text}
+                          </span>
+                        ))
+                      ) : (
+                        item.badge &&
+                        !isRestricted && (
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              isActive
+                                ? 'bg-[#0B63E5] text-white'
+                                : (item as any).badgeColor || (item.badge === 'HOT' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')
+                            }`}
+                          >
+                            {item.badge}
+                          </span>
+                        )
                       )}
                     </div>
                   </button>
