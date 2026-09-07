@@ -290,4 +290,47 @@ describe('useNotifications', () => {
     expect(result.current.notifications[0].timestamp).toBe(historicalTime);
     expect(formatRelativeTime(result.current.notifications[0].timestamp)).not.toBe('Vừa xong');
   });
+
+  it('KHÔNG tự sinh thông báo cho đơn hàng/tồn kho đã quá 90 ngày (tránh ngập lịch sử)', () => {
+    const veryOldTime = Date.now() - 200 * 24 * 60 * 60 * 1000; // 200 ngày trước
+    mockOrders = [
+      {
+        id: 'ord-ancient',
+        code: 'HD-ANCIENT',
+        branch: 'CN1',
+        customer_name: 'Khách cũ',
+        phone: '',
+        cashier: 'A',
+        status: 'COMPLETED',
+        payment_method: 'CASH',
+        items: [],
+        total: 100000,
+        discount: 0,
+        final_amount: 100000,
+        total_cost: 80000,
+        profit: 20000,
+        created_at: new Date(veryOldTime).toISOString(),
+      },
+    ];
+    mockProducts = [
+      {
+        id: 'prod-ancient',
+        sku: 'SP-ANCIENT',
+        barcode: '',
+        name: 'Hàng hết từ rất lâu, không còn theo dõi',
+        category: 'Test',
+        unit: 'Cái',
+        cost_price: 5000,
+        selling_price: 10000,
+        stock: 0,
+        min_stock: 5,
+        status: 'ACTIVE',
+        updated_at: new Date(veryOldTime).toISOString(),
+      },
+    ];
+
+    const { result } = renderHook(() => useNotifications());
+
+    expect(result.current.notifications.length).toBe(0);
+  });
 });

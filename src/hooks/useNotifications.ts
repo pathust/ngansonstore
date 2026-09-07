@@ -23,6 +23,11 @@ export interface AppNotification {
 
 const STORAGE_KEY = 'nganson_notifications_v3';
 
+// Chỉ tự sinh thông báo tồn kho/đơn hàng cho sự kiện trong khoảng thời gian gần đây —
+// tránh việc dữ liệu lịch sử (hàng nghìn đơn/sản phẩm cũ) làm ngập trung tâm thông báo.
+// Phải khớp với NOTIFICATION_RECENT_WINDOW_MS ở server/db.ts.
+const NOTIFICATION_RECENT_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+
 /**
  * Định dạng thời gian tương đối tiếng Việt chính xác
  */
@@ -148,12 +153,14 @@ export function useNotifications() {
       const updatedList = [...prevList];
       let hasChanges = false;
       const now = Date.now();
+      const cutoff = now - NOTIFICATION_RECENT_WINDOW_MS;
 
       // 1. Thông báo đơn hàng mới (mỗi đơn hàng tạo 1 thông báo theo thời gian của đơn)
       orders.forEach((o) => {
         const contentKey = `order:${o.id}`;
         if (!existingByKey.has(contentKey)) {
           const ts = parseDateToTimestamp(o.created_at) || now;
+          if (ts < cutoff) return; // Đơn hàng quá cũ, không tạo thông báo mới cho lịch sử
           const newNotif: AppNotification = {
             id: `notif-order-${o.id}`,
             contentKey,
@@ -196,6 +203,8 @@ export function useNotifications() {
         const oldNotif = oldNotifIndex !== -1 ? updatedList[oldNotifIndex] : undefined;
 
         if (currentStock <= 0) {
+          // Sản phẩm chưa từng được thông báo và đã hết hàng quá lâu -> bỏ qua
+          if (oldNotifIndex === -1 && originalTimestamp < cutoff) return;
           // Trạng thái: HẾT HÀNG
           const isAlreadyOutNotified =
             oldNotif?.meta?.stockState === 'OUT' ||
@@ -220,6 +229,8 @@ export function useNotifications() {
             hasChanges = true;
           }
         } else if (currentStock <= minStock) {
+          // Sản phẩm chưa từng được thông báo và đã sắp hết quá lâu -> bỏ qua
+          if (oldNotifIndex === -1 && originalTimestamp < cutoff) return;
           // Trạng thái: DƯỚI ĐỊNH MỨC TỒN (Sắp hết)
           const isAlreadyLowNotified =
             oldNotif?.meta?.stockState === 'LOW' ||

@@ -314,6 +314,7 @@ class DatabaseManager {
         ordersData,
         cashbookData,
         auditsRes,
+        notificationsData,
       ] = await Promise.all([
         supabase.from('store_settings').select('data').limit(1).maybeSingle(),
         supabase.from('branches').select('*'),
@@ -325,6 +326,7 @@ class DatabaseManager {
         this.fetchAllRows('orders', 'created_at'),
         this.fetchAllRows('cashbook', 'created_at'),
         supabase.from('inventory_audits').select('*').order('created_at', { ascending: false }).limit(200),
+        this.fetchAllRows('notifications', 'timestamp', 5000),
       ]);
 
       if (!this.cache) {
@@ -386,6 +388,21 @@ class DatabaseManager {
       }
       if (auditsRes.data && auditsRes.data.length > 0) {
         this.cache.inventory_audits = auditsRes.data;
+      }
+      if (notificationsData && notificationsData.length > 0) {
+        // Bảng notifications lưu snake_case (content_key, is_read...) trong khi
+        // AppNotification dùng camelCase — chuyển đổi khi nạp lại vào cache.
+        this.cache.notifications = notificationsData.map((n: any) => ({
+          id: n.id,
+          contentKey: n.content_key,
+          type: n.type,
+          title: n.title,
+          description: n.description || '',
+          timestamp: n.timestamp,
+          isRead: !!n.is_read,
+          isDismissed: !!n.is_dismissed,
+          meta: n.meta || {},
+        }));
       }
 
       this.cache.lastUpdated = Date.now();
@@ -508,6 +525,25 @@ class DatabaseManager {
       }
     } catch (err) {
       console.warn(`[SUPABASE] Mutation sync warning (${action} ${table}):`, err);
+    }
+  }
+
+  // Xóa các thông báo STOCK/ORDER cũ hơn cutoff bằng MỘT filtered DELETE duy nhất
+  // (thay vì gom id rồi xóa theo lô) — tránh phải chạy hàng chục round-trip tuần tự
+  // tới Supabase, vốn dễ bị treo/timeout trên môi trường serverless (Vercel).
+  public async pruneOldNotificationsInSupabase(cutoff: number) {
+    if (!isSupabaseConfigured()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .in('type', ['ORDER', 'STOCK'])
+        .lt('timestamp', cutoff);
+      if (error) console.error('[SUPABASE] Prune notifications error:', error);
+    } catch (err) {
+      console.warn('[SUPABASE] Prune notifications warning:', err);
     }
   }
 
@@ -1707,11 +1743,38 @@ class DatabaseManager {
   }
 
   // ==================== NOTIFICATIONS ====================
+  // Chỉ tự tạo thông báo (tồn kho/đơn hàng) cho sự kiện trong N ngày gần đây —
+  // tránh thông báo bị "ngập" bởi toàn bộ lịch sử đơn hàng/tồn kho của cửa hàng
+  // (VD: cửa hàng có ~5000 đơn hàng cũ thì không cần báo lại từng đơn cũ).
+  // Thông báo đang active đã tồn tại vẫn được cập nhật/giải quyết bình thường,
+  // giới hạn này chỉ áp dụng khi TẠO MỚI thông báo.
+  public static readonly NOTIFICATION_RECENT_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+
+  // Dọn các thông báo STOCK/ORDER đã quá cũ (ngoài cửa sổ gần đây) để tránh
+  // phình to vô hạn theo thời gian. CASHBOOK/AUDIT phản ánh trạng thái hiện tại
+  // (còn nợ hay không) nên không bị giới hạn theo thời gian tạo.
+  public pruneOldNotifications() {
+    const db = this.getDB();
+    if (!db.notifications || db.notifications.length === 0) return;
+    const cutoff = Date.now() - DatabaseManager.NOTIFICATION_RECENT_WINDOW_MS;
+    const before = db.notifications.length;
+
+    db.notifications = db.notifications.filter(
+      (n) => !((n.type === 'ORDER' || n.type === 'STOCK') && n.timestamp < cutoff)
+    );
+
+    if (db.notifications.length !== before) {
+      this.schedulePersist();
+      this.pruneOldNotificationsInSupabase(cutoff);
+    }
+  }
+
   public syncStockNotifications() {
     const db = this.getDB();
     if (!db.notifications) db.notifications = [];
     let hasChanges = false;
     const now = Date.now();
+    const cutoff = now - DatabaseManager.NOTIFICATION_RECENT_WINDOW_MS;
     const dirty: AppNotification[] = [];
 
     // Map các thông báo tồn kho chưa giải quyết theo productId
@@ -1734,6 +1797,7 @@ class DatabaseManager {
           // Ưu tiên lấy p.updated_at nếu có, fallback về now
           const pTime = p.updated_at ? new Date(p.updated_at).getTime() : now;
           const originalTimestamp = isNaN(pTime) ? now : pTime;
+          if (originalTimestamp < cutoff) return; // Sản phẩm hết hàng đã quá lâu, bỏ qua
           const newNotif: AppNotification = {
             id: `notif-stock-out-${p.id}`,
             contentKey: `stock:${p.id}:OUT`,
@@ -1764,6 +1828,7 @@ class DatabaseManager {
         if (!existingNotif) {
           const pTime = p.updated_at ? new Date(p.updated_at).getTime() : now;
           const originalTimestamp = isNaN(pTime) ? now : pTime;
+          if (originalTimestamp < cutoff) return; // Sản phẩm sắp hết đã quá lâu, bỏ qua
           const newNotif: AppNotification = {
             id: `notif-stock-low-${p.id}`,
             contentKey: `stock:${p.id}:LOW`,
@@ -1804,6 +1869,7 @@ class DatabaseManager {
     if (!db.orders) db.orders = [];
     let hasChanges = false;
     const dirty: AppNotification[] = [];
+    const cutoff = Date.now() - DatabaseManager.NOTIFICATION_RECENT_WINDOW_MS;
 
     const existingOrderNotifs = new Set<string>();
     db.notifications.forEach((n) => {
@@ -1821,6 +1887,7 @@ class DatabaseManager {
           const t = iso ? new Date(iso).getTime() : new Date(o.created_at).getTime();
           if (!isNaN(t)) orderTs = t;
         }
+        if (orderTs < cutoff) return; // Đơn hàng quá cũ, không tạo thông báo mới cho lịch sử
 
         const newNotif: AppNotification = {
           id: `notif-order-${o.id}`,
@@ -1904,6 +1971,7 @@ class DatabaseManager {
     limit?: number;
     offset?: number;
   }) {
+    this.pruneOldNotifications();
     this.syncStockNotifications();
     this.syncOrderNotifications();
     this.syncDebtNotifications();
