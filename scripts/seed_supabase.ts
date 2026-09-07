@@ -36,7 +36,8 @@ async function seedSupabase() {
   - ${db.orders?.length || 0} Hóa đơn bán hàng
   - ${db.cashbook?.length || 0} Bút toán sổ quỹ
   - ${db.categories?.length || 0} Danh mục
-  - ${db.users?.length || 0} Người dùng\n`);
+  - ${db.users?.length || 0} Người dùng
+  - ${db.notifications?.length || 0} Thông báo\n`);
 
   // Helper to convert DD/MM/YYYY HH:mm:ss or timestamps into ISO 8601 strings for PostgreSQL TIMESTAMPTZ
   function toIsoDate(dateStr?: string | number | null): string | null {
@@ -228,6 +229,22 @@ async function seedSupabase() {
       created_at: toIsoDate(a.created_at) || new Date().toISOString(),
     }));
     await upsertInBatches('inventory_audits', formattedAudits);
+  }
+
+  // 11. Notifications
+  if (db.notifications && db.notifications.length > 0) {
+    const formattedNotifications = db.notifications.map((n: any) => ({
+      id: n.id,
+      content_key: n.contentKey,
+      type: n.type,
+      title: n.title,
+      description: n.description || '',
+      timestamp: n.timestamp,
+      is_read: !!n.isRead,
+      is_dismissed: !!n.isDismissed,
+      meta: n.meta || {},
+    }));
+    await upsertInBatches('notifications', formattedNotifications);
   }
 
   console.log('\n====================================================');
