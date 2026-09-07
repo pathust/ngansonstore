@@ -53,8 +53,6 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   // Lọc theo loại thông báo
   const filtered =
     filter === 'ALL' ? notifications : notifications.filter((n) => n.type === filter);
@@ -93,6 +91,8 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
   };
 
   const visible = filtered.slice(0, visibleCount);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col animate-in fade-in duration-150">
