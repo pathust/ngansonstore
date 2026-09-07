@@ -274,9 +274,26 @@ class ApiClient {
   public async deleteOrder(id: string, returnStock: boolean = false): Promise<void> {
     cacheManager.invalidate('orders');
     if (returnStock) cacheManager.invalidate('products');
-    await this.request(`/orders/${encodeURIComponent(id)}?returnStock=${returnStock}`, {
-      method: 'DELETE',
-    });
+
+    // Xóa trực tiếp trên Supabase (nếu client có cấu hình) để đồng bộ tức thì
+    try {
+      await supabaseService.deleteOrder(id);
+    } catch (supaErr) {
+      console.warn('[Supabase] Direct delete order fallback to API proxy:', supaErr);
+    }
+
+    try {
+      await this.request(`/orders/${encodeURIComponent(id)}?returnStock=${returnStock}`, {
+        method: 'DELETE',
+      });
+    } catch (apiErr: any) {
+      // Nếu API trả về 404 (đơn đã không còn trên server), coi như xóa thành công
+      if (apiErr?.message?.includes('404') || apiErr?.message?.includes('not found')) {
+        console.info(`[API] Order ${id} already deleted or not found on server.`);
+        return;
+      }
+      throw apiErr;
+    }
   }
 
   public async batchUpsertOrders(items: Order[], strategy: string = 'OVERWRITE'): Promise<{ total: number; inserted: number; updated: number; skipped: number }> {

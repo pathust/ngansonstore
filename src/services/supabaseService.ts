@@ -389,7 +389,10 @@ export class SupabaseService {
 
   public async deleteOrder(id: string): Promise<boolean> {
     try {
-      const { error } = await supabase.from('orders').delete().eq('id', id);
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .or(`id.eq.${id},code.eq.${id}`);
       return !error;
     } catch {
       return false;

@@ -507,7 +507,13 @@ class DatabaseManager {
       if (action === 'delete') {
         const id = typeof data === 'string' ? data : data?.id;
         if (id) {
-          const { error } = await supabase.from(table).delete().eq('id', id);
+          let query = supabase.from(table).delete();
+          if (table === 'orders') {
+            query = query.or(`id.eq.${id},code.eq.${id}`);
+          } else {
+            query = query.eq('id', id);
+          }
+          const { error } = await query;
           if (error) console.error(`[SUPABASE] Delete error on ${table}:`, error);
         }
       } else {
@@ -753,32 +759,32 @@ class DatabaseManager {
     return { total, items: result };
   }
 
-  public createOrder(order: Order): Order {
+  public async createOrder(order: Order): Promise<Order> {
     const db = this.getDB();
     db.orders.unshift(order);
 
     // Auto deduct inventory stock
     if (order.status === 'COMPLETED') {
-      order.items.forEach((item) => {
-        const pIndex = db.products.findIndex((p) => p.id === item.product_id || p.sku === item.sku);
+      for (const item of order.items) {
+        const pIndex = db.products.findIndex((p) => p.id === item.product_id || (p.sku && p.sku === item.sku));
         if (pIndex >= 0) {
           const product = db.products[pIndex];
           if (product.stock - item.quantity < 0) {
             order.note = (order.note ? order.note + '\n' : '') + `[Cảnh báo: Tồn kho âm cho ${item.name}]`;
           }
           product.stock = Math.max(0, product.stock - item.quantity);
-          this.syncToSupabase('products', 'upsert', product);
+          await this.syncToSupabase('products', 'upsert', product);
         }
-      });
+      }
       
       if (order.customer_name) {
-        const cIndex = db.customers.findIndex(c => c.name === order.customer_name);
+        const cIndex = db.customers.findIndex((c) => c.name === order.customer_name);
         if (cIndex >= 0) {
           db.customers[cIndex].total_purchased = (db.customers[cIndex].total_purchased || 0) + (order.final_amount || 0);
           if ((order as any).payment_method === 'DEBT') {
             db.customers[cIndex].debt = (db.customers[cIndex].debt || 0) + (order.final_amount || 0);
           }
-          this.syncToSupabase('customers', 'upsert', db.customers[cIndex]);
+          await this.syncToSupabase('customers', 'upsert', db.customers[cIndex]);
         }
       }
 
@@ -804,78 +810,88 @@ class DatabaseManager {
     }
 
     this.schedulePersist();
-    this.syncToSupabase('orders', 'upsert', order);
+    await this.syncToSupabase('orders', 'upsert', order);
     return order;
   }
 
-  public updateOrder(id: string, updates: Partial<Order>): Order | null {
+  public async updateOrder(id: string, updates: Partial<Order>): Promise<Order | null> {
     const db = this.getDB();
-    const index = db.orders.findIndex((o) => o.id === id);
+    const index = db.orders.findIndex((o) => o.id === id || o.code === id);
     if (index === -1) return null;
     
     const oldOrder = db.orders[index];
     
     if (oldOrder.status === 'COMPLETED' && updates.status === 'CANCELLED') {
-      oldOrder.items.forEach((item) => {
-        const pIndex = db.products.findIndex((p) => p.id === item.product_id || p.sku === item.sku);
+      for (const item of oldOrder.items) {
+        const pIndex = db.products.findIndex((p) => p.id === item.product_id || (p.sku && p.sku === item.sku));
         if (pIndex >= 0) {
           db.products[pIndex].stock += item.quantity;
-          this.syncToSupabase('products', 'upsert', db.products[pIndex]);
+          await this.syncToSupabase('products', 'upsert', db.products[pIndex]);
         }
-      });
+      }
     } else if (oldOrder.status === 'CANCELLED' && updates.status === 'COMPLETED') {
       const itemsToDeduct = updates.items || oldOrder.items;
-      itemsToDeduct.forEach((item) => {
-        const pIndex = db.products.findIndex((p) => p.id === item.product_id || p.sku === item.sku);
+      for (const item of itemsToDeduct) {
+        const pIndex = db.products.findIndex((p) => p.id === item.product_id || (p.sku && p.sku === item.sku));
         if (pIndex >= 0) {
-          db.products[pIndex].stock -= item.quantity;
-          this.syncToSupabase('products', 'upsert', db.products[pIndex]);
+          db.products[pIndex].stock = Math.max(0, db.products[pIndex].stock - item.quantity);
+          await this.syncToSupabase('products', 'upsert', db.products[pIndex]);
         }
-      });
+      }
     } else if (oldOrder.status === 'COMPLETED' && (updates.status === 'COMPLETED' || !updates.status) && updates.items) {
-      oldOrder.items.forEach((item) => {
-        const pIndex = db.products.findIndex((p) => p.id === item.product_id || p.sku === item.sku);
+      for (const item of oldOrder.items) {
+        const pIndex = db.products.findIndex((p) => p.id === item.product_id || (p.sku && p.sku === item.sku));
         if (pIndex >= 0) {
           db.products[pIndex].stock += item.quantity;
-          this.syncToSupabase('products', 'upsert', db.products[pIndex]);
+          await this.syncToSupabase('products', 'upsert', db.products[pIndex]);
         }
-      });
-      updates.items.forEach((item) => {
-        const pIndex = db.products.findIndex((p) => p.id === item.product_id || p.sku === item.sku);
+      }
+      for (const item of updates.items) {
+        const pIndex = db.products.findIndex((p) => p.id === item.product_id || (p.sku && p.sku === item.sku));
         if (pIndex >= 0) {
-          db.products[pIndex].stock -= item.quantity;
-          this.syncToSupabase('products', 'upsert', db.products[pIndex]);
+          db.products[pIndex].stock = Math.max(0, db.products[pIndex].stock - item.quantity);
+          await this.syncToSupabase('products', 'upsert', db.products[pIndex]);
         }
-      });
+      }
     }
     
     db.orders[index] = { ...db.orders[index], ...updates };
     this.schedulePersist();
-    this.syncToSupabase('orders', 'upsert', db.orders[index]);
+    await this.syncToSupabase('orders', 'upsert', db.orders[index]);
     return db.orders[index];
   }
 
-  public deleteOrder(id: string, returnStock: boolean = false): boolean {
+  public async deleteOrder(id: string, returnStock: boolean = false): Promise<boolean> {
     const db = this.getDB();
-    const order = db.orders.find((o) => o.id === id);
-    if (!order) return false;
+    const orderIndex = db.orders.findIndex((o) => o.id === id || o.code === id);
+    const order = orderIndex >= 0 ? db.orders[orderIndex] : null;
 
-    if (returnStock && order.status === 'COMPLETED') {
-      order.items.forEach((item) => {
-        const pIndex = db.products.findIndex((p) => p.id === item.product_id || p.sku === item.sku);
+    if (order && returnStock && order.status === 'COMPLETED') {
+      for (const item of order.items) {
+        const pIndex = db.products.findIndex((p) => p.id === item.product_id || (p.sku && p.sku === item.sku));
         if (pIndex >= 0) {
           db.products[pIndex].stock += item.quantity;
-          this.syncToSupabase('products', 'upsert', db.products[pIndex]);
+          await this.syncToSupabase('products', 'upsert', db.products[pIndex]);
         }
-      });
+      }
     }
 
-    db.orders = db.orders.filter((o) => o.id !== id);
-    if (!db.deletedIds.orders.includes(id)) {
-      db.deletedIds.orders.push(id);
+    if (order) {
+      db.orders.splice(orderIndex, 1);
+      if (!db.deletedIds.orders.includes(order.id)) {
+        db.deletedIds.orders.push(order.id);
+      }
+      if (order.code && !db.deletedIds.orders.includes(order.code)) {
+        db.deletedIds.orders.push(order.code);
+      }
+    } else {
+      if (!db.deletedIds.orders.includes(id)) {
+        db.deletedIds.orders.push(id);
+      }
     }
+
     this.schedulePersist();
-    this.syncToSupabase('orders', 'delete', id);
+    await this.syncToSupabase('orders', 'delete', order?.id || id);
     return true;
   }
 

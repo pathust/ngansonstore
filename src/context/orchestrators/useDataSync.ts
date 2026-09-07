@@ -105,46 +105,72 @@ export function useDataSync() {
             return payload.categories!;
           });
         }
+        const deletedIds = payload.deletedIds || {};
+        const deletedOrderIds = new Set(deletedIds.orders || []);
+        const deletedProductIds = new Set(deletedIds.products || []);
+        const deletedCustomerIds = new Set(deletedIds.customers || []);
+        const deletedSupplierIds = new Set(deletedIds.suppliers || []);
+        const deletedCashbookIds = new Set(deletedIds.cashbook || []);
+        const deletedAuditIds = new Set(deletedIds.inventory_audits || []);
+
         if (payload.products && payload.products.length > 0) {
+          const cleanProducts = payload.products.filter(
+            (p) => !deletedProductIds.has(p.id) && (!p.sku || !deletedProductIds.has(p.sku))
+          );
           setProducts((prev) => {
-            if (isDataEqual(prev, payload.products)) return prev;
-            cacheManager.set('products', payload.products);
-            return payload.products!;
+            if (isDataEqual(prev, cleanProducts)) return prev;
+            cacheManager.set('products', cleanProducts);
+            return cleanProducts;
           });
         }
         if (payload.orders) {
+          const cleanOrders = payload.orders.filter(
+            (o) => !deletedOrderIds.has(o.id) && !deletedOrderIds.has(o.code)
+          );
           setOrders((prev) => {
-            if (isDataEqual(prev, payload.orders)) return prev;
-            cacheManager.set('orders', payload.orders);
-            return payload.orders!;
+            if (isDataEqual(prev, cleanOrders)) return prev;
+            cacheManager.set('orders', cleanOrders);
+            return cleanOrders;
           });
         }
         if (payload.suppliers) {
+          const cleanSuppliers = payload.suppliers.filter(
+            (s) => !deletedSupplierIds.has(s.id) && (!s.code || !deletedSupplierIds.has(s.code))
+          );
           setSuppliers((prev) => {
-            if (isDataEqual(prev, payload.suppliers)) return prev;
-            cacheManager.set('suppliers', payload.suppliers);
-            return payload.suppliers!;
+            if (isDataEqual(prev, cleanSuppliers)) return prev;
+            cacheManager.set('suppliers', cleanSuppliers);
+            return cleanSuppliers;
           });
         }
         if (payload.customers) {
+          const cleanCustomers = payload.customers.filter(
+            (c) => !deletedCustomerIds.has(c.id) && (!c.code || !deletedCustomerIds.has(c.code))
+          );
           setCustomers((prev) => {
-            if (isDataEqual(prev, payload.customers)) return prev;
-            cacheManager.set('customers', payload.customers);
-            return payload.customers!;
+            if (isDataEqual(prev, cleanCustomers)) return prev;
+            cacheManager.set('customers', cleanCustomers);
+            return cleanCustomers;
           });
         }
         if (payload.inventory_audits) {
+          const cleanAudits = payload.inventory_audits.filter(
+            (a) => !deletedAuditIds.has(a.id) && (!a.code || !deletedAuditIds.has(a.code))
+          );
           setInventoryAudits((prev) => {
-            if (isDataEqual(prev, payload.inventory_audits)) return prev;
-            cacheManager.set('audits', payload.inventory_audits);
-            return payload.inventory_audits!;
+            if (isDataEqual(prev, cleanAudits)) return prev;
+            cacheManager.set('audits', cleanAudits);
+            return cleanAudits;
           });
         }
         if (payload.cashbook) {
+          const cleanCashbook = payload.cashbook.filter(
+            (cb) => !deletedCashbookIds.has(cb.id) && (!cb.code || !deletedCashbookIds.has(cb.code))
+          );
           setCashbookEntries((prev) => {
-            if (isDataEqual(prev, payload.cashbook)) return prev;
-            cacheManager.set('cashbook', payload.cashbook);
-            return payload.cashbook!;
+            if (isDataEqual(prev, cleanCashbook)) return prev;
+            cacheManager.set('cashbook', cleanCashbook);
+            return cleanCashbook;
           });
         }
       }

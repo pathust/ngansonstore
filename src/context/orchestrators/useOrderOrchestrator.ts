@@ -1,6 +1,8 @@
 import { Order, DuplicateStrategy, ImportOrderResult } from '../../types';
 import { formatDateTime, parseDateToTimestamp, getCurrentVietnameseDateTime } from '../../utils/formatters';
 import { apiClient } from '../../services/apiClient';
+import { cacheManager } from '../../services/cacheManager';
+import { LOCAL_STORAGE_PREFIX, safeStorageSet } from '../shared/storage';
 import { savePendingChange } from '../shared/syncQueue';
 import confetti from 'canvas-confetti';
 import { useToast } from '../slices/ToastContext';
@@ -309,24 +311,33 @@ export function useOrderOrchestrator() {
   };
 
   const deleteOrder = (orderId: string, returnStock: boolean = false) => {
-    const order = orders.find((o) => o.id === orderId);
-    if (!order) return;
+    const order = orders.find((o) => o.id === orderId || o.code === orderId);
+    const targetId = order?.id || orderId;
+    const targetCode = order?.code || orderId;
 
-    if (returnStock && order.status === 'COMPLETED') {
+    if (order && returnStock && order.status === 'COMPLETED') {
       setProducts((prev) =>
         prev.map((p) => {
-          const item = order.items.find((i) => i.product_id === p.id);
+          const item = order.items.find((i) => i.product_id === p.id || (p.sku && i.sku === p.sku));
           if (!item) return p;
           return { ...p, stock: p.stock + item.quantity };
         })
       );
     }
 
-    setOrders((prev) => prev.filter((o) => o.id !== orderId));
-    apiClient.deleteOrder(orderId, returnStock).catch((err) => {
+    // 1. Xóa ngay lập tức khỏi state hiển thị
+    setOrders((prev) => prev.filter((o) => o.id !== targetId && o.code !== targetCode));
+
+    // 2. Cập nhật ngay cache và localStorage để tránh giật lại khi re-render
+    const remaining = orders.filter((o) => o.id !== targetId && o.code !== targetCode);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'orders', remaining, 100);
+    cacheManager.set('orders', remaining);
+
+    // 3. Đồng bộ xóa lên backend & Supabase
+    apiClient.deleteOrder(targetId, returnStock).catch((err) => {
       console.warn('[Order] Sync delete failed:', err);
     });
-    showToast(`Đã xóa vĩnh viễn hóa đơn ${order.code}!`, 'info');
+    showToast(`Đã xóa vĩnh viễn hóa đơn ${targetCode}!`, 'info');
   };
 
   const createOrderDirect = (

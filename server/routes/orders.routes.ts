@@ -3,8 +3,9 @@ import { dbManager } from '../db.js';
 
 export const ordersRouter = Router();
 
-ordersRouter.get('/orders', (req: Request, res: Response) => {
+ordersRouter.get('/orders', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const { search, status, limit, offset } = req.query;
     const result = dbManager.getOrders({
       search: search as string,
@@ -19,8 +20,9 @@ ordersRouter.get('/orders', (req: Request, res: Response) => {
   }
 });
 
-ordersRouter.post('/orders', (req: Request, res: Response) => {
+ordersRouter.post('/orders', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const order = req.body;
     if (!order.code || !order.items || !Array.isArray(order.items) || order.items.length === 0) {
       return res.status(400).json({ success: false, error: 'Invalid order structure or empty items' });
@@ -30,7 +32,7 @@ ordersRouter.post('/orders', (req: Request, res: Response) => {
         return res.status(400).json({ success: false, error: 'Chi tiết sản phẩm trong đơn hàng không hợp lệ' });
       }
     }
-    const created = dbManager.createOrder(order);
+    const created = await dbManager.createOrder(order);
     res.status(201).json({ success: true, data: created });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -39,8 +41,9 @@ ordersRouter.post('/orders', (req: Request, res: Response) => {
 });
 
 // Chunked Batch Orders Upsert (for progressive Excel import)
-ordersRouter.post('/orders/batch', (req: Request, res: Response) => {
+ordersRouter.post('/orders/batch', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const { items, strategy } = req.body;
     if (!Array.isArray(items)) {
       return res.status(400).json({ success: false, error: 'Items array is required' });
@@ -53,8 +56,9 @@ ordersRouter.post('/orders/batch', (req: Request, res: Response) => {
   }
 });
 
-ordersRouter.put('/orders/:id', (req: Request, res: Response) => {
+ordersRouter.put('/orders/:id', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const updates = req.body;
     if (updates.items && Array.isArray(updates.items)) {
       if (updates.items.length === 0) {
@@ -66,7 +70,7 @@ ordersRouter.put('/orders/:id', (req: Request, res: Response) => {
         }
       }
     }
-    const updated = dbManager.updateOrder(req.params.id, updates);
+    const updated = await dbManager.updateOrder(req.params.id, updates);
     if (!updated) {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
@@ -77,13 +81,11 @@ ordersRouter.put('/orders/:id', (req: Request, res: Response) => {
   }
 });
 
-ordersRouter.delete('/orders/:id', (req: Request, res: Response) => {
+ordersRouter.delete('/orders/:id', async (req: Request, res: Response) => {
   try {
+    await dbManager.ensureLoaded();
     const returnStock = req.query.returnStock === 'true';
-    const deleted = dbManager.deleteOrder(req.params.id, returnStock);
-    if (!deleted) {
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
+    await dbManager.deleteOrder(req.params.id, returnStock);
     res.json({ success: true, message: 'Deleted order' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
