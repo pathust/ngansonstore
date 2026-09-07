@@ -249,7 +249,7 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
       if (order) {
         setIsPaymentModalOpen(false);
         setIsCartDrawerOpen(false);
-        showToast(`Đã thanh toán thành công đơn ${order.code}!`, 'success');
+        showToast(`Tạo đơn hàng thành công! Mã đơn: ${order.code}`, 'success');
       }
     } finally {
       setIsCheckingOut(false);

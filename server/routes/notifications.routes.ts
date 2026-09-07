@@ -3,8 +3,8 @@ import { dbManager } from '../db.js';
 
 export const notificationsRouter = Router();
 
-// GET /api/notifications - Lấy danh sách thông báo và số lượng chưa đọc
-notificationsRouter.get('/api/notifications', async (req: Request, res: Response) => {
+// GET /notifications - Lấy danh sách thông báo và số lượng chưa đọc
+notificationsRouter.get('/notifications', async (req: Request, res: Response) => {
   try {
     await dbManager.ensureLoaded();
 
@@ -26,8 +26,8 @@ notificationsRouter.get('/api/notifications', async (req: Request, res: Response
   }
 });
 
-// PUT /api/notifications/read-all - Đánh dấu đã đọc tất cả thông báo
-notificationsRouter.put('/api/notifications/read-all', async (_req: Request, res: Response) => {
+// PUT /notifications/read-all - Đánh dấu đã đọc tất cả thông báo
+notificationsRouter.put('/notifications/read-all', async (_req: Request, res: Response) => {
   try {
     await dbManager.ensureLoaded();
     dbManager.markAllNotificationsAsRead();
@@ -38,8 +38,8 @@ notificationsRouter.put('/api/notifications/read-all', async (_req: Request, res
   }
 });
 
-// PUT /api/notifications/:id/read - Đánh dấu đã đọc 1 thông báo
-notificationsRouter.put('/api/notifications/:id/read', async (req: Request, res: Response) => {
+// PUT /notifications/:id/read - Đánh dấu đã đọc 1 thông báo
+notificationsRouter.put('/notifications/:id/read', async (req: Request, res: Response) => {
   try {
     await dbManager.ensureLoaded();
     const { id } = req.params;
@@ -54,8 +54,8 @@ notificationsRouter.put('/api/notifications/:id/read', async (req: Request, res:
   }
 });
 
-// DELETE /api/notifications/:id - Xóa / Bỏ qua 1 thông báo
-notificationsRouter.delete('/api/notifications/:id', async (req: Request, res: Response) => {
+// DELETE /notifications/:id - Xóa / Bỏ qua 1 thông báo
+notificationsRouter.delete('/notifications/:id', async (req: Request, res: Response) => {
   try {
     await dbManager.ensureLoaded();
     const { id } = req.params;
@@ -70,8 +70,8 @@ notificationsRouter.delete('/api/notifications/:id', async (req: Request, res: R
   }
 });
 
-// DELETE /api/notifications - Xóa tất cả thông báo
-notificationsRouter.delete('/api/notifications', async (_req: Request, res: Response) => {
+// DELETE /notifications - Xóa tất cả thông báo
+notificationsRouter.delete('/notifications', async (_req: Request, res: Response) => {
   try {
     await dbManager.ensureLoaded();
     dbManager.clearAllNotifications();

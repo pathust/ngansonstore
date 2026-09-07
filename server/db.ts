@@ -722,14 +722,19 @@ class DatabaseManager {
       }
 
       // Tự động tạo thông báo đơn hàng và đồng bộ cảnh báo tồn kho với mốc thời gian thực tế
-      const orderTs = (order.created_at ? new Date(order.created_at).getTime() : Date.now()) || Date.now();
+      let orderTs = Date.now();
+      if (order.created_at) {
+        const iso = toIsoDate(order.created_at);
+        const t = iso ? new Date(iso).getTime() : new Date(order.created_at).getTime();
+        if (!isNaN(t)) orderTs = t;
+      }
       const orderNotif: AppNotification = {
         id: `notif-order-${order.id}`,
         contentKey: `order:${order.id}`,
         type: 'ORDER',
-        title: `Đã bán đơn hàng trị giá ${(order.final_amount || 0).toLocaleString('vi-VN')} đ`,
-        description: `Mã đơn: #${order.code} - ${order.customer_name || 'Khách lẻ'}`,
-        timestamp: isNaN(orderTs) ? Date.now() : orderTs,
+        title: 'Tạo đơn thành công',
+        description: `Mã đơn #${order.code} - ${order.customer_name || 'Khách lẻ'} - ${(order.final_amount || 0).toLocaleString('vi-VN')} đ`,
+        timestamp: orderTs,
         isRead: false,
         meta: { orderId: order.id },
       };
@@ -1762,6 +1767,50 @@ class DatabaseManager {
     }
   }
 
+  public syncOrderNotifications() {
+    const db = this.getDB();
+    if (!db.notifications) db.notifications = [];
+    if (!db.orders) db.orders = [];
+    let hasChanges = false;
+
+    const existingOrderNotifs = new Set<string>();
+    db.notifications.forEach((n) => {
+      if (n.type === 'ORDER' && n.contentKey) {
+        existingOrderNotifs.add(n.contentKey);
+      }
+    });
+
+    db.orders.forEach((o) => {
+      const contentKey = `order:${o.id}`;
+      if (!existingOrderNotifs.has(contentKey)) {
+        let orderTs = Date.now();
+        if (o.created_at) {
+          const iso = toIsoDate(o.created_at);
+          const t = iso ? new Date(iso).getTime() : new Date(o.created_at).getTime();
+          if (!isNaN(t)) orderTs = t;
+        }
+
+        const newNotif: AppNotification = {
+          id: `notif-order-${o.id}`,
+          contentKey,
+          type: 'ORDER',
+          title: 'Tạo đơn thành công',
+          description: `Mã đơn #${o.code} - ${o.customer_name || 'Khách lẻ'} - ${(o.final_amount || 0).toLocaleString('vi-VN')} đ`,
+          timestamp: orderTs,
+          isRead: false,
+          meta: { orderId: o.id },
+        };
+        db.notifications.push(newNotif);
+        existingOrderNotifs.add(contentKey);
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      this.schedulePersist();
+    }
+  }
+
   public getNotifications(options?: {
     type?: string;
     isRead?: boolean;
@@ -1769,6 +1818,7 @@ class DatabaseManager {
     offset?: number;
   }) {
     this.syncStockNotifications();
+    this.syncOrderNotifications();
 
     const db = this.getDB();
     let result = (db.notifications || []).filter((n) => !n.isDismissed);

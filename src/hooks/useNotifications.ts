@@ -91,6 +91,15 @@ export function useNotifications() {
     fetchBackend();
   }, [fetchBackend]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOrderCreated = () => {
+      fetchBackend();
+    };
+    window.addEventListener('app:order-created', handleOrderCreated);
+    return () => window.removeEventListener('app:order-created', handleOrderCreated);
+  }, [fetchBackend]);
+
   // 2. Đồng bộ và sinh thông báo mới với quy tắc:
   // - Sắp xếp theo trình tự thời gian (mới nhất trước).
   // - Cùng 1 nội dung / sản phẩm thì KHÔNG lặp lại.
@@ -113,13 +122,14 @@ export function useNotifications() {
         if (!existingByKey.has(contentKey)) {
           const ts = parseDateToTimestamp(o.created_at) || now;
           const newNotif: AppNotification = {
-            id: `order-${o.id}`,
+            id: `notif-order-${o.id}`,
             contentKey,
             type: 'ORDER',
-            title: `Đã bán đơn hàng trị giá ${(o.final_amount || 0).toLocaleString('vi-VN')} đ`,
-            description: `Mã đơn: #${o.code} - ${o.customer_name || 'Khách lẻ'}`,
+            title: 'Tạo đơn thành công',
+            description: `Mã đơn #${o.code} - ${o.customer_name || 'Khách lẻ'} - ${(o.final_amount || 0).toLocaleString('vi-VN')} đ`,
             timestamp: ts,
             isRead: false,
+            meta: { orderId: o.id },
           };
           existingByKey.set(contentKey, newNotif);
           updatedList.push(newNotif);

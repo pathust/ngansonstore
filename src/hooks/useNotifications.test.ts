@@ -92,9 +92,10 @@ describe('useNotifications', () => {
 
     expect(result.current.notifications.length).toBe(3);
     // Phải sắp xếp thứ tự: mới nhất (HD003 - ngày 05/09) -> giữa (HD002 - 03/09) -> cũ nhất (HD001 - 01/09)
-    expect(result.current.notifications[0].id).toBe('order-ord-new');
-    expect(result.current.notifications[1].id).toBe('order-ord-mid');
-    expect(result.current.notifications[2].id).toBe('order-ord-old');
+    expect(result.current.notifications[0].id).toBe('notif-order-ord-new');
+    expect(result.current.notifications[0].title).toBe('Tạo đơn thành công');
+    expect(result.current.notifications[1].id).toBe('notif-order-ord-mid');
+    expect(result.current.notifications[2].id).toBe('notif-order-ord-old');
   });
 
   it('cùng 1 nội dung thì KHÔNG lặp lại (ví dụ bút sắp hết, lần sau không báo lặp lại tiếp)', () => {

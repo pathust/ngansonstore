@@ -133,7 +133,11 @@ export function useOrderOrchestrator() {
       // Ignore if confetti fails
     }
 
-    showToast(`Thanh toán thành công hóa đơn ${orderCode}!`, 'success');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app:order-created', { detail: newOrder }));
+    }
+
+    showToast(`Tạo đơn hàng thành công! Mã đơn: ${orderCode}`, 'success');
     return newOrder;
   };
 
@@ -409,10 +413,14 @@ export function useOrderOrchestrator() {
       showToast(`Đã cập nhật (ghi đè) hóa đơn ${orderCode}!`, 'success');
     } else {
       setOrders((prev) => [newOrder, ...prev].sort((a, b) => parseDateToTimestamp(b.created_at) - parseDateToTimestamp(a.created_at)));
-      showToast(`Đã lưu hóa đơn ${orderCode} thành công!`, 'success');
+      showToast(`Tạo đơn hàng thành công! Mã đơn: ${orderCode}`, 'success');
     }
 
     setLastCompletedOrder(newOrder);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app:order-created', { detail: newOrder }));
+    }
 
     apiClient.createOrder(newOrder).catch((err) => {
       savePendingChange('orders', newOrder);
