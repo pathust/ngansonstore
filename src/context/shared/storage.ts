@@ -53,6 +53,9 @@ export function runLegacyStorageCleanupOnce() {
     localStorage.removeItem(LOCAL_STORAGE_PREFIX + 'audits');
     localStorage.removeItem(LOCAL_STORAGE_PREFIX + 'cashbook');
     localStorage.removeItem(LOCAL_STORAGE_PREFIX + 'customers');
+    localStorage.removeItem('nganson_notifications');
+    localStorage.removeItem('nganson_notifications_v1');
+    localStorage.removeItem('nganson_notifications_v2');
     localStorage.setItem(MOCK_CLEANED_FLAG, 'true');
   } catch (e) {}
 }

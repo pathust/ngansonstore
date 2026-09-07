@@ -40,7 +40,24 @@ export function formatRelativeTime(timestamp: number): string {
   return `${month} tháng trước`;
 }
 
+function cleanupLegacyNotificationKeys() {
+  if (typeof window === 'undefined') return;
+  try {
+    const legacyKeys = [
+      'nganson_notifications',
+      'nganson_notifications_v1',
+      'nganson_notifications_v2',
+    ];
+    legacyKeys.forEach((k) => {
+      try {
+        localStorage.removeItem(k);
+      } catch {}
+    });
+  } catch {}
+}
+
 function loadPersistedNotifications(): AppNotification[] {
+  cleanupLegacyNotificationKeys();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -57,10 +74,21 @@ function loadPersistedNotifications(): AppNotification[] {
 }
 
 function savePersistedNotifications(list: AppNotification[]) {
+  if (typeof window === 'undefined') return;
+  // Dữ liệu chính đã lưu trên backend DB; cache local chỉ cần lưu tối đa 30 mục mới nhất để tránh QuotaExceededError
+  const compactList = list.slice(0, 30);
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-  } catch (err) {
-    console.warn('Lỗi lưu notifications vào localStorage:', err);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(compactList));
+  } catch {
+    // Nếu gặp QuotaExceededError: Dọn dẹp cache cũ và thử lưu ít hơn (10 mục)
+    cleanupLegacyNotificationKeys();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(compactList.slice(0, 10)));
+    } catch {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {}
+    }
   }
 }
 
