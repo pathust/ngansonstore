@@ -411,6 +411,19 @@ class DatabaseManager {
 
   private formatForSupabase(table: string, item: any): any {
     if (!item || typeof item !== 'object') return item;
+    if (table === 'notifications') {
+      return {
+        id: item.id,
+        content_key: item.contentKey,
+        type: item.type,
+        title: item.title,
+        description: item.description || '',
+        timestamp: item.timestamp,
+        is_read: !!item.isRead,
+        is_dismissed: !!item.isDismissed,
+        meta: item.meta || {},
+      };
+    }
     const clean = { ...item };
     if (table === 'app_users') {
       return {
@@ -495,6 +508,18 @@ class DatabaseManager {
       }
     } catch (err) {
       console.warn(`[SUPABASE] Mutation sync warning (${action} ${table}):`, err);
+    }
+  }
+
+  public async clearTableInSupabase(table: string) {
+    if (!isSupabaseConfigured()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.from(table).delete().not('id', 'is', null);
+      if (error) console.error(`[SUPABASE] Clear-all error on ${table}:`, error);
+    } catch (err) {
+      console.warn(`[SUPABASE] Clear-all warning (${table}):`, err);
     }
   }
 
@@ -1687,6 +1712,7 @@ class DatabaseManager {
     if (!db.notifications) db.notifications = [];
     let hasChanges = false;
     const now = Date.now();
+    const dirty: AppNotification[] = [];
 
     // Map các thông báo tồn kho chưa giải quyết theo productId
     const activeStockNotifs = new Map<string, AppNotification>();
@@ -1720,6 +1746,7 @@ class DatabaseManager {
           };
           db.notifications.unshift(newNotif);
           activeStockNotifs.set(p.id, newNotif);
+          dirty.push(newNotif);
           hasChanges = true;
         } else if (existingNotif.meta?.stockState === 'LOW') {
           // Chuyển từ DƯỚI TỒN -> HẾT HÀNG: Cập nhật thay thế
@@ -1728,6 +1755,7 @@ class DatabaseManager {
           existingNotif.meta = { ...existingNotif.meta, stockState: 'OUT' };
           existingNotif.isRead = false;
           existingNotif.timestamp = now;
+          dirty.push(existingNotif);
           hasChanges = true;
         }
         // Nếu đã là OUT -> TUYỆT ĐỐI KHÔNG SỬA TIMESTAMP! Giữ nguyên thời điểm đã hết từ trước!
@@ -1748,6 +1776,7 @@ class DatabaseManager {
           };
           db.notifications.unshift(newNotif);
           activeStockNotifs.set(p.id, newNotif);
+          dirty.push(newNotif);
           hasChanges = true;
         }
         // Nếu đã có thông báo LOW -> GIỮ NGUYÊN TIMESTAMP!
@@ -1757,6 +1786,7 @@ class DatabaseManager {
         if (existingNotif && !existingNotif.meta?.isResolved) {
           existingNotif.meta = { ...existingNotif.meta, isResolved: true };
           activeStockNotifs.delete(p.id);
+          dirty.push(existingNotif);
           hasChanges = true;
         }
       }
@@ -1764,6 +1794,7 @@ class DatabaseManager {
 
     if (hasChanges) {
       this.schedulePersist();
+      this.syncBatchToSupabase('notifications', dirty);
     }
   }
 
@@ -1772,6 +1803,7 @@ class DatabaseManager {
     if (!db.notifications) db.notifications = [];
     if (!db.orders) db.orders = [];
     let hasChanges = false;
+    const dirty: AppNotification[] = [];
 
     const existingOrderNotifs = new Set<string>();
     db.notifications.forEach((n) => {
@@ -1802,12 +1834,67 @@ class DatabaseManager {
         };
         db.notifications.push(newNotif);
         existingOrderNotifs.add(contentKey);
+        dirty.push(newNotif);
         hasChanges = true;
       }
     });
 
     if (hasChanges) {
       this.schedulePersist();
+      this.syncBatchToSupabase('notifications', dirty);
+    }
+  }
+
+  public syncDebtNotifications() {
+    const db = this.getDB();
+    if (!db.notifications) db.notifications = [];
+    if (!db.customers) db.customers = [];
+    let hasChanges = false;
+    const now = Date.now();
+    const dirty: AppNotification[] = [];
+
+    // Map các thông báo công nợ chưa giải quyết theo customerId
+    const activeDebtNotifs = new Map<string, AppNotification>();
+    db.notifications.forEach((n) => {
+      if (n.type === 'CASHBOOK' && !n.isDismissed && !n.meta?.isResolved && n.meta?.customerId) {
+        activeDebtNotifs.set(n.meta.customerId, n);
+      }
+    });
+
+    db.customers.forEach((c) => {
+      const debt = c.debt || 0;
+      const existingNotif = activeDebtNotifs.get(c.id);
+
+      if (debt > 0) {
+        if (!existingNotif) {
+          const newNotif: AppNotification = {
+            id: `debt-${c.id}`,
+            contentKey: `debt:${c.id}`,
+            type: 'CASHBOOK',
+            title: `${c.name} còn công nợ chưa thanh toán`,
+            description: `Số tiền nợ hiện tại: ${debt.toLocaleString('vi-VN')} đ`,
+            timestamp: now,
+            isRead: false,
+            meta: { customerId: c.id, isResolved: false },
+          };
+          db.notifications.unshift(newNotif);
+          activeDebtNotifs.set(c.id, newNotif);
+          dirty.push(newNotif);
+          hasChanges = true;
+        }
+        // Nếu đã có thông báo công nợ đang hoạt động -> GIỮ NGUYÊN, không tạo lặp lại
+      } else if (existingNotif && !existingNotif.meta?.isResolved) {
+        // Đã thanh toán hết nợ -> đánh dấu đã giải quyết, không xóa để giữ lịch sử
+        existingNotif.meta = { ...existingNotif.meta, isResolved: true };
+        activeDebtNotifs.delete(c.id);
+        dirty.push(existingNotif);
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      this.schedulePersist();
+      this.syncBatchToSupabase('notifications', dirty);
     }
   }
 
@@ -1819,6 +1906,7 @@ class DatabaseManager {
   }) {
     this.syncStockNotifications();
     this.syncOrderNotifications();
+    this.syncDebtNotifications();
 
     const db = this.getDB();
     let result = (db.notifications || []).filter((n) => !n.isDismissed);
@@ -1852,6 +1940,7 @@ class DatabaseManager {
       db.notifications.unshift(notif);
     }
     this.schedulePersist();
+    this.syncToSupabase('notifications', 'upsert', notif);
     return notif;
   }
 
@@ -1862,6 +1951,7 @@ class DatabaseManager {
     if (notif) {
       notif.isRead = true;
       this.schedulePersist();
+      this.syncToSupabase('notifications', 'upsert', notif);
       return true;
     }
     return false;
@@ -1870,15 +1960,16 @@ class DatabaseManager {
   public markAllNotificationsAsRead(): boolean {
     const db = this.getDB();
     if (!db.notifications) return false;
-    let changed = false;
+    const changed: AppNotification[] = [];
     db.notifications.forEach((n) => {
       if (!n.isRead) {
         n.isRead = true;
-        changed = true;
+        changed.push(n);
       }
     });
-    if (changed) {
+    if (changed.length > 0) {
       this.schedulePersist();
+      this.syncBatchToSupabase('notifications', changed);
     }
     return true;
   }
@@ -1890,6 +1981,7 @@ class DatabaseManager {
     if (notif) {
       notif.isDismissed = true;
       this.schedulePersist();
+      this.syncToSupabase('notifications', 'upsert', notif);
       return true;
     }
     return false;
@@ -1900,6 +1992,7 @@ class DatabaseManager {
     if (!db.notifications) return false;
     db.notifications = [];
     this.schedulePersist();
+    this.clearTableInSupabase('notifications');
     return true;
   }
 

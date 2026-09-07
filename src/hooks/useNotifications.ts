@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { parseDateToTimestamp } from '../utils/formatters';
+import { supabase } from '../services/supabase';
 
 export interface AppNotification {
   id: string;
@@ -102,6 +103,34 @@ export function useNotifications() {
     };
     window.addEventListener('app:order-created', handleOrderCreated);
     return () => window.removeEventListener('app:order-created', handleOrderCreated);
+  }, [fetchBackend]);
+
+  // 1b. Đồng bộ tức thì đa thiết bị qua Supabase Realtime: bất kỳ thay đổi nào
+  // (tạo/đọc/xóa thông báo) ở server hoặc thiết bị khác đều đẩy thẳng về đây
+  // qua Postgres, không cần polling. Debounce nhẹ vì nhiều thay đổi có thể
+  // dồn về cùng lúc (VD: đọc tất cả = update hàng loạt dòng).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(fetchBackend, 400);
+    };
+
+    const channelName = `notifications-realtime-${Math.random().toString(36).slice(2)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        scheduleRefetch
+      )
+      .subscribe();
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [fetchBackend]);
 
   // 2. Đồng bộ và sinh thông báo mới với quy tắc:

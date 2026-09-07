@@ -193,6 +193,30 @@ CREATE TABLE IF NOT EXISTS inventory_audits (
 
 CREATE INDEX IF NOT EXISTS idx_audits_code ON inventory_audits(code);
 
+-- 11. BẢNG THÔNG BÁO (NOTIFICATIONS) — nguồn đẩy Supabase Realtime cho toàn bộ
+-- trung tâm thông báo (tồn kho, đơn hàng, công nợ). Xem thêm migration
+-- 20260907_add_notifications_realtime.sql để biết lý do dùng Realtime thay
+-- vì WebSocket/SSE tự dựng (server chạy serverless trên Vercel).
+CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    content_key TEXT NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    "timestamp" BIGINT NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT false,
+    is_dismissed BOOLEAN NOT NULL DEFAULT false,
+    meta JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_content_key ON notifications(content_key);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_timestamp ON notifications("timestamp" DESC);
+
+ALTER TABLE notifications REPLICA IDENTITY FULL;
+ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+
 -- ==============================================================================
 -- CẤU HÌNH BẢO MẬT ROW LEVEL SECURITY (RLS)
 -- ==============================================================================
@@ -207,6 +231,7 @@ ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cashbook ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_audits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -239,4 +264,7 @@ BEGIN
 
     DROP POLICY IF EXISTS "Allow all access to inventory_audits" ON inventory_audits;
     CREATE POLICY "Allow all access to inventory_audits" ON inventory_audits FOR ALL USING (true) WITH CHECK (true);
+
+    DROP POLICY IF EXISTS "Allow all access to notifications" ON notifications;
+    CREATE POLICY "Allow all access to notifications" ON notifications FOR ALL USING (true) WITH CHECK (true);
 END $$;
