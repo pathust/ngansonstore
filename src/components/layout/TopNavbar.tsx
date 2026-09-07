@@ -278,7 +278,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
                     <p className="text-xs font-medium">Không có thông báo nào</p>
                   </div>
                 ) : (
-                  filteredNotifications.slice(0, 30).map((n) => (
+                  filteredNotifications.slice(0, 20).map((n) => (
                     <div
                       key={n.id}
                       onClick={() => {

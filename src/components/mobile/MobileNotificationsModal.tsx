@@ -9,6 +9,7 @@ import {
   Package,
   ChevronDown,
   Trash2,
+  ArrowRight,
 } from 'lucide-react';
 
 import { useNotifications, AppNotification, formatRelativeTime } from '../../hooks/useNotifications';
@@ -45,11 +46,13 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
 
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [isViewingAll, setIsViewingAll] = useState(false);
 
-  // Reset filter dropdown when modal closes
+  // Tự động trở về trạng thái danh sách cắt ngắn (20 thông báo gần đây nhất) khi đóng/mở lại
   React.useEffect(() => {
     if (!isOpen) {
       setShowFilterMenu(false);
+      setIsViewingAll(false);
     }
   }, [isOpen]);
 
@@ -61,9 +64,18 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
     filtered.length,
     40,
     20,
-    [filter, isOpen],
+    [filter, isOpen, isViewingAll],
     'mobile-notifications-scroll-root'
   );
+
+  const handleBack = () => {
+    if (isViewingAll) {
+      // Khi nhấn quay lại từ chế độ xem tất cả: trở về danh sách cắt ngắn 20 gần đây nhất
+      setIsViewingAll(false);
+    } else {
+      onClose();
+    }
+  };
 
   const handleItemClick = (n: AppNotification) => {
     markAsRead(n.id);
@@ -90,7 +102,7 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
     }
   };
 
-  const visible = filtered.slice(0, visibleCount);
+  const visible = isViewingAll ? filtered.slice(0, visibleCount) : filtered.slice(0, 20);
 
   if (!isOpen) return null;
 
@@ -100,12 +112,33 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
       <div className="flex items-center gap-3 px-4 pt-12 pb-3 bg-white border-b border-slate-100">
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleBack}
           className="p-1 -ml-1 text-slate-700 active:text-slate-900 cursor-pointer"
+          title={isViewingAll ? 'Quay lại thông báo gần đây' : 'Đóng'}
         >
           <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
         </button>
-        <h1 className="flex-1 text-lg font-bold text-slate-900">Thông báo</h1>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-slate-900">
+              {isViewingAll ? 'Tất cả thông báo' : 'Thông báo'}
+            </h1>
+            {isViewingAll ? (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-[#0066FF]">
+                {filtered.length}
+              </span>
+            ) : filtered.length > 20 ? (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                20 gần nhất
+              </span>
+            ) : null}
+          </div>
+          {!isViewingAll && filtered.length > 20 && (
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              Hiển thị 20 thông báo gần đây nhất
+            </p>
+          )}
+        </div>
       </div>
 
       {/* ── Filter bar ── */}
@@ -130,6 +163,7 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
                   onClick={() => {
                     setFilter(key);
                     setShowFilterMenu(false);
+                    setIsViewingAll(false);
                   }}
                   className={`w-full text-left px-4 py-2.5 text-sm cursor-pointer ${
                     filter === key
@@ -230,12 +264,38 @@ export const MobileNotificationsModal: React.FC<MobileNotificationsModalProps> =
               </div>
             ))}
 
-            {/* Sentinel: trigger load more when scrolled near bottom */}
-            <div ref={sentinelRef} className="h-4" />
-            {hasMore && (
-              <div className="py-3 flex justify-center">
-                <div className="w-5 h-5 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+            {/* Nút xem tất cả thông báo khi ở danh sách cắt ngắn (20 gần nhất) */}
+            {!isViewingAll && filtered.length > 20 && (
+              <div className="p-4 bg-slate-50/80 border-t border-slate-100 flex flex-col items-center gap-2 mt-2">
+                <span className="text-xs text-slate-500 font-medium">
+                  Đang hiển thị 20 / {filtered.length} thông báo gần đây
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsViewingAll(true)}
+                  className="w-full py-3 px-4 bg-[#0066FF] hover:bg-blue-600 active:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Xem tất cả thông báo ({filtered.length})</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
+            )}
+
+            {/* Chế độ xem tất cả: Sentinel trigger load more khi scroll đến cuối */}
+            {isViewingAll && (
+              <>
+                <div ref={sentinelRef} className="h-4" />
+                {hasMore && (
+                  <div className="py-3 flex justify-center">
+                    <div className="w-5 h-5 border-2 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+                {!hasMore && filtered.length > 20 && (
+                  <div className="py-4 text-center text-xs text-slate-400 font-medium">
+                    Đã hiển thị toàn bộ {filtered.length} thông báo
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
