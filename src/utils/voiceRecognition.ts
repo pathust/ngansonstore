@@ -30,6 +30,9 @@ export interface VoiceOrderParseResult {
   spokenFeedback?: string;
   explanation?: string;
   confidence?: number;
+  needsClarification?: boolean;
+  clarificationQuestion?: string;
+  ambiguities?: string[];
   rawTranscript: string;
   unmatchedPhrases: string[];
   source?: 'GEMINI_AI' | 'LOCAL_NLP';
@@ -594,6 +597,38 @@ export const parseVoiceCommand = (
       : `Đã nghe: "${cleanTranscript}". Chưa tìm thấy sản phẩm khớp trong kho.`;
   }
 
+  const mutatingIntents = new Set<VoiceIntent>(['CREATE_ORDER', 'ADD_TO_CART', 'STOCK_IN', 'UPDATE_ORDER', 'CANCEL_ORDER']);
+  let confidence = matchedItems.length > 0 ? 0.85 : 0.6;
+  let needsClarification = false;
+  let clarificationQuestion = '';
+  const ambiguities: string[] = [];
+
+  if (mutatingIntents.has(intent)) {
+    if ((intent === 'CREATE_ORDER' || intent === 'ADD_TO_CART' || intent === 'STOCK_IN') && matchedItems.length === 0) {
+      confidence = 0.45;
+      needsClarification = true;
+      ambiguities.push('Không tìm thấy sản phẩm chắc chắn trong danh mục');
+      clarificationQuestion = 'Bạn muốn chọn chính xác sản phẩm nào? Hãy nói tên đầy đủ, SKU hoặc mã vạch.';
+    } else if ((intent === 'UPDATE_ORDER' || intent === 'CANCEL_ORDER') && !orderCodeToUpdate && (!customerName || customerName === 'Khách lẻ')) {
+      confidence = 0.5;
+      needsClarification = true;
+      ambiguities.push('Chưa xác định được hóa đơn cần thay đổi');
+      clarificationQuestion = 'Bạn muốn thao tác với hóa đơn nào? Hãy cho tôi mã hóa đơn hoặc tên khách hàng.';
+    }
+  } else if (intent === 'SEARCH_PRODUCT' && matchedItems.length === 0) {
+    confidence = 0.55;
+    needsClarification = true;
+    clarificationQuestion = 'Bạn muốn tìm sản phẩm nào? Hãy nói thêm tên, SKU hoặc mã vạch.';
+  } else if (intent === 'CHECK_DEBT' && !matchedCustomer && (!customerName || customerName === 'Khách lẻ')) {
+    confidence = 0.55;
+    needsClarification = true;
+    clarificationQuestion = 'Bạn muốn kiểm tra công nợ của khách hàng nào?';
+  }
+
+  if (needsClarification && clarificationQuestion) {
+    spokenFeedback = clarificationQuestion;
+  }
+
   return {
     mode,
     intent,
@@ -612,7 +647,10 @@ export const parseVoiceCommand = (
     note: 'Lập nhanh qua Giọng nói NLP',
     spokenFeedback,
     explanation: 'Phân tích nhanh qua bộ máy xử lý ngôn ngữ tiếng Việt',
-    confidence: matchedItems.length > 0 ? 0.85 : 0.6,
+    confidence,
+    needsClarification,
+    clarificationQuestion,
+    ambiguities,
     rawTranscript: cleanTranscript,
     unmatchedPhrases,
     source: 'LOCAL_NLP',
@@ -620,7 +658,7 @@ export const parseVoiceCommand = (
 };
 
 // Map raw Gemini JSON response (same shape server-side and streamed-then-parsed) into VoiceOrderParseResult
-function mapGeminiDataToResult(
+export function mapGeminiDataToResult(
   aiData: any,
   transcript: string,
   allProducts: Product[],
@@ -628,14 +666,22 @@ function mapGeminiDataToResult(
   mode: 'POS_ORDER' | 'STOCK_IN' | 'UPDATE_ORDER'
 ): VoiceOrderParseResult {
   const resolvedItems: ParsedVoiceItem[] = [];
+  const unresolvedProducts: string[] = [];
   for (const item of aiData.items || []) {
     let prod = allProducts.find((p) => p.id === item.product_id);
-    if (!prod) {
-      prod = allProducts.find(
-        (p) =>
-          p.name.toLowerCase().includes(item.product_name.toLowerCase()) ||
-          item.product_name.toLowerCase().includes(p.name.toLowerCase())
-      );
+    const requestedName = String(item.product_name || '').trim();
+    if (!prod && requestedName) {
+      const cleanRequestedName = cleanTextForMatch(requestedName);
+      const exactMatches = allProducts.filter((p) => cleanTextForMatch(p.name) === cleanRequestedName);
+      if (exactMatches.length === 1) {
+        prod = exactMatches[0];
+      } else {
+        const fuzzyMatches = allProducts.filter((p) => {
+          const cleanName = cleanTextForMatch(p.name);
+          return cleanRequestedName.length >= 5 && (cleanName.includes(cleanRequestedName) || cleanRequestedName.includes(cleanName));
+        });
+        if (fuzzyMatches.length === 1) prod = fuzzyMatches[0];
+      }
     }
 
     if (prod) {
@@ -644,36 +690,16 @@ function mapGeminiDataToResult(
         quantity: Math.max(1, item.quantity || 1),
         unitPrice: item.unit_price || prod.selling_price,
         unitCost: item.unit_cost || prod.cost_price,
-        confidence: 0.95,
-        matchedText: item.product_name,
+        confidence: Math.min(1, Math.max(0, Number(item.match_confidence ?? aiData.confidence ?? 0.85))),
+        matchedText: requestedName || prod.name,
       });
     } else {
-      // Synthetic fallback product if user entered a custom new item
-      const syntheticProd: Product = {
-        id: 'prod-voice-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-        sku: 'SP-' + Math.floor(1000 + Math.random() * 9000),
-        barcode: '',
-        name: item.product_name,
-        selling_price: item.unit_price || 0,
-        cost_price: item.unit_cost || 0,
-        stock: 100,
-        min_stock: 5,
-        unit: item.unit || 'cái',
-        category: 'Thiết bị điện & kim khí',
-        status: 'ACTIVE',
-      };
-      resolvedItems.push({
-        product: syntheticProd,
-        quantity: Math.max(1, item.quantity || 1),
-        unitPrice: item.unit_price || 0,
-        unitCost: item.unit_cost || 0,
-        confidence: 0.8,
-        matchedText: item.product_name,
-      });
+      unresolvedProducts.push(requestedName || String(item.product_id || 'sản phẩm chưa xác định'));
     }
   }
 
-  const intent = (aiData.intent as VoiceIntent) || (mode === 'STOCK_IN' ? 'STOCK_IN' : 'CREATE_ORDER');
+  const hasExplicitIntent = typeof aiData.intent === 'string' && aiData.intent.trim().length > 0;
+  const intent = (hasExplicitIntent ? aiData.intent : mode === 'STOCK_IN' ? 'STOCK_IN' : 'CREATE_ORDER') as VoiceIntent;
   const discountType = (aiData.discount?.type as 'AMOUNT' | 'PERCENT') || (aiData.discount?.percent ? 'PERCENT' : 'AMOUNT');
   const discountAmount = aiData.discount?.amount || 0;
   const discountPercent = aiData.discount?.percent || 0;
@@ -691,6 +717,44 @@ function mapGeminiDataToResult(
   else if (intent === 'NAVIGATE') parsedMode = 'NAVIGATE';
   else if (intent === 'CHECK_DEBT') parsedMode = 'DEBT';
 
+  const numericConfidence = Number(aiData.confidence);
+  let confidence = Number.isFinite(numericConfidence) ? Math.min(1, Math.max(0, numericConfidence)) : 0.5;
+  const mutatingIntents = new Set<VoiceIntent>(['CREATE_ORDER', 'ADD_TO_CART', 'STOCK_IN', 'UPDATE_ORDER', 'CANCEL_ORDER']);
+  const ambiguities = Array.isArray(aiData.ambiguities)
+    ? aiData.ambiguities.map((item: unknown) => String(item)).filter(Boolean)
+    : [];
+  if (!hasExplicitIntent) {
+    confidence = Math.min(confidence, 0.45);
+    ambiguities.push('AI không trả về ý định rõ ràng');
+  }
+  if (unresolvedProducts.length > 0) {
+    confidence = Math.min(confidence, 0.5);
+    ambiguities.push(`Không xác minh được sản phẩm: ${unresolvedProducts.join(', ')}`);
+  }
+
+  let needsClarification = Boolean(aiData.needs_clarification);
+  if (mutatingIntents.has(intent) && confidence < 0.78) needsClarification = true;
+  if (!mutatingIntents.has(intent) && confidence < 0.58) needsClarification = true;
+  if ((intent === 'CREATE_ORDER' || intent === 'ADD_TO_CART' || intent === 'STOCK_IN') && resolvedItems.length === 0) {
+    needsClarification = true;
+  }
+  if (unresolvedProducts.length > 0) needsClarification = true;
+
+  let clarificationQuestion = String(aiData.clarification_question || '').trim();
+  if (needsClarification && !clarificationQuestion) {
+    if (unresolvedProducts.length > 0) {
+      clarificationQuestion = `Tôi chưa xác định chắc chắn ${unresolvedProducts.join(', ')}. Bạn có thể nói tên đầy đủ, SKU hoặc mã vạch không?`;
+    } else if (intent === 'UPDATE_ORDER' || intent === 'CANCEL_ORDER') {
+      clarificationQuestion = 'Bạn muốn thao tác với hóa đơn nào? Hãy cho tôi mã hóa đơn hoặc tên khách hàng.';
+    } else {
+      clarificationQuestion = 'Tôi chưa đủ chắc chắn để thực hiện. Bạn có thể nói rõ hơn một chút không?';
+    }
+  }
+
+  const spokenFeedback = needsClarification && clarificationQuestion
+    ? clarificationQuestion
+    : aiData.spoken_feedback || '';
+
   return {
     mode: parsedMode,
     intent,
@@ -707,32 +771,22 @@ function mapGeminiDataToResult(
     supplierName: aiData.supplier_name || '',
     orderCodeToUpdate: aiData.order_code_to_update || '',
     note: aiData.note || 'Lập qua Trợ lý Giọng nói AI',
-    spokenFeedback: aiData.spoken_feedback || '',
+    spokenFeedback,
     explanation: aiData.explanation || 'Phân tích ý định tự động bằng Gemini 3.7 Flash',
-    confidence: aiData.confidence || 0.95,
+    confidence,
+    needsClarification,
+    clarificationQuestion,
+    ambiguities,
     rawTranscript: transcript,
     unmatchedPhrases: [],
     source: 'GEMINI_AI',
   };
 }
 
-// Extract "spoken_feedback" from a partial (possibly incomplete) accumulated JSON string.
-// Used to trigger TTS as soon as that field appears in the stream, well before the full
-// JSON (items, discount, etc.) has finished arriving.
-function tryExtractSpokenFeedback(partialJson: string): string | null {
-  const match = partialJson.match(/"spoken_feedback"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-  if (!match) return null;
-  try {
-    return JSON.parse(`"${match[1]}"`);
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Streams the Gemini intent-extraction response over SSE, firing onSpokenFeedback as soon as
- * that field is decodable (well before the full JSON — items, discount, etc. — has arrived),
- * then resolves with the fully parsed result once the stream completes.
+ * Streams the Gemini intent-extraction response over SSE, then fires onSpokenFeedback only
+ * after the full result has passed local confidence/entity validation. This prevents TTS from
+ * announcing a guessed mutation before a later item mismatch forces clarification.
  * Falls back to the non-streaming endpoint, then to local NLP, on any failure.
  */
 export const analyzeVoiceOrderIntentWithAIStreaming = async (
@@ -763,7 +817,6 @@ export const analyzeVoiceOrderIntentWithAIStreaming = async (
     const decoder = new TextDecoder();
     let sseBuffer = '';
     let accumulatedJson = '';
-    let spokenFeedbackFired = false;
     let streamError: string | null = null;
 
     // Gemini occasionally degenerates into a repetition loop on a field (e.g. target_screen)
@@ -823,13 +876,6 @@ export const analyzeVoiceOrderIntentWithAIStreaming = async (
         }
         if (parsed.delta) {
           accumulatedJson += parsed.delta;
-          if (!spokenFeedbackFired && onSpokenFeedback) {
-            const feedback = tryExtractSpokenFeedback(accumulatedJson);
-            if (feedback) {
-              spokenFeedbackFired = true;
-              onSpokenFeedback(feedback);
-            }
-          }
         }
       }
     }
@@ -840,7 +886,11 @@ export const analyzeVoiceOrderIntentWithAIStreaming = async (
 
     const aiData = JSON.parse(accumulatedJson.trim() || '{}');
     if (aiData && aiData.items !== undefined) {
-      return mapGeminiDataToResult(aiData, transcript, allProducts, allCustomers, mode);
+      const result = mapGeminiDataToResult(aiData, transcript, allProducts, allCustomers, mode);
+      if (onSpokenFeedback && result.spokenFeedback) {
+        onSpokenFeedback(result.spokenFeedback);
+      }
+      return result;
     }
   } catch (err) {
     console.warn('[VOICE] Streaming intent analysis error, falling back to non-streaming endpoint:', err);
@@ -857,7 +907,11 @@ export const analyzeVoiceOrderIntentWithAIStreaming = async (
       currentOrder,
     });
     if (aiData && aiData.items) {
-      return mapGeminiDataToResult(aiData, transcript, allProducts, allCustomers, mode);
+      const result = mapGeminiDataToResult(aiData, transcript, allProducts, allCustomers, mode);
+      if (onSpokenFeedback && result.spokenFeedback) {
+        onSpokenFeedback(result.spokenFeedback);
+      }
+      return result;
     }
   } catch (err) {
     console.warn('[VOICE] AI backend intent analysis error, falling back to local NLP:', err);
@@ -871,11 +925,15 @@ export const analyzeVoiceOrderIntentWithAIStreaming = async (
     mode === 'STOCK_IN' ? 'STOCK_IN' : 'POS_ORDER',
     allCustomers
   );
-  return {
+  const result: VoiceOrderParseResult = {
     ...localRes,
     source: 'LOCAL_NLP',
     explanation: 'Phân tích nhanh qua bộ máy xử lý ngôn ngữ tiếng Việt (NLP Engine)',
   };
+  if (onSpokenFeedback && result.spokenFeedback) {
+    onSpokenFeedback(result.spokenFeedback);
+  }
+  return result;
 };
 
 /**
@@ -974,5 +1032,3 @@ export const stopSpeechFeedback = (): void => {
     } catch {}
   }
 };
-
-

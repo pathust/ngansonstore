@@ -44,7 +44,6 @@ import {
   RefreshCw,
   Loader2,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface GlobalVoiceAssistantProps {
   externalOpen?: boolean;
@@ -317,6 +316,12 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
   };
 
   const applyParseResult = (result: VoiceOrderParseResult) => {
+    if (result.needsClarification) {
+      setParsedItems([]);
+      setPendingCancelOrder(null);
+      return;
+    }
+
     if (result.items && result.items.length > 0) {
       setParsedItems(result.items);
     }
@@ -385,12 +390,12 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
         suppliers,
         mode,
         undefined,
-        (earlySpeech: string) => {
-          // Fires as soon as the streamed response has spoken_feedback decodable — long before
-          // the full JSON (items, discount, etc.) has finished arriving.
+        (validatedSpeech: string) => {
+          // TTS is emitted only after confidence/entity validation so a guessed mutation is
+          // never spoken as if it had already been accepted.
           if (!enableTts) return;
           isSpeakingRef.current = true;
-          speakVietnameseFeedback(earlySpeech, () => {
+          speakVietnameseFeedback(validatedSpeech, () => {
             isSpeakingRef.current = false;
             maybeResumeListening();
           });
@@ -400,7 +405,7 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
       applyParseResult(result);
 
       // If intent is direct navigation, handle auto redirect immediately — this is safe/reversible.
-      if (result.intent === 'NAVIGATE' && result.targetScreen) {
+      if (!result.needsClarification && result.intent === 'NAVIGATE' && result.targetScreen) {
         setCurrentView(result.targetScreen as any);
         showToast(result.spokenFeedback || 'Đang chuyển trang...', 'info');
       }
@@ -496,9 +501,9 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
       note: orderNote,
     });
 
-    try {
-      confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
-    } catch {}
+    void import('canvas-confetti')
+      .then(({ default: confetti }) => confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } }))
+      .catch(() => undefined);
 
     showToast(`Đã thêm ${parsedItems.length} mặt hàng vào giỏ POS!`, 'success');
     setCurrentView('pos');
@@ -541,16 +546,16 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
       payment_method: paymentMethod,
       created_at: new Date().toISOString(),
       status: 'COMPLETED',
-      cashier: currentUser?.name || 'Thu ngân Ngân Sơn',
-      branch: currentBranch?.name || '318 Vũ Quang',
+      cashier: currentUser?.name || 'Chưa cập nhật',
+      branch: currentBranch?.name || 'Chưa cập nhật chi nhánh',
       note: orderNote || 'Lập tự động qua Trợ lý Giọng nói AI',
     };
 
     createOrderDirect(orderData, 'KEEP_BOTH', { syncStock: true, syncCashbook: true });
 
-    try {
-      confetti({ particleCount: 60, spread: 60, origin: { y: 0.75 } });
-    } catch {}
+    void import('canvas-confetti')
+      .then(({ default: confetti }) => confetti({ particleCount: 60, spread: 60, origin: { y: 0.75 } }))
+      .catch(() => undefined);
 
     if (enableTts) {
       speakVietnameseFeedback(
@@ -893,8 +898,30 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
                     </div>
                   )}
 
+                  {parseResult.needsClarification && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-extrabold text-amber-900">Cần xác nhận thêm</div>
+                          <div className="text-xs text-amber-900 mt-0.5 leading-relaxed">
+                            {parseResult.clarificationQuestion || parseResult.spokenFeedback || 'Bạn hãy nói rõ hơn để tôi tránh chọn nhầm dữ liệu.'}
+                          </div>
+                          <div className="text-[10px] text-amber-700 mt-1">
+                            Độ tin cậy: {Math.round((parseResult.confidence || 0) * 100)}%
+                          </div>
+                        </div>
+                      </div>
+                      {parseResult.ambiguities && parseResult.ambiguities.length > 0 && (
+                        <div className="text-[10px] text-amber-800 border-t border-amber-200 pt-2">
+                          {parseResult.ambiguities.join(' • ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* 1. SEARCH_PRODUCT — read-only */}
-                  {parseResult.intent === 'SEARCH_PRODUCT' && (
+                  {!parseResult.needsClarification && parseResult.intent === 'SEARCH_PRODUCT' && (
                     <div className="space-y-2">
                       <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                         <Search className="w-4 h-4 text-blue-600" />
@@ -944,7 +971,7 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
                   )}
 
                   {/* 2. CHECK_DEBT — read-only */}
-                  {parseResult.intent === 'CHECK_DEBT' && (
+                  {!parseResult.needsClarification && parseResult.intent === 'CHECK_DEBT' && (
                     <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -975,7 +1002,7 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
                   )}
 
                   {/* 3. NAVIGATE — read-only, already redirected above */}
-                  {parseResult.intent === 'NAVIGATE' && (
+                  {!parseResult.needsClarification && parseResult.intent === 'NAVIGATE' && (
                     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
                       <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -988,7 +1015,7 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
                   )}
 
                   {/* 4. CANCEL_ORDER — explicit red confirm gate */}
-                  {parseResult.intent === 'CANCEL_ORDER' && pendingCancelOrder && (
+                  {!parseResult.needsClarification && parseResult.intent === 'CANCEL_ORDER' && pendingCancelOrder && (
                     <div className="p-4 bg-rose-50/70 border border-rose-200 rounded-xl space-y-3">
                       <div className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
                         <AlertTriangle className="w-4 h-4" />
@@ -1039,7 +1066,7 @@ export const GlobalVoiceAssistant: React.FC<GlobalVoiceAssistantProps> = ({
                   )}
 
                   {/* 5. CREATE_ORDER / ADD_TO_CART / STOCK_IN / UPDATE_ORDER — editable review table */}
-                  {(parseResult.intent === 'CREATE_ORDER' ||
+                  {!parseResult.needsClarification && (parseResult.intent === 'CREATE_ORDER' ||
                     parseResult.intent === 'ADD_TO_CART' ||
                     parseResult.intent === 'STOCK_IN' ||
                     parseResult.intent === 'UPDATE_ORDER') && (

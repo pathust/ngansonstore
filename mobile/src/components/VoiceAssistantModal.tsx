@@ -54,7 +54,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     try {
       const data = await mobileApi.parseVoiceAssistant(text, products, customers, suppliers);
       setResult(data);
-      if (data.intent === 'NAVIGATE' && data.target_screen && onNavigate) {
+      if (!data.needs_clarification && data.intent === 'NAVIGATE' && data.target_screen && onNavigate) {
         onNavigate(data.target_screen);
       }
     } catch (err: any) {
@@ -124,9 +124,30 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
           <ScrollView style={styles.resultScroll}>
             {result && (
               <View style={styles.resultBox}>
+                {result.needs_clarification ? (
+                  <View style={styles.clarificationBox}>
+                    <Text style={styles.clarificationTitle}>Cần xác nhận thêm</Text>
+                    <Text style={styles.clarificationQuestion}>
+                      {result.clarification_question || 'Tôi chưa đủ chắc chắn để thực hiện thao tác này.'}
+                    </Text>
+                    {typeof result.confidence === 'number' ? (
+                      <Text style={styles.confidenceText}>
+                        Độ tin cậy: {Math.round(result.confidence * 100)}%
+                      </Text>
+                    ) : null}
+                    {Array.isArray(result.ambiguities) && result.ambiguities.length > 0 ? (
+                      <Text style={styles.ambiguityText}>{result.ambiguities.join(' • ')}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
                 {/* Spoken feedback */}
                 <View style={styles.feedbackBox}>
-                  <Text style={styles.feedbackText}>{result.spoken_feedback || result.note}</Text>
+                  <Text style={styles.feedbackText}>
+                    {result.needs_clarification
+                      ? result.clarification_question || result.spoken_feedback || result.note
+                      : result.spoken_feedback || result.note}
+                  </Text>
                 </View>
 
                 {/* Matched items */}
@@ -145,7 +166,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                               SL: {item.quantity} {item.unit || 'cái'} • Giá: {(item.unit_price || 0).toLocaleString('vi-VN')} đ
                             </Text>
                           </View>
-                          {prod && onAddToCart && (
+                          {prod && onAddToCart && !result.needs_clarification && (item.match_confidence == null || item.match_confidence >= 0.78) && (
                             <TouchableOpacity
                               style={styles.addCartBtn}
                               onPress={() => {
@@ -258,6 +279,36 @@ const styles = StyleSheet.create({
   },
   resultBox: {
     paddingVertical: 8,
+  },
+  clarificationBox: {
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  clarificationTitle: {
+    color: '#92400e',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  clarificationQuestion: {
+    color: '#78350f',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+  confidenceText: {
+    color: '#92400e',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  ambiguityText: {
+    color: '#a16207',
+    fontSize: 10,
+    marginTop: 3,
   },
   feedbackBox: {
     backgroundColor: '#f0fdf4',

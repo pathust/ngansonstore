@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createSpeechRecognition } from './voiceRecognition';
+import { createSpeechRecognition, mapGeminiDataToResult } from './voiceRecognition';
+import { Product } from '../types';
 
 // Minimal fake SpeechRecognition matching the subset of the Web Speech API createSpeechRecognition
 // actually uses. Lets tests fire synthetic onresult events with a hand-crafted `results` array to
@@ -106,5 +107,127 @@ describe('createSpeechRecognition — transcript accumulation', () => {
 
     const allTranscripts = onResult.mock.calls.map((call) => call[0] as string);
     expect(allTranscripts).toEqual(['xin', 'xin chào', 'xin chào bạn']);
+  });
+});
+
+describe('mapGeminiDataToResult — uncertainty safety', () => {
+  const products: Product[] = [
+    {
+      id: 'p-led-9w',
+      sku: 'LED-RD-9W',
+      barcode: '8931234567890',
+      name: 'Bóng LED Rạng Đông 9W',
+      category: 'Đèn',
+      unit: 'cái',
+      cost_price: 30000,
+      selling_price: 45000,
+      stock: 24,
+      min_stock: 5,
+      status: 'ACTIVE',
+    },
+  ];
+
+  it('không dựng sản phẩm giả khi Gemini trả về item không tồn tại', () => {
+    const result = mapGeminiDataToResult(
+      {
+        intent: 'CREATE_ORDER',
+        confidence: 0.93,
+        needs_clarification: false,
+        items: [
+          {
+            product_id: 'not-in-catalog',
+            product_name: 'Bóng siêu sáng tưởng tượng',
+            quantity: 2,
+            unit_price: 50000,
+          },
+        ],
+      },
+      'bán 2 bóng siêu sáng tưởng tượng',
+      products,
+      [],
+      'POS_ORDER'
+    );
+
+    expect(result.items).toHaveLength(0);
+    expect(result.needsClarification).toBe(true);
+    expect(result.confidence).toBeLessThanOrEqual(0.5);
+    expect(result.clarificationQuestion).toContain('chưa xác định chắc chắn');
+  });
+
+  it('không tự nâng confidence khi model bỏ trống confidence', () => {
+    const result = mapGeminiDataToResult(
+      {
+        intent: 'CREATE_ORDER',
+        needs_clarification: false,
+        items: [
+          {
+            product_id: 'p-led-9w',
+            product_name: 'Bóng LED Rạng Đông 9W',
+            quantity: 2,
+            unit_price: 45000,
+          },
+        ],
+      },
+      'bán 2 bóng led rạng đông 9w',
+      products,
+      [],
+      'POS_ORDER'
+    );
+
+    expect(result.confidence).toBe(0.5);
+    expect(result.needsClarification).toBe(true);
+  });
+
+  it('khi confidence thấp thì spoken feedback phải đổi thành câu hỏi làm rõ', () => {
+    const result = mapGeminiDataToResult(
+      {
+        intent: 'CREATE_ORDER',
+        confidence: 0.62,
+        needs_clarification: false,
+        spoken_feedback: 'Đã thêm 2 bóng LED vào đơn.',
+        items: [
+          {
+            product_id: 'p-led-9w',
+            product_name: 'Bóng LED Rạng Đông 9W',
+            quantity: 2,
+            unit_price: 45000,
+          },
+        ],
+      },
+      'bán 2 bóng led',
+      products,
+      [],
+      'POS_ORDER'
+    );
+
+    expect(result.needsClarification).toBe(true);
+    expect(result.spokenFeedback).toBe(result.clarificationQuestion);
+    expect(result.spokenFeedback).not.toContain('Đã thêm');
+  });
+
+  it('cho phép tiếp tục khi sản phẩm thật khớp và confidence đủ cao', () => {
+    const result = mapGeminiDataToResult(
+      {
+        intent: 'CREATE_ORDER',
+        confidence: 0.91,
+        needs_clarification: false,
+        items: [
+          {
+            product_id: 'p-led-9w',
+            product_name: 'Bóng LED Rạng Đông 9W',
+            quantity: 2,
+            unit_price: 45000,
+          },
+        ],
+      },
+      'bán 2 bóng led rạng đông 9w',
+      products,
+      [],
+      'POS_ORDER'
+    );
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].product.id).toBe('p-led-9w');
+    expect(result.needsClarification).toBe(false);
   });
 });

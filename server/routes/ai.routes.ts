@@ -18,9 +18,62 @@ function getGeminiClient(): GoogleGenAI | null {
   return geminiClient;
 }
 
-function buildVoiceOrderPrompt(products: any[], customers: any[], suppliers: any[]) {
-  const candidateProductsSummary = (Array.isArray(products) ? products : [])
-    .slice(0, 100)
+function normalizeRetrievalText(value: unknown): string {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function retrievalScore(query: string, entity: any, fields: string[]): number {
+  const q = normalizeRetrievalText(query);
+  if (!q) return 0;
+  const qCompact = q.replace(/\s+/g, '');
+  const qTokens = new Set(q.split(/\s+/).filter((token) => token.length >= 2));
+
+  let score = 0;
+  for (const field of fields) {
+    const raw = entity?.[field];
+    if (raw === undefined || raw === null || raw === '') continue;
+    const value = normalizeRetrievalText(raw);
+    const compact = value.replace(/\s+/g, '');
+    if (!value) continue;
+
+    if ((field === 'sku' || field === 'barcode' || field === 'phone' || field === 'code') && qCompact.includes(compact)) {
+      score += 120;
+    }
+    if (q === value) score += 100;
+    else if (q.includes(value) || value.includes(q)) score += 45;
+
+    const entityTokens = value.split(/\s+/).filter((token) => token.length >= 2);
+    let overlap = 0;
+    for (const token of entityTokens) {
+      if (qTokens.has(token)) overlap += token.length >= 5 ? 8 : 4;
+      else if (token.length >= 4 && q.includes(token)) overlap += 3;
+    }
+    score += overlap;
+  }
+
+  return score;
+}
+
+function rankCandidates<T extends Record<string, any>>(query: string, items: T[], fields: string[], limit: number): Array<T & { retrieval_score: number }> {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => ({ ...item, retrieval_score: retrievalScore(query, item, fields) }))
+    .filter((item) => item.retrieval_score > 0)
+    .sort((a, b) => b.retrieval_score - a.retrieval_score)
+    .slice(0, limit);
+}
+
+function buildVoiceOrderPrompt(text: string, products: any[], customers: any[], suppliers: any[]) {
+  const rankedProducts = rankCandidates(text, products, ['sku', 'barcode', 'name', 'category', 'unit'], 18);
+  const rankedCustomers = rankCandidates(text, customers, ['code', 'phone', 'name', 'address'], 8);
+  const rankedSuppliers = rankCandidates(text, suppliers, ['code', 'phone', 'name', 'company'], 8);
+
+  const candidateProductsSummary = rankedProducts
     .map((p: any) => ({
       id: p.id,
       name: p.name,
@@ -30,25 +83,28 @@ function buildVoiceOrderPrompt(products: any[], customers: any[], suppliers: any
       cost_price: p.cost_price || 0,
       stock: p.stock || 0,
       unit: p.unit || 'cái',
+      retrieval_score: p.retrieval_score,
     }));
 
-  const candidateCustomersSummary = (Array.isArray(customers) ? customers : [])
-    .slice(0, 50)
+  const candidateCustomersSummary = rankedCustomers
     .map((c: any) => ({
       id: c.id,
       name: c.name,
       phone: c.phone || '',
+      retrieval_score: c.retrieval_score,
     }));
 
-  const candidateSuppliersSummary = (Array.isArray(suppliers) ? suppliers : [])
-    .slice(0, 30)
+  const candidateSuppliersSummary = rankedSuppliers
     .map((s: any) => ({
       id: s.id,
       name: s.name,
+      retrieval_score: s.retrieval_score,
     }));
 
   return `Bạn là Trợ lý AI Bán hàng & Quản lý Kho thông minh của Cửa hàng Điện Nước & Kim Khí Ngân Sơn (318 Vũ Quang).
 Nhiệm vụ: Phân tích câu lệnh giọng nói hoặc văn bản tiếng Việt của người dùng để trích xuất ý định (Intent) và dữ liệu có cấu trúc phù hợp.
+
+Các danh sách bên dưới là kết quả truy xuất top-K theo chính câu người dùng. retrieval_score càng cao càng liên quan. Chỉ được dùng product_id/id thực sự xuất hiện trong danh sách ứng viên, tuyệt đối không tự tạo sản phẩm, SKU, tồn kho, khách hàng hay nhà cung cấp không có trong dữ liệu.
 
 Danh sách sản phẩm trong kho của cửa hàng:
 ${JSON.stringify(candidateProductsSummary)}
@@ -71,9 +127,13 @@ Quy tắc phân loại Ý định (intent):
 
 Quy tắc bóc tách dữ liệu:
 - Nhận diện sản phẩm thông minh: so khớp tên, từ khóa kỹ thuật (led, cadivi, lioa, panasonic, rạng đông, sino, tiền phong, aptomat/át, kìm, khóa, cút, co, ren, măng sông, tê, vít, sơn...).
+- Ưu tiên khớp chính xác SKU/barcode/tên; sau đó mới dùng từ khóa và retrieval_score. Nếu hai ứng viên gần tương đương và việc chọn sai sẽ thay đổi đơn hàng/phiếu nhập, phải hỏi lại.
 - Số lượng tiếng Việt: 'nửa tá' = 6, '1 tá' = 12, '1 đôi' / '1 cặp' = 2, 'chục' = 10, 'trăm' = 100.
 - Giá bán / Giá vốn: bóc tách tiền vnd ("45k" = 45000, "150 nghìn" = 150000).
 - Khách hàng & Công nợ: tách tên (loại bỏ từ xưng hô anh/chị/bác/chú/em).
+- Confidence phải nằm trong [0,1] và phản ánh độ chắc chắn thực tế, không được mặc định cao. Với hành động thay đổi dữ liệu (CREATE_ORDER, ADD_TO_CART, STOCK_IN, UPDATE_ORDER, CANCEL_ORDER): nếu confidence < 0.78, không tìm thấy thực thể bắt buộc, hoặc có nhiều cách hiểu hợp lý làm thay đổi kết quả thì đặt needs_clarification=true và hỏi đúng một câu ngắn trong clarification_question. Với truy vấn chỉ đọc, chỉ hỏi lại khi confidence < 0.58 hoặc câu hỏi không thể trả lời từ dữ liệu hiện có.
+- Chỉ hỏi lại khi sự mơ hồ thực sự ảnh hưởng kết quả. Nếu có thể suy luận chắc chắn từ SKU/barcode, ngữ cảnh, top-K hoặc tên gần như duy nhất thì tự suy luận và tiếp tục.
+- Khi needs_clarification=true: không bịa item để lấp chỗ trống; spoken_feedback nên chính là câu hỏi làm rõ tự nhiên. Khi false: clarification_question để trống.
 - Spoken feedback: Tạo câu trả lời tự nhiên, chuyên nghiệp, ngắn gọn bằng tiếng Việt để phát âm thanh lại cho người dùng nghe (VD: "Dạ bóng LED Rạng Đông 9W hiện còn 24 cái trong kho, giá bán 45.000 đồng", "Đã thêm 2 bóng LED vào giỏ hàng cho anh Tuấn"). LUÔN trả lời câu này TRƯỚC TIÊN, ngắn gọn súc tích, trước khi liệt kê chi tiết items.`;
 }
 
@@ -112,6 +172,7 @@ const VOICE_ORDER_RESPONSE_SCHEMA = {
           unit_price: { type: Type.NUMBER, description: 'Selling price per unit' },
           unit_cost: { type: Type.NUMBER, description: 'Cost price per unit' },
           unit: { type: Type.STRING },
+          match_confidence: { type: Type.NUMBER, description: 'Confidence that this item maps to the referenced catalog product' },
           discount_percent: { type: Type.NUMBER },
           note: { type: Type.STRING },
         },
@@ -134,8 +195,15 @@ const VOICE_ORDER_RESPONSE_SCHEMA = {
     order_code_to_update: { type: Type.STRING },
     note: { type: Type.STRING },
     confidence: { type: Type.NUMBER },
+    needs_clarification: { type: Type.BOOLEAN },
+    clarification_question: { type: Type.STRING },
+    ambiguities: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: 'Short reasons for material ambiguity, empty when none',
+    },
   },
-  required: ['intent', 'spoken_feedback'],
+  required: ['intent', 'spoken_feedback', 'confidence', 'needs_clarification'],
 };
 
 // Streaming variant: sinh phản hồi qua generateContentStream và đẩy từng chunk xuống client qua SSE
@@ -158,7 +226,7 @@ aiRouter.post('/ai/parse-voice-order-stream', async (req: Request, res: Response
       model: 'gemini-3.7-flash',
       contents: `Hãy phân tích câu lệnh sau: "${text}". Chế độ ngữ cảnh hiện tại: ${mode}.`,
       config: {
-        systemInstruction: buildVoiceOrderPrompt(products, customers, suppliers),
+        systemInstruction: buildVoiceOrderPrompt(text, products, customers, suppliers),
         responseMimeType: 'application/json',
         responseSchema: VOICE_ORDER_RESPONSE_SCHEMA,
         maxOutputTokens: 2048,
@@ -212,7 +280,7 @@ aiRouter.post('/ai/parse-voice-order', async (req: Request, res: Response) => {
           model: 'gemini-3.7-flash',
           contents: `Hãy phân tích câu lệnh sau: "${text}". Chế độ ngữ cảnh hiện tại: ${mode}.`,
           config: {
-            systemInstruction: buildVoiceOrderPrompt(products, customers, suppliers),
+            systemInstruction: buildVoiceOrderPrompt(text, products, customers, suppliers),
             responseMimeType: 'application/json',
             responseSchema: VOICE_ORDER_RESPONSE_SCHEMA,
             maxOutputTokens: 2048,
@@ -499,6 +567,36 @@ function fallbackLocalParser(
       : `Đã lắng nghe: "${clean}". Chưa tìm thấy sản phẩm khớp hoàn toàn trong kho.`;
   }
 
+  const mutatingIntents = new Set(['CREATE_ORDER', 'ADD_TO_CART', 'STOCK_IN', 'UPDATE_ORDER', 'CANCEL_ORDER']);
+  let confidence = matchedItems.length > 0 ? 0.85 : 0.6;
+  let needsClarification = false;
+  let clarificationQuestion = '';
+  const ambiguities: string[] = [];
+
+  if (mutatingIntents.has(intent)) {
+    if ((intent === 'CREATE_ORDER' || intent === 'ADD_TO_CART' || intent === 'STOCK_IN') && matchedItems.length === 0) {
+      confidence = Math.min(confidence, 0.45);
+      needsClarification = true;
+      ambiguities.push('Không tìm thấy sản phẩm chắc chắn trong danh mục hiện tại');
+      clarificationQuestion = 'Bạn muốn chọn chính xác sản phẩm nào? Hãy nói tên đầy đủ, SKU hoặc mã vạch.';
+    } else if ((intent === 'UPDATE_ORDER' || intent === 'CANCEL_ORDER') && !orderCodeToUpdate && customerName === 'Khách lẻ') {
+      confidence = Math.min(confidence, 0.5);
+      needsClarification = true;
+      ambiguities.push('Chưa xác định được hóa đơn cần thay đổi');
+      clarificationQuestion = 'Bạn muốn thao tác với hóa đơn nào? Hãy cho tôi mã hóa đơn hoặc tên khách hàng.';
+    }
+  } else if ((intent === 'SEARCH_PRODUCT' || intent === 'CHECK_DEBT') && matchedItems.length === 0 && customerName === 'Khách lẻ') {
+    confidence = Math.min(confidence, 0.55);
+    needsClarification = true;
+    clarificationQuestion = intent === 'SEARCH_PRODUCT'
+      ? 'Bạn muốn tìm sản phẩm nào? Hãy nói thêm tên, SKU hoặc mã vạch.'
+      : 'Bạn muốn kiểm tra công nợ của khách hàng nào?';
+  }
+
+  if (needsClarification && clarificationQuestion) {
+    feedback = clarificationQuestion;
+  }
+
   return {
     intent,
     target_screen: targetScreen,
@@ -519,6 +617,9 @@ function fallbackLocalParser(
     note: 'Lập nhanh bằng giọng nói',
     spoken_feedback: feedback,
     explanation: 'Phân tích tự động bằng bộ máy xử lý ngôn ngữ tiếng Việt (NLP Engine)',
-    confidence: matchedItems.length > 0 ? 0.85 : 0.6,
+    confidence,
+    needs_clarification: needsClarification,
+    clarification_question: clarificationQuestion,
+    ambiguities,
   };
 }
