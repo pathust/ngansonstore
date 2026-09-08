@@ -43,13 +43,14 @@ export function useVietQr({
   savedQrCode = '',
 }: UseVietQrOptions): UseVietQrReturn {
   const cleanAccount = (accountNumber || '').trim();
-  const cleanBank = (bankId || 'ICB').trim();
+  const cleanBank = (bankId || '').trim();
+  const hasBankConfig = Boolean(cleanBank && cleanAccount);
 
   // Initial QR selection: custom static -> saved confirmed QR -> fallback VietQR URL
   const getInitialQr = () => {
     if (useCustomQr && customQrImage) return customQrImage;
-    if (savedQrCode && !amount && !memo) return savedQrCode;
-    if (cleanAccount) {
+    if (hasBankConfig && savedQrCode && !amount && !memo) return savedQrCode;
+    if (hasBankConfig) {
       return getVietQRUrl(cleanBank, cleanAccount, template, amount, memo, accountHolder);
     }
     return '';
@@ -60,7 +61,7 @@ export function useVietQr({
   const [isOnlineTemplate, setIsOnlineTemplate] = useState<boolean>(() => !useCustomQr && !!getInitialQr());
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [onlineUrl, setOnlineUrl] = useState<string>(() => {
-    if (cleanAccount) {
+    if (hasBankConfig) {
       return getVietQRUrl(cleanBank, cleanAccount, template, amount, memo, accountHolder);
     }
     return '';
@@ -82,7 +83,7 @@ export function useVietQr({
       }
 
       // 2. Validate required account number
-      if (!cleanAccount) {
+      if (!hasBankConfig) {
         setQrUrl('');
         setLocalDataUrl('');
         setIsOnlineTemplate(false);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,50 +9,85 @@ import {
   Modal,
   ScrollView,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { Product, CartItem, Customer, Order } from '../types';
+import { Product, CartItem, Customer, Order, StoreSettings, Category } from '../types';
 import { mobileApi } from '../services/api';
 import { VietQrPaymentModal } from '../components/VietQrPaymentModal';
 import { VoiceAssistantModal } from '../components/VoiceAssistantModal';
+import { ThemeColors, useMobileTheme } from '../theme/ThemeContext';
 
 export const PosMobileScreen: React.FC = () => {
+  const { colors } = useMobileTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState('ALL');
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isVietQrModalOpen, setIsVietQrModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [pendingOrderCode, setPendingOrderCode] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (refresh = false) => {
+    if (refresh) setIsRefreshing(true);
+    else setIsLoading(true);
+    setLoadError('');
     try {
-      const [prods, custs] = await Promise.all([
+      const [prods, custs, settings, cats] = await Promise.all([
         mobileApi.getProducts(),
         mobileApi.getCustomers(),
+        mobileApi.getSettings(),
+        mobileApi.getCategories(),
       ]);
       setProducts(prods);
       setCustomers(custs);
-    } catch (e: any) {
-      console.warn('Error loading POS data:', e);
+      setStoreSettings(settings);
+      setCategories(cats);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Không thể tải dữ liệu bán hàng');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   const addToCart = (product: Product, quantity = 1) => {
+    if (product.stock <= 0) {
+      Alert.alert('Hết hàng', `"${product.name}" hiện không còn tồn kho.`);
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
+        const nextQuantity = existing.quantity + quantity;
+        if (nextQuantity > product.stock) {
+          Alert.alert('Không đủ tồn kho', `Chỉ còn ${product.stock} ${product.unit} "${product.name}".`);
+          return prev;
+        }
         return prev.map((item) =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: nextQuantity }
             : item
         );
+      }
+      if (quantity > product.stock) {
+        Alert.alert('Không đủ tồn kho', `Chỉ còn ${product.stock} ${product.unit} "${product.name}".`);
+        return prev;
       }
       return [
         ...prev,
@@ -72,6 +107,7 @@ export const PosMobileScreen: React.FC = () => {
         .map((item) => {
           if (item.product.id === productId) {
             const nextQty = item.quantity + delta;
+            if (nextQty > item.product.stock) return item;
             return nextQty > 0 ? { ...item, quantity: nextQty } : null;
           }
           return item;
@@ -83,12 +119,7 @@ export const PosMobileScreen: React.FC = () => {
   const totalAmount = cart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const categories = [
-    { id: 'ALL', name: 'Tất cả' },
-    { id: 'cat-electronics', name: 'Thiết bị điện' },
-    { id: 'cat-water', name: 'Ống & phụ kiện nước' },
-    { id: 'cat-hardware', name: 'Kim khí & Dụng cụ' },
-  ];
+  const categoryOptions = [{ id: 'ALL', name: 'Tất cả' }, ...categories.map((category) => ({ id: category.id, name: category.name }))];
 
   const filteredProducts = products.filter((p) => {
     const matchesSearch =
@@ -104,6 +135,7 @@ export const PosMobileScreen: React.FC = () => {
     if (cart.length === 0) return;
 
     const orderCode = `HD-${Date.now().toString().slice(-6)}`;
+    const totalCost = cart.reduce((sum, c) => sum + (c.product.cost_price || 0) * c.quantity, 0);
     const newOrder: Partial<Order> = {
       code: orderCode,
       customer_name: selectedCustomer?.name || 'Khách lẻ',
@@ -120,16 +152,23 @@ export const PosMobileScreen: React.FC = () => {
       total: totalAmount,
       discount: 0,
       final_amount: totalAmount,
-      total_cost: cart.reduce((sum, c) => sum + (c.product.cost_price || 0) * c.quantity, 0),
-      profit: 0,
+      total_cost: totalCost,
+      profit: totalAmount - totalCost,
       payment_method: paymentMethod,
       created_at: new Date().toISOString(),
       status: 'COMPLETED',
       cashier: 'Thu ngân Mobile',
-      branch: '318 Vũ Quang',
+      branch: storeSettings?.address || storeSettings?.name || '',
     };
 
     if (paymentMethod === 'TRANSFER') {
+      if (!storeSettings?.bankId?.trim() || !storeSettings?.accountNumber?.trim()) {
+        Alert.alert(
+          'Chưa cấu hình VietQR',
+          'Vui lòng vào Nhiều hơn → Cài đặt để nhập ngân hàng và số tài khoản trước khi nhận chuyển khoản.'
+        );
+        return;
+      }
       setPendingOrderCode(orderCode);
       setIsCartModalOpen(false);
       setIsVietQrModalOpen(true);
@@ -147,6 +186,7 @@ export const PosMobileScreen: React.FC = () => {
   };
 
   const handleVietQrConfirmed = async () => {
+    const totalCost = cart.reduce((sum, c) => sum + (c.product.cost_price || 0) * c.quantity, 0);
     const newOrder: Partial<Order> = {
       code: pendingOrderCode,
       customer_name: selectedCustomer?.name || 'Khách lẻ',
@@ -163,13 +203,13 @@ export const PosMobileScreen: React.FC = () => {
       total: totalAmount,
       discount: 0,
       final_amount: totalAmount,
-      total_cost: cart.reduce((sum, c) => sum + (c.product.cost_price || 0) * c.quantity, 0),
-      profit: 0,
+      total_cost: totalCost,
+      profit: totalAmount - totalCost,
       payment_method: 'TRANSFER',
       created_at: new Date().toISOString(),
       status: 'COMPLETED',
       cashier: 'Thu ngân Mobile',
-      branch: '318 Vũ Quang',
+      branch: storeSettings?.address || storeSettings?.name || '',
     };
 
     try {
@@ -192,7 +232,7 @@ export const PosMobileScreen: React.FC = () => {
             value={search}
             onChangeText={setSearch}
             placeholder="Tìm sản phẩm, SKU, mã vạch..."
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={colors.textSubtle}
             style={styles.searchInput}
           />
           {search ? (
@@ -211,10 +251,16 @@ export const PosMobileScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
+      {loadError ? (
+        <TouchableOpacity style={styles.errorBanner} onPress={() => loadData()}>
+          <Text style={styles.errorText}>Không tải được dữ liệu bán hàng. Chạm để thử lại.</Text>
+        </TouchableOpacity>
+      ) : null}
+
       {/* Categories Filter Horizontal Scroll */}
       <View style={styles.catContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catScroll}>
-          {categories.map((c) => {
+          {categoryOptions.map((c) => {
             const isSelected = selectedCat === c.id;
             return (
               <TouchableOpacity
@@ -236,8 +282,31 @@ export const PosMobileScreen: React.FC = () => {
         data={filteredProducts}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.productList}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => loadData(true)}
+            tintColor={colors.primary}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            {isLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>{search ? 'Không tìm thấy sản phẩm' : 'Chưa có sản phẩm để bán'}</Text>
+                <Text style={styles.emptySub}>{search ? 'Thử tên, SKU hoặc mã vạch khác.' : 'Thêm hàng hoá trước khi tạo đơn.'}</Text>
+              </>
+            )}
+          </View>
+        }
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.productCard} onPress={() => addToCart(item)}>
+          <TouchableOpacity
+            style={[styles.productCard, item.stock <= 0 && styles.productCardDisabled]}
+            onPress={() => addToCart(item)}
+            activeOpacity={item.stock <= 0 ? 1 : 0.7}
+          >
             <View style={styles.productInfo}>
               <Text style={styles.productName} numberOfLines={2}>
                 {item.name}
@@ -324,6 +393,14 @@ export const PosMobileScreen: React.FC = () => {
             </ScrollView>
 
             <View style={styles.cartModalFooter}>
+              <TouchableOpacity style={styles.customerSelector} onPress={() => setIsCustomerModalOpen(true)}>
+                <View>
+                  <Text style={styles.customerSelectorLabel}>Khách hàng</Text>
+                  <Text style={styles.customerSelectorValue}>{selectedCustomer?.name || 'Khách lẻ'}</Text>
+                </View>
+                <Text style={styles.customerSelectorAction}>Chọn ›</Text>
+              </TouchableOpacity>
+
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Khách cần trả:</Text>
                 <Text style={styles.summaryValue}>{totalAmount.toLocaleString('vi-VN')} đ</Text>
@@ -349,6 +426,51 @@ export const PosMobileScreen: React.FC = () => {
         </View>
       </Modal>
 
+      <Modal visible={isCustomerModalOpen} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.customerModalContainer}>
+            <View style={styles.cartModalHeader}>
+              <Text style={styles.cartModalTitle}>Chọn khách hàng</Text>
+              <TouchableOpacity onPress={() => setIsCustomerModalOpen(false)}>
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.customerRow}
+              onPress={() => {
+                setSelectedCustomer(null);
+                setIsCustomerModalOpen(false);
+              }}
+            >
+              <View>
+                <Text style={styles.customerName}>Khách lẻ</Text>
+                <Text style={styles.customerPhone}>Không gắn công nợ/khách hàng</Text>
+              </View>
+            </TouchableOpacity>
+            <FlatList
+              data={customers}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.customerRow}
+                  onPress={() => {
+                    setSelectedCustomer(item);
+                    setIsCustomerModalOpen(false);
+                  }}
+                >
+                  <View>
+                    <Text style={styles.customerName}>{item.name}</Text>
+                    <Text style={styles.customerPhone}>{item.phone || 'Không có số điện thoại'}</Text>
+                  </View>
+                  {selectedCustomer?.id === item.id ? <Text style={styles.customerSelected}>✓</Text> : null}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.emptySub}>Chưa có khách hàng.</Text>}
+            />
+          </View>
+        </View>
+      </Modal>
+
       {/* VietQR Modal */}
       <VietQrPaymentModal
         visible={isVietQrModalOpen}
@@ -356,6 +478,9 @@ export const PosMobileScreen: React.FC = () => {
         onConfirmPaid={handleVietQrConfirmed}
         amount={totalAmount}
         orderCode={pendingOrderCode}
+        bankId={storeSettings?.bankId}
+        accountNumber={storeSettings?.accountNumber}
+        accountHolder={storeSettings?.accountHolder}
       />
 
       {/* Voice Assistant Modal */}
@@ -371,26 +496,26 @@ export const PosMobileScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: colors.border,
     gap: 8,
   },
   searchWrapper: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 10,
     paddingHorizontal: 10,
   },
@@ -398,29 +523,29 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 8,
     fontSize: 13,
-    color: '#0f172a',
+    color: colors.text,
   },
   clearBtn: {
     padding: 4,
   },
   clearBtnText: {
-    color: '#94a3b8',
+    color: colors.textSubtle,
     fontSize: 14,
   },
   micBtn: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: colors.primarySoft,
     padding: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#bfdbfe',
+    borderColor: colors.borderStrong,
   },
   micIcon: {
     fontSize: 16,
   },
   catContainer: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.border,
   },
   catScroll: {
     paddingHorizontal: 12,
@@ -431,18 +556,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.surfaceMuted,
   },
   catPillActive: {
-    backgroundColor: '#0B63E5',
+    backgroundColor: colors.primary,
   },
   catText: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   catTextActive: {
-    color: '#ffffff',
+    color: colors.inverse,
     fontWeight: 'bold',
   },
   productList: {
@@ -450,26 +575,27 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   productCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
+  productCardDisabled: { opacity: 0.55 },
   productInfo: {
     flex: 1,
   },
   productName: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#0f172a',
+    color: colors.text,
     lineHeight: 18,
   },
   productSku: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textMuted,
     marginVertical: 3,
   },
   productBottom: {
@@ -481,7 +607,7 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#0B63E5',
+    color: colors.primary,
   },
   stockBadge: {
     fontSize: 10,
@@ -491,28 +617,28 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   stockOk: {
-    backgroundColor: '#ecfdf5',
-    color: '#059669',
+    backgroundColor: colors.surfaceRaised,
+    color: colors.success,
   },
   stockLow: {
-    backgroundColor: '#fffbeb',
-    color: '#d97706',
+    backgroundColor: colors.surfaceRaised,
+    color: colors.warning,
   },
   stockOut: {
-    backgroundColor: '#fef2f2',
-    color: '#dc2626',
+    backgroundColor: colors.surfaceRaised,
+    color: colors.danger,
   },
   addIconBox: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#eff6ff',
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addIconText: {
     fontSize: 18,
-    color: '#0B63E5',
+    color: colors.primary,
     fontWeight: 'bold',
   },
   bottomCartBar: {
@@ -520,14 +646,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: colors.border,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 6,
@@ -542,32 +668,32 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#0B63E5',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cartCountText: {
-    color: '#fff',
+    color: colors.inverse,
     fontSize: 12,
     fontWeight: 'bold',
   },
   cartBarLabel: {
     fontSize: 10,
-    color: '#64748b',
+    color: colors.textMuted,
   },
   cartBarTotal: {
     fontSize: 15,
     fontWeight: '900',
-    color: '#0B63E5',
+    color: colors.primary,
   },
   cartCheckoutBtn: {
-    backgroundColor: '#0B63E5',
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
   },
   cartCheckoutText: {
-    color: '#ffffff',
+    color: colors.inverse,
     fontSize: 13,
     fontWeight: 'bold',
   },
@@ -577,7 +703,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   cartModalContainer: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
@@ -592,11 +718,11 @@ const styles = StyleSheet.create({
   cartModalTitle: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: '#0f172a',
+    color: colors.text,
   },
   closeBtnText: {
     fontSize: 18,
-    color: '#64748b',
+    color: colors.textMuted,
     fontWeight: 'bold',
   },
   cartItemsScroll: {
@@ -607,16 +733,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.border,
   },
   cartItemName: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0f172a',
+    color: colors.text,
   },
   cartItemPrice: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textMuted,
     marginTop: 2,
   },
   qtyControl: {
@@ -628,19 +754,19 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 6,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   qtyBtnText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#334155',
+    color: colors.textMuted,
   },
   qtyValue: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#0f172a',
+    color: colors.text,
     minWidth: 20,
     textAlign: 'center',
   },
@@ -648,7 +774,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: colors.border,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -658,12 +784,12 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 13,
-    color: '#64748b',
+    color: colors.textMuted,
   },
   summaryValue: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#0B63E5',
+    color: colors.primary,
   },
   paymentBtnRow: {
     flexDirection: 'row',
@@ -671,7 +797,7 @@ const styles = StyleSheet.create({
   },
   cashBtn: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.surfaceMuted,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -679,11 +805,11 @@ const styles = StyleSheet.create({
   cashBtnText: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#334155',
+    color: colors.textMuted,
   },
   qrBtn: {
     flex: 1,
-    backgroundColor: '#0B63E5',
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -691,6 +817,50 @@ const styles = StyleSheet.create({
   qrBtnText: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: colors.inverse,
   },
+  errorBanner: {
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    backgroundColor: colors.surfaceRaised,
+  },
+  errorText: { color: colors.danger, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  emptyState: { paddingVertical: 48, alignItems: 'center', paddingHorizontal: 24 },
+  emptyTitle: { color: colors.text, fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  emptySub: { color: colors.textMuted, fontSize: 12, marginTop: 6, textAlign: 'center' },
+  customerSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  customerSelectorLabel: { color: colors.textMuted, fontSize: 11 },
+  customerSelectorValue: { color: colors.text, fontSize: 13, fontWeight: '700', marginTop: 2 },
+  customerSelectorAction: { color: colors.primary, fontSize: 12, fontWeight: '700' },
+  customerModalContainer: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    maxHeight: '75%',
+  },
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  customerName: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  customerPhone: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+  customerSelected: { color: colors.primary, fontSize: 18, fontWeight: '900' },
 });

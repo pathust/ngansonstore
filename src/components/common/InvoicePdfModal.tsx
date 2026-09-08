@@ -1,7 +1,6 @@
 import React, { useEffect,  useState  } from 'react';
 import { Order } from '../../types';
 import { useApp } from '../../context/AppContext';
-import { exportInvoiceToPdf } from '../../utils/pdfExport';
 import { formatCurrency, formatDateTime, numberToVietnameseWords, getVietQRUrl } from '../../utils/formatters';
 import {
   Download,
@@ -23,7 +22,7 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
   order,
   isOpen,
   onClose,
-  branchName = '318 Vũ Quang',
+  branchName = '',
 }) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -37,19 +36,24 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
   const [format, setFormat] = useState<'K80' | 'A4'>('K80');
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
+  const hasBankTransferConfig = Boolean(storeSettings.bankId?.trim() && storeSettings.accountNumber?.trim());
+  const hasQrConfig = Boolean(
+    (storeSettings.useCustomQr && storeSettings.customQrImage) || hasBankTransferConfig
+  );
 
   if (!isOpen || !order) return null;
 
   const handleExportPdf = async (autoPrint: boolean = false) => {
     try {
       setIsExporting(true);
+      const { exportInvoiceToPdf } = await import('../../utils/pdfExport');
       await exportInvoiceToPdf(order, {
         format,
         filename: `HoaDon_${order.code}_NganSon.pdf`,
         autoPrint,
-        storeName: storeSettings.name || 'CỬA HÀNG ĐIỆN NƯỚC & KIM KHÍ NGÂN SƠN',
-        storeAddress: storeSettings.address || '318 Vũ Quang, TP. Hà Tĩnh',
-        storePhone: storeSettings.phone || '0912.345.678',
+        storeName: storeSettings.name,
+        storeAddress: storeSettings.address,
+        storePhone: storeSettings.phone,
         storeTaxCode: storeSettings.taxCode,
         storeSlogan: storeSettings.slogan,
         storeWifi: storeSettings.showWifiOnReceipt && storeSettings.wifiSsid ? `${storeSettings.wifiSsid}${storeSettings.wifiPassword ? ` / MK: ${storeSettings.wifiPassword}` : ''}` : undefined,
@@ -58,8 +62,9 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
         bankName: storeSettings.bankName,
         accountNumber: storeSettings.accountNumber,
         accountHolder: storeSettings.accountHolder,
-        showQr: format === 'K80' ? storeSettings.showQrOnK80Receipt : storeSettings.showQrOnA4Invoice,
+        showQr: hasQrConfig && (format === 'K80' ? storeSettings.showQrOnK80Receipt : storeSettings.showQrOnA4Invoice),
         customQrImage: storeSettings.useCustomQr ? storeSettings.customQrImage : undefined,
+        savedQrCode: hasBankTransferConfig ? storeSettings.savedQrCode : undefined,
       });
       setExportSuccess(true);
       showToast(autoPrint ? 'Đang mở lệnh in hóa đơn...' : 'Đã xuất hóa đơn PDF thành công!', 'success');
@@ -78,22 +83,24 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
 
   const qrUrl = storeSettings.useCustomQr && storeSettings.customQrImage
     ? storeSettings.customQrImage
+    : !hasBankTransferConfig
+    ? ''
     : order.final_amount > 0
     ? getVietQRUrl(
-        storeSettings.bankId || 'ICB',
-        storeSettings.accountNumber || '106877069794',
+        storeSettings.bankId,
+        storeSettings.accountNumber,
         storeSettings.qrTemplate || 'compact2',
         order.final_amount,
         qrMemo,
-        storeSettings.accountHolder || 'PHAN ANH TAI'
+        storeSettings.accountHolder || ''
       )
     : (storeSettings.savedQrCode || getVietQRUrl(
-        storeSettings.bankId || 'ICB',
-        storeSettings.accountNumber || '106877069794',
+        storeSettings.bankId,
+        storeSettings.accountNumber,
         storeSettings.qrTemplate || 'compact2',
         0,
         qrMemo,
-        storeSettings.accountHolder || 'PHAN ANH TAI'
+        storeSettings.accountHolder || ''
       ));
 
   const wordsAmount = numberToVietnameseWords(order.final_amount);
@@ -194,17 +201,17 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
             <div className="bg-white p-5 w-full max-w-[340px] shadow-sm border border-slate-200 rounded-md text-slate-900 font-mono text-xs leading-relaxed">
               <div className="text-center pb-3 border-b border-dashed border-slate-300">
                 <div className="font-bold text-sm text-slate-900 uppercase">
-                  {storeSettings.name || 'CỬA HÀNG NGÂN SƠN'}
+                  {storeSettings.name || 'NGÂN SƠN'}
                 </div>
                 {storeSettings.showSloganOnReceipt && storeSettings.slogan && (
                   <div className="text-[10px] text-slate-500 italic mt-0.5">{storeSettings.slogan}</div>
                 )}
-                <div className="text-[11px] text-slate-600 font-medium mt-1">
-                  {storeSettings.address || '318 Vũ Quang, TP. Hà Tĩnh'}
-                </div>
-                <div className="text-[10px] text-slate-500">
-                  Hotline: {storeSettings.phone || '0912.345.678'}
-                </div>
+                {storeSettings.address && (
+                  <div className="text-[11px] text-slate-600 font-medium mt-1">{storeSettings.address}</div>
+                )}
+                {storeSettings.phone && (
+                  <div className="text-[10px] text-slate-500">Hotline: {storeSettings.phone}</div>
+                )}
                 {storeSettings.showTaxCodeOnReceipt && storeSettings.taxCode && (
                   <div className="text-[10px] text-slate-500 font-mono">MST: {storeSettings.taxCode}</div>
                 )}
@@ -281,7 +288,7 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
               </div>
 
               <div className="pt-3 pb-1 text-center flex flex-col items-center">
-                {storeSettings.showQrOnK80Receipt && (
+                {storeSettings.showQrOnK80Receipt && qrUrl && (
                   <div className="p-1.5 bg-white border border-slate-200 rounded inline-block">
                     <img src={qrUrl} alt="VietQR" className="w-20 h-20 object-contain mx-auto" />
                   </div>
@@ -296,13 +303,13 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
               <div className="flex justify-between items-start border-b-2 border-blue-600 pb-3 mb-4">
                 <div>
                   <div className="font-black text-base text-blue-900 uppercase">
-                    {storeSettings.name || 'CỬA HÀNG ĐIỆN NƯỚC & KIM KHÍ NGÂN SƠN'}
+                    {storeSettings.name || 'Cửa hàng Ngân Sơn'}
                   </div>
                   {storeSettings.slogan && (
                     <div className="text-[10px] text-slate-500 italic mt-0.5">{storeSettings.slogan}</div>
                   )}
-                  <div className="text-[11px] text-slate-600 mt-1">📍 {storeSettings.address || '318 Vũ Quang, TP. Hà Tĩnh'}</div>
-                  <div className="text-[11px] text-slate-600">📞 Hotline: {storeSettings.phone || '0912.345.678'}</div>
+                  <div className="text-[11px] text-slate-600 mt-1">📍 {storeSettings.address || 'Chưa cập nhật địa chỉ'}</div>
+                  <div className="text-[11px] text-slate-600">📞 Hotline: {storeSettings.phone || 'Chưa cập nhật'}</div>
                   {storeSettings.taxCode && (
                     <div className="text-[10px] text-slate-500 font-mono">MST: {storeSettings.taxCode}</div>
                   )}
@@ -321,8 +328,8 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
                   <div>Thanh toán: <strong className="text-blue-700">{paymentMethodLabel}</strong></div>
                 </div>
                 <div>
-                  <div>Thu ngân: <strong>{order.cashier || 'Phan Minh'}</strong></div>
-                  <div>Chi nhánh: <strong>{order.branch || branchName}</strong></div>
+                  <div>Thu ngân: <strong>{order.cashier || 'Chưa cập nhật'}</strong></div>
+                  <div>Chi nhánh: <strong>{order.branch || branchName || storeSettings.address || 'Chưa cập nhật'}</strong></div>
                   <div>Trạng thái: <strong className="text-emerald-600">Hoàn thành</strong></div>
                 </div>
               </div>
@@ -355,13 +362,17 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
               </table>
 
               <div className="flex justify-between items-start mb-4">
-                {storeSettings.showQrOnA4Invoice ? (
+                {storeSettings.showQrOnA4Invoice && qrUrl ? (
                   <div className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <img src={qrUrl} alt="VietQR" className="w-14 h-14" />
                     <div className="text-[10px] text-slate-600">
-                      <div className="font-bold text-slate-800">{storeSettings.bankName || storeSettings.bankId}</div>
-                      <div>STK: {storeSettings.accountNumber}</div>
-                      <div className="uppercase font-semibold">{storeSettings.accountHolder}</div>
+                      {storeSettings.accountNumber && (
+                        <>
+                          <div className="font-bold text-slate-800">{storeSettings.bankName || storeSettings.bankId}</div>
+                          <div>STK: {storeSettings.accountNumber}</div>
+                          {storeSettings.accountHolder && <div className="uppercase font-semibold">{storeSettings.accountHolder}</div>}
+                        </>
+                      )}
                     </div>
                   </div>
                 ) : (

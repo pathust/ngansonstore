@@ -38,17 +38,17 @@ export const exportInvoiceToPdf = async (
   options: PdfExportOptions = {}
 ): Promise<void> => {
   const format = options.format || 'K80';
-  const storeName = options.storeName || 'CỬA HÀNG ĐIỆN NƯỚC & KIM KHÍ NGÂN SƠN';
-  const storeAddress = options.storeAddress || '318 Vũ Quang, TP. Hà Tĩnh';
-  const storePhone = options.storePhone || '0912.345.678';
-  const storeTaxCode = options.storeTaxCode;
-  const storeSlogan = options.storeSlogan;
-  const storeWifi = options.storeWifi;
-  const footerNote = options.footerNote || 'Cảm ơn Quý khách & Hẹn gặp lại!';
-  const bankId = options.bankId || 'ICB';
-  const bankName = options.bankName || 'VietinBank';
-  const accountNumber = options.accountNumber || '106877069794';
-  const accountHolder = options.accountHolder || 'PHAN ANH TAI';
+  const storeName = escapeHtml(options.storeName?.trim() || 'NGÂN SƠN');
+  const storeAddress = escapeHtml(options.storeAddress?.trim() || '');
+  const storePhone = escapeHtml(options.storePhone?.trim() || '');
+  const storeTaxCode = options.storeTaxCode?.trim() ? escapeHtml(options.storeTaxCode.trim()) : '';
+  const storeSlogan = options.storeSlogan?.trim() ? escapeHtml(options.storeSlogan.trim()) : '';
+  const storeWifi = options.storeWifi?.trim() ? escapeHtml(options.storeWifi.trim()) : '';
+  const footerNote = escapeHtml(options.footerNote?.trim() || 'Cảm ơn Quý khách & Hẹn gặp lại!');
+  const bankId = (options.bankId || '').trim();
+  const bankName = (options.bankName || '').trim();
+  const accountNumber = (options.accountNumber || '').trim();
+  const accountHolder = (options.accountHolder || '').trim();
   const showQr = options.showQr !== undefined ? options.showQr : true;
   const filename = options.filename || `HoaDon_${order.code}_NganSon.pdf`;
 
@@ -59,11 +59,15 @@ export const exportInvoiceToPdf = async (
   container.style.zIndex = '-9999';
   container.style.backgroundColor = '#ffffff';
 
+  const hasBankConfig = Boolean(bankId && accountNumber);
   const qrUrl = options.customQrImage
     ? options.customQrImage
+    : !hasBankConfig
+    ? ''
     : order.final_amount > 0
     ? getVietQRUrl(bankId, accountNumber, 'compact2', order.final_amount, `NGANSON ${order.code}`, accountHolder)
     : (options.savedQrCode || getVietQRUrl(bankId, accountNumber, 'compact2', 0, `NGANSON ${order.code}`, accountHolder));
+  const shouldRenderQr = showQr && Boolean(qrUrl);
 
   const wordsAmount = numberToVietnameseWords(order.final_amount);
   const paymentMethodLabel =
@@ -86,8 +90,8 @@ export const exportInvoiceToPdf = async (
       <div style="text-align: center; border-bottom: 1px dashed #9ca3af; padding-bottom: 10px; margin-bottom: 10px;">
         <div style="font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">${storeName}</div>
         ${storeSlogan ? `<div style="font-size: 10px; color: #6b7280; font-style: italic; margin-top: 2px;">${storeSlogan}</div>` : ''}
-        <div style="font-size: 11px; margin-top: 3px;">${storeAddress}</div>
-        <div style="font-size: 11px;">Hotline: ${storePhone}</div>
+        ${storeAddress ? `<div style="font-size: 11px; margin-top: 3px;">${storeAddress}</div>` : ''}
+        ${storePhone ? `<div style="font-size: 11px;">Hotline: ${storePhone}</div>` : ''}
         ${storeTaxCode ? `<div style="font-size: 10px; color: #4b5563;">MST: ${storeTaxCode}</div>` : ''}
         <div style="margin-top: 8px; font-size: 13px; font-weight: 800; text-transform: uppercase;">HÓA ĐƠN BÁN HÀNG</div>
         <div style="font-size: 12px; font-weight: 700; color: #1d4ed8; margin-top: 2px;">${order.code}</div>
@@ -100,7 +104,7 @@ export const exportInvoiceToPdf = async (
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
           <span style="color: #6b7280;">Thu ngân:</span>
-          <span>${escapeHtml(order.cashier || 'Phan Minh')}</span>
+          <span>${escapeHtml(order.cashier || 'Chưa cập nhật')}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
           <span style="color: #6b7280;">Khách hàng:</span>
@@ -168,11 +172,11 @@ export const exportInvoiceToPdf = async (
       </div>
 
       ${
-        showQr
+        shouldRenderQr
           ? `<div style="text-align: center; padding-top: 6px;">
               <div style="font-size: 10px; color: #4b5563; margin-bottom: 4px;">Mã tra cứu & Thanh toán VietQR:</div>
               <img src="${qrUrl}" style="width: 105px; height: 105px; display: inline-block; border: 1px solid #e5e7eb; padding: 3px; background: #fff; border-radius: 4px;" alt="QR" />
-              <div style="font-size: 9px; color: #374151; font-weight: 700; margin-top: 3px;">${bankName} • ${accountNumber}</div>
+              ${accountNumber ? `<div style="font-size: 9px; color: #374151; font-weight: 700; margin-top: 3px;">${bankName || bankId} • ${accountNumber}</div>` : ''}
             </div>`
           : ''
       }
@@ -183,7 +187,7 @@ export const exportInvoiceToPdf = async (
         ${footerNote}
       </div>
       <div style="text-align: center; font-size: 8.5px; color: #9ca3af; margin-top: 4px;">
-        Hệ thống Quản lý Bán hàng Cửa hàng Ngân Sơn - 318 Vũ Quang
+        Hệ thống Quản lý Bán hàng Ngân Sơn
       </div>
     `;
   } else {
@@ -200,8 +204,8 @@ export const exportInvoiceToPdf = async (
         <div>
           <div style="font-size: 18px; font-weight: 900; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px;">${storeName}</div>
           ${storeSlogan ? `<div style="font-size: 11px; color: #64748b; font-style: italic; margin-top: 2px;">${storeSlogan}</div>` : ''}
-          <div style="font-size: 12px; color: #475569; margin-top: 4px;">Địa chỉ: <strong>${storeAddress}</strong></div>
-          <div style="font-size: 12px; color: #475569;">Hotline / Zalo: <strong>${storePhone}</strong></div>
+          ${storeAddress ? `<div style="font-size: 12px; color: #475569; margin-top: 4px;">Địa chỉ: <strong>${storeAddress}</strong></div>` : ''}
+          ${storePhone ? `<div style="font-size: 12px; color: #475569;">Hotline / Zalo: <strong>${storePhone}</strong></div>` : ''}
           ${storeTaxCode ? `<div style="font-size: 12px; color: #475569;">Mã số thuế: <strong>${storeTaxCode}</strong></div>` : ''}
           ${storeWifi ? `<div style="font-size: 11px; color: #64748b;">Wifi: ${storeWifi}</div>` : ''}
         </div>
@@ -217,7 +221,7 @@ export const exportInvoiceToPdf = async (
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px;">
           <div><span style="color: #64748b;">Khách hàng:</span> <strong style="color: #0f172a;">${escapeHtml(order.customer_name || 'Khách lẻ')}</strong></div>
           <div><span style="color: #64748b;">Điện thoại:</span> <strong>${escapeHtml(order.phone || 'Chưa cập nhật')}</strong></div>
-          <div><span style="color: #64748b;">Thu ngân / Nhân viên:</span> <strong>${escapeHtml(order.cashier || 'Phan Minh')}</strong></div>
+          <div><span style="color: #64748b;">Thu ngân / Nhân viên:</span> <strong>${escapeHtml(order.cashier || 'Chưa cập nhật')}</strong></div>
           <div><span style="color: #64748b;">Hình thức thanh toán:</span> <strong>${paymentMethodLabel}</strong></div>
         </div>
       </div>
@@ -255,15 +259,15 @@ export const exportInvoiceToPdf = async (
 
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
         ${
-          showQr
+          shouldRenderQr
             ? `<div style="width: 45%; display: flex; align-items: center; gap: 14px; background-color: #f1f5f9; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
                 <img src="${qrUrl}" style="width: 88px; height: 88px; border: 1px solid #cbd5e1; background: #fff; padding: 4px; border-radius: 6px;" alt="VietQR" />
                 <div style="font-size: 11px; color: #475569;">
                   <div style="font-weight: 800; color: #1e293b; font-size: 12px;">MÃ THANH TOÁN VIETQR</div>
                   <div style="color: #64748b; font-size: 10.5px;">Quét thanh toán tự động 24/7</div>
-                  <div style="margin-top: 4px; font-weight: 700; color: #1e40af;">${bankName}</div>
-                  <div style="font-family: monospace; font-weight: 800; color: #2563eb; font-size: 12px;">${accountNumber}</div>
-                  <div style="font-size: 10px; color: #334155; font-weight: 700; text-transform: uppercase;">${accountHolder}</div>
+                  ${accountNumber ? `<div style="margin-top: 4px; font-weight: 700; color: #1e40af;">${bankName || bankId}</div>` : ''}
+                  ${accountNumber ? `<div style="font-family: monospace; font-weight: 800; color: #2563eb; font-size: 12px;">${accountNumber}</div>` : ''}
+                  ${accountHolder ? `<div style="font-size: 10px; color: #334155; font-weight: 700; text-transform: uppercase;">${accountHolder}</div>` : ''}
                 </div>
               </div>`
             : `<div style="width: 45%;"></div>`
@@ -303,12 +307,12 @@ export const exportInvoiceToPdf = async (
           <div style="font-weight: 700; color: #0f172a; text-transform: uppercase; font-size: 12px;">Người lập hóa đơn / Thủ kho</div>
           <div style="font-size: 11px; color: #64748b; font-style: italic;">(Ký, đóng dấu họ tên)</div>
           <div style="height: 60px;"></div>
-          <div style="font-weight: 700; color: #1e40af;">${order.cashier || 'Phan Minh'}</div>
+          <div style="font-weight: 700; color: #1e40af;">${escapeHtml(order.cashier || 'Chưa cập nhật')}</div>
         </div>
       </div>
 
       <div style="text-align: center; margin-top: 30px; font-size: 11px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 12px;">
-        ${footerNote} • Hóa đơn điện tử khởi tạo từ hệ thống Quản lý Bán hàng Cửa hàng Ngân Sơn - 318 Vũ Quang
+        ${footerNote} • Hóa đơn điện tử khởi tạo từ hệ thống Quản lý Bán hàng Ngân Sơn
       </div>
     `;
   }

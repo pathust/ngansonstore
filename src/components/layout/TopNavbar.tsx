@@ -20,14 +20,18 @@ import {
   AlertTriangle,
   CheckCircle2,
   Trash2,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { useNotifications, formatRelativeTime, AppNotification } from '../../hooks/useNotifications';
+import { useTheme } from '../../hooks/useTheme';
 
 interface TopNavbarProps {
   onOpenMobileMode?: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
+  const { resolvedTheme, toggleTheme } = useTheme();
   const {
     currentView,
     setCurrentView,
@@ -189,6 +193,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
 
       {/* Right: POS Sale Button + Help + User profile */}
       <div className="flex items-center gap-2 lg:gap-3 shrink-0">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={resolvedTheme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+          aria-label={resolvedTheme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+          className="p-1.5 text-slate-300 hover:text-white hover:bg-[#2a415b] rounded transition-colors cursor-pointer"
+        >
+          {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
+
         {/* Sync Status Icon */}
         <button
           type="button"

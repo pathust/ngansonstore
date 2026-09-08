@@ -155,6 +155,10 @@ export const PosSalesScreen: React.FC = () => {
   };
 
   const handleFinishCheckout = () => {
+    if (selectedPaymentMethod === 'TRANSFER' && !hasTransferPaymentConfig) {
+      showToast('Chưa cấu hình tài khoản nhận chuyển khoản. Vui lòng cập nhật trong Cài đặt.', 'warning');
+      return;
+    }
     const order = completeCheckout(selectedPaymentMethod, cashGiven);
     if (order) {
       setIsPaymentModalOpen(false);
@@ -169,37 +173,46 @@ export const PosSalesScreen: React.FC = () => {
     ? storeSettings.transferSyntaxPrefix.replace('{order_code}', activeTab.title)
     : `NGANSON ${activeTab.title}`;
 
+  const hasBankTransferConfig = Boolean(storeSettings.bankId?.trim() && storeSettings.accountNumber?.trim());
+  const hasTransferPaymentConfig = Boolean(
+    (storeSettings.useCustomQr && storeSettings.customQrImage) || hasBankTransferConfig
+  );
+
   const qrPaymentUrl = storeSettings.useCustomQr && storeSettings.customQrImage
     ? storeSettings.customQrImage
+    : !hasBankTransferConfig
+    ? ''
     : totalAmountToPay > 0
     ? getVietQRUrl(
-        storeSettings.bankId || 'ICB',
-        storeSettings.accountNumber || '106877069794',
+        storeSettings.bankId,
+        storeSettings.accountNumber,
         storeSettings.qrTemplate || 'compact2',
         totalAmountToPay,
         qrTransferMemo,
-        storeSettings.accountHolder || 'PHAN ANH TAI'
+        storeSettings.accountHolder || ''
       )
     : (storeSettings.savedQrCode || getVietQRUrl(
-        storeSettings.bankId || 'ICB',
-        storeSettings.accountNumber || '106877069794',
+        storeSettings.bankId,
+        storeSettings.accountNumber,
         storeSettings.qrTemplate || 'compact2',
         0,
         qrTransferMemo,
-        storeSettings.accountHolder || 'PHAN ANH TAI'
+        storeSettings.accountHolder || ''
       ));
 
   // Pre-generate offline QR for instant POS payment display fallback
   useEffect(() => {
-    if (isPaymentModalOpen && selectedPaymentMethod === 'TRANSFER') {
+    if (isPaymentModalOpen && selectedPaymentMethod === 'TRANSFER' && hasBankTransferConfig) {
       generateOfflineQrDataUrl(
-        storeSettings.bankId || 'ICB',
-        storeSettings.accountNumber || '106877069794',
+        storeSettings.bankId,
+        storeSettings.accountNumber,
         totalAmountToPay,
         qrTransferMemo
       ).then((url) => setPosOfflineQrUrl(url)).catch(console.error);
+    } else if (!hasBankTransferConfig) {
+      setPosOfflineQrUrl('');
     }
-  }, [isPaymentModalOpen, selectedPaymentMethod, totalAmountToPay, qrTransferMemo, storeSettings]);
+  }, [isPaymentModalOpen, selectedPaymentMethod, totalAmountToPay, qrTransferMemo, storeSettings, hasBankTransferConfig]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -942,31 +955,46 @@ export const PosSalesScreen: React.FC = () => {
               {/* METHOD 2: VIETQR DYNAMIC CODE */}
               {selectedPaymentMethod === 'TRANSFER' && (
                 <div className="flex flex-col items-center bg-slate-50 p-4 rounded-xl border border-slate-200 text-center space-y-3">
-                  <div className="text-xs font-semibold text-slate-700">
-                    Quét mã VietQR tự động điền số tiền & nội dung:
-                  </div>
-                  <div className="p-3 bg-white border border-slate-300 rounded-xl shadow-sm">
-                    <img
-                      src={
-                        storeSettings.useCustomQr && storeSettings.customQrImage
-                          ? storeSettings.customQrImage
-                          : posQrError && posOfflineQrUrl
-                          ? posOfflineQrUrl
-                          : qrPaymentUrl
-                      }
-                      alt="VietQR Dynamic Payment"
-                      onError={() => setPosQrError(true)}
-                      className="w-48 h-48 object-contain mx-auto rounded"
-                    />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="text-xs text-slate-800 font-mono font-bold">
-                      {storeSettings.bankName || storeSettings.bankId} • {storeSettings.accountNumber}
+                  {hasTransferPaymentConfig ? (
+                    <>
+                      <div className="text-xs font-semibold text-slate-700">
+                        Quét mã VietQR tự động điền số tiền & nội dung:
+                      </div>
+                      <div className="p-3 bg-white border border-slate-300 rounded-xl shadow-sm">
+                        <img
+                          src={
+                            storeSettings.useCustomQr && storeSettings.customQrImage
+                              ? storeSettings.customQrImage
+                              : posQrError && posOfflineQrUrl
+                              ? posOfflineQrUrl
+                              : qrPaymentUrl
+                          }
+                          alt="VietQR Dynamic Payment"
+                          onError={() => setPosQrError(true)}
+                          className="w-48 h-48 object-contain mx-auto rounded"
+                        />
+                      </div>
+                      {hasBankTransferConfig && (
+                        <div className="space-y-0.5">
+                          <div className="text-xs text-slate-800 font-mono font-bold">
+                            {storeSettings.bankName || storeSettings.bankId} • {storeSettings.accountNumber}
+                          </div>
+                          {storeSettings.accountHolder && (
+                            <div className="text-[11px] text-blue-700 font-bold uppercase">
+                              {storeSettings.accountHolder}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-4 text-left">
+                      <div className="text-sm font-bold text-amber-900">Chưa cấu hình tài khoản nhận tiền</div>
+                      <div className="mt-1 text-xs text-amber-800">
+                        Hãy nhập ngân hàng và số tài khoản trong Cài đặt trước khi nhận thanh toán chuyển khoản.
+                      </div>
                     </div>
-                    <div className="text-[11px] text-blue-700 font-bold uppercase">
-                      {storeSettings.accountHolder}
-                    </div>
-                  </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => {

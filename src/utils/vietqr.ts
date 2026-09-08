@@ -1,4 +1,3 @@
-import QRCode from 'qrcode';
 import { VIETNAMESE_BANKS } from '../data/bankList';
 
 /**
@@ -84,6 +83,7 @@ export async function generateOfflineQrDataUrl(
   memo: string = ''
 ): Promise<string> {
   const payload = generateVietQREMVCo(bankCodeOrBin, accountNo, amount, memo);
+  const { default: QRCode } = await import('qrcode');
   return QRCode.toDataURL(payload, {
     width: 350,
     margin: 2,

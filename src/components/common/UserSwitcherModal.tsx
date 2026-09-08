@@ -38,7 +38,7 @@ export const UserSwitcherModal: React.FC<UserSwitcherModalProps> = ({ isOpen, on
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
-  const { users, currentUser, switchUser, showToast } = useApp();
+  const { users, currentUser, currentBranch, switchUser, showToast } = useApp();
   const [selectedUserForDetail, setSelectedUserForDetail] = useState<AppUser>(currentUser);
   const [switchingUser, setSwitchingUser] = useState<AppUser | null>(null);
   const [switchPassword, setSwitchPassword] = useState('');
@@ -134,7 +134,8 @@ export const UserSwitcherModal: React.FC<UserSwitcherModalProps> = ({ isOpen, on
             <div>
               <h3 className="font-bold text-base leading-tight">Phân quyền & Chuyển đổi tài khoản</h3>
               <p className="text-xs text-blue-100 mt-0.5">
-                Cửa hàng Ngân Sơn • 318 Vũ Quang • Đang đăng nhập: <strong className="text-white font-bold">{currentUser.name}</strong>
+                Cửa hàng Ngân Sơn • {currentBranch.address || currentBranch.name} • Đang đăng nhập:{' '}
+                <strong className="text-white font-bold">{currentUser.name}</strong>
               </p>
             </div>
           </div>

@@ -1,13 +1,16 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency, formatDateTime, getVietQRUrl } from '../../utils/formatters';
-import { exportInvoiceToPdf } from '../../utils/pdfExport';
 import { Printer, X, Check, Download, FileText } from 'lucide-react';
 
 export const ThermalReceiptModal: React.FC = () => {
   const { isReceiptModalOpen, setIsReceiptModalOpen, lastCompletedOrder, currentBranch, showToast, storeSettings } = useApp();
   const receiptRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const hasBankTransferConfig = Boolean(storeSettings.bankId?.trim() && storeSettings.accountNumber?.trim());
+  const hasQrConfig = Boolean(
+    (storeSettings.useCustomQr && storeSettings.customQrImage) || hasBankTransferConfig
+  );
 
   if (!isReceiptModalOpen || !lastCompletedOrder) return null;
 
@@ -18,13 +21,14 @@ export const ThermalReceiptModal: React.FC = () => {
   const handleExportPdf = async (format: 'K80' | 'A4', autoPrint: boolean = false) => {
     try {
       setIsExporting(true);
+      const { exportInvoiceToPdf } = await import('../../utils/pdfExport');
       await exportInvoiceToPdf(lastCompletedOrder, {
         format,
         filename: `HoaDon_${lastCompletedOrder.code}_NganSon.pdf`,
         autoPrint,
-        storeName: storeSettings.name || 'CỬA HÀNG NGÂN SƠN',
-        storeAddress: storeSettings.address || '318 Vũ Quang, TP. Hà Tĩnh',
-        storePhone: storeSettings.phone || currentBranch?.phone || '0912.345.678',
+        storeName: storeSettings.name,
+        storeAddress: storeSettings.address,
+        storePhone: storeSettings.phone || currentBranch?.phone,
         storeTaxCode: storeSettings.taxCode,
         storeSlogan: storeSettings.slogan,
         storeWifi: storeSettings.showWifiOnReceipt && storeSettings.wifiSsid ? `${storeSettings.wifiSsid}${storeSettings.wifiPassword ? ` / MK: ${storeSettings.wifiPassword}` : ''}` : undefined,
@@ -33,8 +37,9 @@ export const ThermalReceiptModal: React.FC = () => {
         bankName: storeSettings.bankName,
         accountNumber: storeSettings.accountNumber,
         accountHolder: storeSettings.accountHolder,
-        showQr: format === 'K80' ? storeSettings.showQrOnK80Receipt : storeSettings.showQrOnA4Invoice,
+        showQr: hasQrConfig && (format === 'K80' ? storeSettings.showQrOnK80Receipt : storeSettings.showQrOnA4Invoice),
         customQrImage: storeSettings.useCustomQr ? storeSettings.customQrImage : undefined,
+        savedQrCode: hasBankTransferConfig ? storeSettings.savedQrCode : undefined,
       });
       showToast(autoPrint ? 'Đang mở lệnh in hóa đơn...' : 'Đã xuất hóa đơn PDF thành công!', 'success');
     } catch (err) {
@@ -51,22 +56,24 @@ export const ThermalReceiptModal: React.FC = () => {
 
   const qrUrl = storeSettings.useCustomQr && storeSettings.customQrImage
     ? storeSettings.customQrImage
+    : !hasBankTransferConfig
+    ? ''
     : lastCompletedOrder.final_amount > 0
     ? getVietQRUrl(
-        storeSettings.bankId || 'ICB',
-        storeSettings.accountNumber || '106877069794',
+        storeSettings.bankId,
+        storeSettings.accountNumber,
         storeSettings.qrTemplate || 'compact2',
         lastCompletedOrder.final_amount,
         qrMemo,
-        storeSettings.accountHolder || 'PHAN ANH TAI'
+        storeSettings.accountHolder || ''
       )
     : (storeSettings.savedQrCode || getVietQRUrl(
-        storeSettings.bankId || 'ICB',
-        storeSettings.accountNumber || '106877069794',
+        storeSettings.bankId,
+        storeSettings.accountNumber,
         storeSettings.qrTemplate || 'compact2',
         0,
         qrMemo,
-        storeSettings.accountHolder || 'PHAN ANH TAI'
+        storeSettings.accountHolder || ''
       ));
 
   return (
@@ -141,18 +148,22 @@ export const ThermalReceiptModal: React.FC = () => {
                 <img src="/logo.png" alt="Ngân Sơn" className="w-9 h-9 object-contain" />
               </div>
               <div className="font-bold text-sm text-slate-900 tracking-tight uppercase">
-                {storeSettings.name || 'CỬA HÀNG NGÂN SƠN'}
+                {storeSettings.name || currentBranch?.name || 'NGÂN SƠN'}
               </div>
               {storeSettings.showSloganOnReceipt && storeSettings.slogan && (
                 <div className="text-[10px] text-slate-500 italic mt-0.5">{storeSettings.slogan}</div>
               )}
-              <div className="text-[11px] text-slate-600 font-medium mt-1">
-                {storeSettings.address || '318 Vũ Quang, TP. Hà Tĩnh'}
-              </div>
-              <div className="text-[10px] text-slate-500">
-                Hotline: {storeSettings.phone || currentBranch?.phone || '0912.345.678'}
-                {storeSettings.secondaryPhone && ` - ${storeSettings.secondaryPhone}`}
-              </div>
+              {(storeSettings.address || currentBranch?.address) && (
+                <div className="text-[11px] text-slate-600 font-medium mt-1">
+                  {storeSettings.address || currentBranch?.address}
+                </div>
+              )}
+              {(storeSettings.phone || currentBranch?.phone || storeSettings.secondaryPhone) && (
+                <div className="text-[10px] text-slate-500">
+                  {storeSettings.phone || currentBranch?.phone}
+                  {storeSettings.secondaryPhone && `${storeSettings.phone || currentBranch?.phone ? ' - ' : ''}${storeSettings.secondaryPhone}`}
+                </div>
+              )}
               {storeSettings.showTaxCodeOnReceipt && storeSettings.taxCode && (
                 <div className="text-[10px] text-slate-500 font-mono">MST: {storeSettings.taxCode}</div>
               )}
@@ -236,7 +247,7 @@ export const ThermalReceiptModal: React.FC = () => {
 
             {/* Dynamic VietQR & Footer in Receipt */}
             <div className="pt-3 pb-1 text-center flex flex-col items-center">
-              {storeSettings.showQrOnK80Receipt && (
+              {storeSettings.showQrOnK80Receipt && qrUrl && (
                 <>
                   <div className="text-[10px] text-slate-500 mb-1">Mã tra cứu hóa đơn & Thanh toán VietQR</div>
                   <div className="p-1.5 bg-white border border-slate-300 rounded inline-block shadow-2xs">
@@ -258,9 +269,7 @@ export const ThermalReceiptModal: React.FC = () => {
               <div className="mt-2 text-[10px] italic text-slate-600 leading-tight max-w-[260px]">
                 {storeSettings.receiptFooterNote || 'Cảm ơn quý khách & Hẹn gặp lại!'}
               </div>
-              <div className="text-[9px] text-slate-400 mt-1">
-                Cửa hàng Ngân Sơn - 318 Vũ Quang
-              </div>
+              <div className="text-[9px] text-slate-400 mt-1">{storeSettings.name || 'Cửa hàng Ngân Sơn'}</div>
             </div>
           </div>
         </div>

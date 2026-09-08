@@ -59,6 +59,7 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
   const {
     storeSettings,
     currentUser,
+    currentBranch,
     products,
     updateProduct,
     setIsUserSwitcherOpen,
@@ -117,7 +118,7 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F5F6F8] pb-24 text-slate-800">
+    <div className="flex flex-col min-h-screen bg-[var(--app-bg)] pb-24 text-slate-800">
       {/* Top Store / User Profile Card (Image 12) */}
       <div className="bg-white p-4 m-3 rounded-2xl border border-slate-100 shadow-2xs flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -129,7 +130,9 @@ export const MobileMoreScreen: React.FC<MobileMoreScreenProps> = ({
               <span className="font-extrabold text-base text-slate-900 leading-snug">
                 {storeSettings?.name || 'Cửa hàng Ngân Sơn'}
               </span>
-              <span className="text-xs text-slate-400 font-medium">Chi nhánh 318 Vũ Quang</span>
+              <span className="text-xs text-slate-400 font-medium">
+                {currentBranch.address ? `Chi nhánh ${currentBranch.address}` : currentBranch.name}
+              </span>
             </div>
           </div>
 

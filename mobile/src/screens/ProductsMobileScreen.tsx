@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,24 @@ import {
   Modal,
   ScrollView,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { mobileApi } from '../services/api';
 import { Product } from '../types';
+import { ThemeColors, useMobileTheme } from '../theme/ThemeContext';
 
 export const ProductsMobileScreen: React.FC = () => {
+  const { colors } = useMobileTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [priceType, setPriceType] = useState<'selling_price' | 'cost_price'>('selling_price');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Edit / Add Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,8 +42,19 @@ export const ProductsMobileScreen: React.FC = () => {
     loadProducts();
   }, []);
 
-  const loadProducts = () => {
-    mobileApi.getProducts().then(setProducts).catch(() => {});
+  const loadProducts = async (refresh = false) => {
+    if (refresh) setIsRefreshing(true);
+    else setIsLoading(true);
+    setLoadError('');
+
+    try {
+      setProducts(await mobileApi.getProducts());
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Không thể tải danh sách hàng hoá');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   };
 
   const handleOpenEdit = (p: Product) => {
@@ -50,58 +71,65 @@ export const ProductsMobileScreen: React.FC = () => {
   const handleOpenAdd = () => {
     setEditingProduct(null);
     setFormName('');
-    setFormSku(`SP-${Date.now().toString().slice(-4)}`);
+    setFormSku(`SP-${Date.now().toString(36).toUpperCase()}`);
     setFormSellingPrice('');
     setFormCostPrice('');
-    setFormStock('10');
+    setFormStock('0');
     setFormUnit('Cái');
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formName.trim()) {
       Alert.alert('Thông báo', 'Vui lòng nhập tên hàng hoá!');
       return;
     }
 
-    if (editingProduct) {
-      // Update existing
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === editingProduct.id
-            ? {
-                ...p,
-                name: formName.trim(),
-                sku: formSku.trim() || p.sku,
-                selling_price: Number(formSellingPrice) || 0,
-                cost_price: Number(formCostPrice) || 0,
-                stock: Number(formStock) || 0,
-                unit: formUnit.trim() || 'Cái',
-              }
-            : p
-        )
-      );
-      Alert.alert('Thành công', `Đã cập nhật hàng hoá "${formName}"!`);
-    } else {
-      // Add new
-      const newProd: Product = {
-        id: `prod-${Date.now()}`,
-        name: formName.trim(),
-        sku: formSku.trim() || `SP-${Date.now().toString().slice(-4)}`,
-        barcode: `893${Date.now().toString().slice(-10)}`,
-        category: 'cat-dien',
-        unit: formUnit.trim() || 'Cái',
-        selling_price: Number(formSellingPrice) || 0,
-        cost_price: Number(formCostPrice) || 0,
-        stock: Number(formStock) || 0,
-        min_stock: 5,
-        status: 'ACTIVE',
-      };
-      setProducts((prev) => [newProd, ...prev]);
-      Alert.alert('Thành công', `Đã thêm mới hàng hoá "${formName}"!`);
+    const sellingPrice = Number(formSellingPrice || 0);
+    const costPrice = Number(formCostPrice || 0);
+    const stock = Number(formStock || 0);
+    if (![sellingPrice, costPrice, stock].every(Number.isFinite) || sellingPrice < 0 || costPrice < 0 || stock < 0) {
+      Alert.alert('Dữ liệu chưa hợp lệ', 'Giá bán, giá vốn và tồn kho phải là số không âm.');
+      return;
     }
 
-    setIsModalOpen(false);
+    const sku = formSku.trim() || `SP-${Date.now().toString(36).toUpperCase()}`;
+    setIsSaving(true);
+    try {
+      if (editingProduct) {
+        const updated = await mobileApi.updateProduct(editingProduct.id, {
+          name: formName.trim(),
+          sku,
+          selling_price: sellingPrice,
+          cost_price: costPrice,
+          stock,
+          unit: formUnit.trim() || 'Cái',
+        });
+        setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? updated : p)));
+        Alert.alert('Thành công', `Đã cập nhật hàng hoá "${formName.trim()}".`);
+      } else {
+        const created = await mobileApi.createProduct({
+          id: `prod-${Date.now()}`,
+          name: formName.trim(),
+          sku,
+          barcode: '',
+          category: '',
+          unit: formUnit.trim() || 'Cái',
+          selling_price: sellingPrice,
+          cost_price: costPrice,
+          stock,
+          min_stock: 0,
+          status: 'ACTIVE',
+        });
+        setProducts((prev) => [created, ...prev]);
+        Alert.alert('Thành công', `Đã thêm hàng hoá "${formName.trim()}".`);
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      Alert.alert('Không thể lưu', error instanceof Error ? error.message : 'Vui lòng thử lại.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = () => {
@@ -111,9 +139,17 @@ export const ProductsMobileScreen: React.FC = () => {
       {
         text: 'Xoá',
         style: 'destructive',
-        onPress: () => {
-          setProducts((prev) => prev.filter((p) => p.id !== editingProduct.id));
-          setIsModalOpen(false);
+        onPress: async () => {
+          setIsDeleting(true);
+          try {
+            await mobileApi.deleteProduct(editingProduct.id);
+            setProducts((prev) => prev.filter((p) => p.id !== editingProduct.id));
+            setIsModalOpen(false);
+          } catch (error) {
+            Alert.alert('Không thể xoá', error instanceof Error ? error.message : 'Vui lòng thử lại.');
+          } finally {
+            setIsDeleting(false);
+          }
         },
       },
     ]);
@@ -170,16 +206,44 @@ export const ProductsMobileScreen: React.FC = () => {
         <TextInput
           style={styles.searchInput}
           placeholder="Tìm tên, mã SKU..."
+          placeholderTextColor={colors.textSubtle}
           value={search}
           onChangeText={setSearch}
         />
       </View>
+
+      {loadError ? (
+        <TouchableOpacity style={styles.errorBanner} onPress={() => loadProducts()}>
+          <Text style={styles.errorText}>Không tải được dữ liệu. Chạm để thử lại.</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {/* Product List */}
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => loadProducts(true)}
+            tintColor={colors.primary}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            {isLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>{search ? 'Không tìm thấy hàng hoá' : 'Chưa có hàng hoá'}</Text>
+                <Text style={styles.emptySub}>
+                  {search ? 'Thử tên hoặc mã SKU khác.' : 'Nhấn + để thêm hàng hoá đầu tiên.'}
+                </Text>
+              </>
+            )}
+          </View>
+        }
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.productCard}
@@ -224,8 +288,8 @@ export const ProductsMobileScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-              <Text style={styles.saveBtnText}>Lưu</Text>
+            <TouchableOpacity onPress={handleSave} style={styles.saveBtn} disabled={isSaving || isDeleting}>
+              {isSaving ? <ActivityIndicator color={colors.inverse} /> : <Text style={styles.saveBtnText}>Lưu</Text>}
             </TouchableOpacity>
           </View>
 
@@ -239,6 +303,7 @@ export const ProductsMobileScreen: React.FC = () => {
                 value={formName}
                 onChangeText={setFormName}
                 placeholder="Nhập tên sản phẩm..."
+                placeholderTextColor={colors.textSubtle}
               />
             </View>
 
@@ -250,6 +315,7 @@ export const ProductsMobileScreen: React.FC = () => {
                 value={formSku}
                 onChangeText={setFormSku}
                 placeholder="SP-0001"
+                placeholderTextColor={colors.textSubtle}
               />
             </View>
 
@@ -258,11 +324,12 @@ export const ProductsMobileScreen: React.FC = () => {
               <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
                 <Text style={styles.label}>Giá bán (VNĐ) *</Text>
                 <TextInput
-                  style={[styles.input, { color: '#0066FF', fontWeight: 'bold' }]}
+                  style={[styles.input, { color: colors.primary, fontWeight: 'bold' }]}
                   value={formSellingPrice}
                   onChangeText={setFormSellingPrice}
                   keyboardType="numeric"
                   placeholder="0"
+                  placeholderTextColor={colors.textSubtle}
                 />
               </View>
 
@@ -274,6 +341,7 @@ export const ProductsMobileScreen: React.FC = () => {
                   onChangeText={setFormCostPrice}
                   keyboardType="numeric"
                   placeholder="0"
+                  placeholderTextColor={colors.textSubtle}
                 />
               </View>
             </View>
@@ -287,6 +355,7 @@ export const ProductsMobileScreen: React.FC = () => {
                 onChangeText={setFormStock}
                 keyboardType="numeric"
                 placeholder="0"
+                placeholderTextColor={colors.textSubtle}
               />
             </View>
 
@@ -312,8 +381,12 @@ export const ProductsMobileScreen: React.FC = () => {
 
             {/* Delete Button (if editing) */}
             {editingProduct && (
-              <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
-                <Text style={styles.deleteBtnText}>🗑️ Xoá hàng hoá này</Text>
+              <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn} disabled={isDeleting || isSaving}>
+                {isDeleting ? (
+                  <ActivityIndicator color={colors.danger} />
+                ) : (
+                  <Text style={styles.deleteBtnText}>🗑️ Xoá hàng hoá này</Text>
+                )}
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -323,19 +396,19 @@ export const ProductsMobileScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F6F8' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: colors.border,
   },
-  title: { fontSize: 20, fontWeight: '800', color: '#111827' },
+  title: { fontSize: 20, fontWeight: '800', color: colors.text },
   headerIcons: { flexDirection: 'row', gap: 14 },
   icon: { fontSize: 18 },
   filterRow: {
@@ -344,72 +417,87 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.border,
   },
   filterBtn: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   filterBtnText: { fontSize: 14 },
   pill: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
-  pillText: { fontSize: 12, color: '#374151', fontWeight: '600' },
+  pillText: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   summaryBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceRaised,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.border,
   },
-  summaryTitle: { fontSize: 14, fontWeight: '800', color: '#111827' },
-  summarySub: { fontSize: 11, color: '#6B7280' },
-  summaryCount: { fontSize: 16, fontWeight: '900', color: '#111827' },
-  searchContainer: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#ffffff' },
+  summaryTitle: { fontSize: 14, fontWeight: '800', color: colors.text },
+  summarySub: { fontSize: 11, color: colors.textMuted },
+  summaryCount: { fontSize: 16, fontWeight: '900', color: colors.text },
+  searchContainer: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.surface },
   searchInput: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     fontSize: 13,
+    color: colors.text,
   },
+  errorBanner: {
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  errorText: { color: colors.danger, fontSize: 12, fontWeight: '700', textAlign: 'center' },
   listContent: { padding: 12, paddingBottom: 100 },
+  emptyState: { paddingVertical: 42, alignItems: 'center', paddingHorizontal: 24 },
+  emptyTitle: { color: colors.text, fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  emptySub: { color: colors.textMuted, fontSize: 12, marginTop: 6, textAlign: 'center' },
   productCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     padding: 12,
     borderRadius: 16,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   imagePlaceholder: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
   productInfo: { flex: 1 },
-  productName: { fontSize: 14, fontWeight: '700', color: '#111827' },
-  productSku: { fontSize: 11, color: '#9CA3AF', fontFamily: 'monospace', marginTop: 2 },
+  productName: { fontSize: 14, fontWeight: '700', color: colors.text },
+  productSku: { fontSize: 11, color: colors.textSubtle, fontFamily: 'monospace', marginTop: 2 },
   priceCol: { alignItems: 'flex-end' },
-  productPrice: { fontSize: 14, fontWeight: '800', color: '#111827' },
-  productStock: { fontSize: 11, color: '#6B7280', marginTop: 2 },
+  productPrice: { fontSize: 14, fontWeight: '800', color: colors.text },
+  productStock: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   fab: {
     position: 'absolute',
     right: 16,
@@ -417,7 +505,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: '#0066FF',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
@@ -425,40 +513,42 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 5,
   },
-  fabText: { fontSize: 30, color: '#ffffff', fontWeight: 'bold', marginTop: -2 },
-  modalContainer: { flex: 1, backgroundColor: '#F5F6F8' },
+  fabText: { fontSize: 30, color: colors.inverse, fontWeight: 'bold', marginTop: -2 },
+  modalContainer: { flex: 1, backgroundColor: colors.background },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.border,
   },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
-  backBtnText: { fontSize: 26, color: '#374151', marginRight: 6, marginTop: -2 },
-  modalTitleText: { fontSize: 16, fontWeight: '800', color: '#111827' },
+  backBtnText: { fontSize: 26, color: colors.textMuted, marginRight: 6, marginTop: -2 },
+  modalTitleText: { fontSize: 16, fontWeight: '800', color: colors.text },
   saveBtn: {
-    backgroundColor: '#0066FF',
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
+    minWidth: 56,
+    alignItems: 'center',
   },
-  saveBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 13 },
+  saveBtnText: { color: colors.inverse, fontWeight: 'bold', fontSize: 13 },
   formScroll: { flex: 1 },
   inputGroup: { marginBottom: 14 },
-  label: { fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 6 },
+  label: { fontSize: 12, fontWeight: '700', color: colors.textMuted, marginBottom: 6 },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#111827',
+    color: colors.text,
   },
   row: { flexDirection: 'row' },
   unitChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -466,18 +556,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.surfaceMuted,
   },
-  unitChipActive: { backgroundColor: '#0066FF' },
-  unitChipText: { fontSize: 12, color: '#374151', fontWeight: '600' },
-  unitChipTextActive: { color: '#ffffff', fontWeight: 'bold' },
+  unitChipActive: { backgroundColor: colors.primary },
+  unitChipText: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  unitChipTextActive: { color: colors.inverse, fontWeight: 'bold' },
   deleteBtn: {
     marginTop: 20,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.surfaceRaised,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.danger,
   },
-  deleteBtnText: { color: '#DC2626', fontWeight: 'bold', fontSize: 13 },
+  deleteBtnText: { color: colors.danger, fontWeight: 'bold', fontSize: 13 },
 });

@@ -60,8 +60,10 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const storeName = storeSettings?.name || 'CỬA HÀNG ĐIỆN NƯỚC & KIM KHÍ NGÂN SƠN';
-  const storeAddress = storeSettings?.address || '318 Vũ Quang, TP. Hà Tĩnh';
+  const storeName = storeSettings?.name || 'NGÂN SƠN';
+  const storeAddress = storeSettings?.address?.trim() || '';
+  const helpPhone = storeSettings?.phone?.trim() || '';
+  const helpPhoneHref = helpPhone.replace(/[^\d+]/g, '');
 
   return (
     <div className="min-h-[100dvh] w-full bg-slate-50 md:bg-gradient-to-br md:from-slate-100 md:via-blue-50/40 md:to-indigo-50/50 flex flex-col justify-start md:justify-center items-center md:p-6 select-none font-sans overflow-x-hidden">
@@ -96,9 +98,7 @@ export const LoginScreen: React.FC = () => {
             <h1 className="text-lg sm:text-xl font-black tracking-tight uppercase leading-snug drop-shadow-xs">
               {storeName}
             </h1>
-            <p className="text-xs text-blue-100 font-medium">
-              {storeAddress}
-            </p>
+            {storeAddress && <p className="text-xs text-blue-100 font-medium">{storeAddress}</p>}
             <div className="pt-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-[11px] font-semibold text-white backdrop-blur-xs">
                 <Store className="w-3.5 h-3.5 text-blue-200" />
@@ -245,13 +245,17 @@ export const LoginScreen: React.FC = () => {
           <div className="mt-8 pt-5 border-t border-slate-100 text-center space-y-2 pb-6 md:pb-0">
             <p className="text-xs text-slate-500 font-medium">
               Quên thông tin tài khoản?{' '}
-              <a
-                href="tel:0912345678"
-                className="text-blue-600 font-bold hover:underline inline-flex items-center gap-1"
-              >
-                <Phone className="w-3 h-3" />
-                <span>0912.345.678</span>
-              </a>
+              {helpPhone ? (
+                <a
+                  href={`tel:${helpPhoneHref}`}
+                  className="text-blue-600 font-bold hover:underline inline-flex items-center gap-1"
+                >
+                  <Phone className="w-3 h-3" />
+                  <span>{helpPhone}</span>
+                </a>
+              ) : (
+                <span className="font-semibold text-slate-600">Liên hệ quản trị viên cửa hàng</span>
+              )}
             </p>
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium pt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />

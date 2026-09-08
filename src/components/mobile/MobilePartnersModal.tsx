@@ -25,7 +25,7 @@ export const MobilePartnersModal: React.FC<MobilePartnersModalProps> = ({
   onClose,
   initialTab = 'LOAN',
 }) => {
-  const { showToast } = useApp();
+  const { showToast, currentBranch } = useApp();
   const [activeTab, setActiveTab] = useState<'LOAN' | 'DELIVERY' | 'TAX'>(initialTab);
 
   // Loan calculator state
@@ -103,11 +103,11 @@ export const MobilePartnersModal: React.FC<MobilePartnersModalProps> = ({
               {/* Banner */}
               <div className="bg-gradient-to-tr from-[#0055EE] to-[#00A3FF] text-white p-4 rounded-2xl shadow-sm flex flex-col gap-1.5">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-blue-100">
-                  KiotViet Financial Partner
+                  Công cụ ước tính tham khảo
                 </span>
-                <span className="text-lg font-black leading-tight">Vốn nhanh kinh doanh, lãi suất từ 0.99%/tháng</span>
+                <span className="text-lg font-black leading-tight">Ước tính khoản vay kinh doanh</span>
                 <span className="text-xs text-blue-100 mt-1">
-                  Hạn mức duyệt đến 500 triệu không cần tài sản thế chấp. Dựa trên doanh thu bán hàng thực tế.
+                  Chưa kết nối dịch vụ đăng ký vay. Kết quả bên dưới chỉ là phép tính minh họa với giả định lãi suất 1,1%/tháng.
                 </span>
               </div>
 
@@ -167,27 +167,16 @@ export const MobilePartnersModal: React.FC<MobilePartnersModalProps> = ({
 
                 <button
                   onClick={() => {
-                    showToast('Đã gửi thông tin đăng ký vay vốn! Nhân viên tín dụng sẽ liên hệ sau 15 phút.', 'success');
-                    onClose();
+                    showToast('Chưa tích hợp dịch vụ gửi hồ sơ vay. Hiện tại chỉ có công cụ ước tính.', 'info');
                   }}
                   className="w-full py-3 rounded-xl bg-[#0066FF] text-white font-bold text-xs shadow-md active:scale-98 transition-all"
                 >
-                  Đăng ký tư vấn miễn phí
+                  Đăng ký tư vấn (chưa tích hợp)
                 </button>
               </div>
 
-              {/* Partners */}
-              <div className="flex flex-col gap-2">
-                <span className="text-xs font-bold text-slate-700">Ngân hàng đối tác liên kết</span>
-                {['VPBank SME', 'KBank Biz Loan', 'Easy Credit / EVN Finance'].map((bank, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-slate-500" />
-                      <span className="font-bold text-slate-800">{bank}</span>
-                    </div>
-                    <span className="text-[11px] text-emerald-600 font-bold">Duyệt tự động 24h</span>
-                  </div>
-                ))}
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                Chưa có cấu hình nhà cung cấp tín dụng trong hệ thống. Khi tích hợp thật, trạng thái kết nối và điều kiện vay sẽ được lấy từ API của đối tác.
               </div>
             </>
           )}
@@ -200,23 +189,23 @@ export const MobilePartnersModal: React.FC<MobilePartnersModalProps> = ({
                 </span>
                 <span className="text-lg font-black leading-tight">Kết nối tự động hãng vận chuyển</span>
                 <span className="text-xs text-cyan-100 mt-0.5">
-                  Đẩy đơn 1 chạm, bưu tá đến lấy hàng tại cửa hàng Ngân Sơn 318 Vũ Quang.
+                  Chưa có kết nối vận chuyển hoạt động cho {currentBranch.address || currentBranch.name}.
                 </span>
               </div>
 
               <div className="flex flex-col gap-2.5">
                 {[
-                  { name: 'Ahamove', desc: 'Giao siêu tốc nội thành TP. Hà Tĩnh (30-60 phút)', status: 'Đang hoạt động', color: 'text-amber-600' },
-                  { name: 'Viettel Post', desc: 'Mạng lưới toàn quốc, chiết khấu 15% cho chủ shop KiotViet', status: 'Đã liên kết', color: 'text-red-600' },
-                  { name: 'Giao Hàng Tiết Kiệm (GHTK)', desc: 'Tối ưu tuyến huyện & liên tỉnh', status: 'Đã liên kết', color: 'text-emerald-600' },
-                  { name: 'VNPost', desc: 'Bưu điện Việt Nam phủ sóng đến xã vùng xa', status: 'Sẵn sàng kết nối', color: 'text-blue-600' },
+                  { name: 'Ahamove', desc: 'Tùy khu vực phục vụ của nhà vận chuyển', status: 'Chưa tích hợp' },
+                  { name: 'Viettel Post', desc: 'Dịch vụ vận chuyển toàn quốc', status: 'Chưa tích hợp' },
+                  { name: 'Giao Hàng Tiết Kiệm (GHTK)', desc: 'Dịch vụ giao hàng nội tỉnh và liên tỉnh', status: 'Chưa tích hợp' },
+                  { name: 'VNPost', desc: 'Dịch vụ bưu chính và chuyển phát', status: 'Chưa tích hợp' },
                 ].map((p, idx) => (
                   <div key={idx} className="p-3.5 rounded-2xl bg-white border border-slate-100 shadow-2xs flex items-center justify-between">
                     <div className="flex flex-col gap-0.5 flex-1 pr-2">
                       <span className="font-bold text-sm text-slate-900">{p.name}</span>
                       <span className="text-xs text-slate-500">{p.desc}</span>
                     </div>
-                    <span className={`text-xs font-bold px-2 py-1 bg-slate-50 rounded-lg ${p.color}`}>
+                    <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-600 rounded-lg">
                       {p.status}
                     </span>
                   </div>
@@ -225,12 +214,11 @@ export const MobilePartnersModal: React.FC<MobilePartnersModalProps> = ({
 
               <button
                 onClick={() => {
-                  showToast('Đã mở kết nối vận đơn KiotViet Shipping!', 'info');
-                  onClose();
+                  showToast('Chưa tích hợp API vận chuyển nên chưa thể tạo vận đơn từ ứng dụng.', 'info');
                 }}
                 className="w-full py-3 rounded-xl bg-[#0066FF] text-white font-bold text-xs shadow-md active:scale-98 transition-all"
               >
-                Tạo vận đơn giao hàng mới
+                Tạo vận đơn (chưa tích hợp)
               </button>
             </>
           )}
@@ -243,33 +231,24 @@ export const MobilePartnersModal: React.FC<MobilePartnersModalProps> = ({
                 </span>
                 <span className="text-lg font-black leading-tight">Phát hành Hóa Đơn Điện Tử từ Máy tính tiền</span>
                 <span className="text-xs text-sky-100 mt-0.5">
-                  Đáp ứng 100% Thông tư 78 & Nghị định 123 của Tổng cục Thuế.
+                  Chưa kết nối nhà cung cấp HĐĐT. Hệ thống hiện chưa thể phát hành hóa đơn điện tử hợp lệ từ màn hình này.
                 </span>
               </div>
 
               <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex flex-col gap-3">
-                <h4 className="font-extrabold text-xs text-slate-900">Nhà cung cấp HĐĐT đang liên kết</h4>
-                {[
-                  { name: 'VNPT-Invoice', code: 'VNPT', status: 'Đang kết nối', active: true },
-                  { name: 'Viettel S-Invoice', code: 'VIETTEL', status: 'Sẵn sàng', active: false },
-                  { name: 'M-Invoice', code: 'MINVOICE', status: 'Sẵn sàng', active: false },
-                ].map((s, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-800">{s.name}</span>
-                    <span className={`font-bold px-2 py-0.5 rounded-md ${s.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                      {s.status}
-                    </span>
-                  </div>
-                ))}
+                <h4 className="font-extrabold text-xs text-slate-900">Trạng thái tích hợp HĐĐT</h4>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-800">Nhà cung cấp HĐĐT</span>
+                  <span className="font-bold px-2 py-0.5 rounded-md bg-slate-200 text-slate-600">Chưa cấu hình</span>
+                </div>
 
                 <button
                   onClick={() => {
-                    showToast('Đã xuất bảng kê hóa đơn bán hàng tháng hiện tại!', 'success');
-                    onClose();
+                    showToast('Chưa có luồng xuất bảng kê thuế từ màn hình này.', 'info');
                   }}
                   className="mt-2 w-full py-3 rounded-xl bg-[#0066FF] text-white font-bold text-xs shadow-md active:scale-98 transition-all"
                 >
-                  Xuất bảng kê hóa đơn thuế (.xlsx)
+                  Xuất bảng kê thuế (chưa tích hợp)
                 </button>
               </div>
             </>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,21 +9,27 @@ import {
   Alert,
 } from 'react-native';
 import { mobileApi, DEFAULT_SERVER_URL } from '../services/api';
-import { StoreSettings } from '../types';
+import { ThemeColors, ThemePreference, useMobileTheme } from '../theme/ThemeContext';
 
-export const SettingsMobileScreen: React.FC = () => {
+interface SettingsMobileScreenProps {
+  onBack?: () => void;
+}
+
+export const SettingsMobileScreen: React.FC<SettingsMobileScreenProps> = ({ onBack }) => {
+  const { colors, preference, setPreference } = useMobileTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL);
   const [connectionStatus, setConnectionStatus] = useState<string>('Chưa kiểm tra');
   const [latency, setLatency] = useState<number>(-1);
   const [isTesting, setIsTesting] = useState(false);
 
   // Store & VietQR settings state
-  const [storeName, setStoreName] = useState('Cửa hàng Điện Nước & Kim Khí Ngân Sơn');
-  const [storePhone, setStorePhone] = useState('0912.345.678');
-  const [storeAddress, setStoreAddress] = useState('318 Vũ Quang, TP. Hà Tĩnh');
-  const [bankId, setBankId] = useState('MB');
-  const [accountNumber, setAccountNumber] = useState('0912345678');
-  const [accountHolder, setAccountHolder] = useState('PHAN ANH TAI');
+  const [storeName, setStoreName] = useState('');
+  const [storePhone, setStorePhone] = useState('');
+  const [storeAddress, setStoreAddress] = useState('');
+  const [bankId, setBankId] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountHolder, setAccountHolder] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   useEffect(() => {
@@ -37,12 +43,12 @@ export const SettingsMobileScreen: React.FC = () => {
 
       const settings = await mobileApi.getSettings();
       if (settings) {
-        setStoreName(settings.name || 'Cửa hàng Điện Nước & Kim Khí Ngân Sơn');
-        setStorePhone(settings.phone || '0912.345.678');
-        setStoreAddress(settings.address || '318 Vũ Quang, TP. Hà Tĩnh');
-        setBankId(settings.bankId || 'MB');
-        setAccountNumber(settings.accountNumber || '0912345678');
-        setAccountHolder(settings.accountHolder || 'PHAN ANH TAI');
+        setStoreName(settings.name || '');
+        setStorePhone(settings.phone || '');
+        setStoreAddress(settings.address || '');
+        setBankId(settings.bankId || '');
+        setAccountNumber(settings.accountNumber || '');
+        setAccountHolder(settings.accountHolder || '');
       }
     } catch (e) {
       console.warn('Load settings error:', e);
@@ -94,15 +100,47 @@ export const SettingsMobileScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+      <View style={styles.pageHeader}>
+        {onBack ? (
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>‹</Text>
+          </TouchableOpacity>
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.pageTitle}>Cài đặt</Text>
+          <Text style={styles.pageSubtitle}>Cửa hàng, kết nối, VietQR và giao diện</Text>
+        </View>
+      </View>
+
       {/* Store Info Banner */}
       <View style={styles.storeCard}>
         <View style={styles.logoBadge}>
           <Text style={styles.logoText}>NS</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.storeName}>{storeName}</Text>
-          <Text style={styles.storeAddr}>📍 {storeAddress}</Text>
-          <Text style={styles.storePhone}>📞 Hotline: {storePhone}</Text>
+          <Text style={styles.storeName}>{storeName || 'Chưa cấu hình tên cửa hàng'}</Text>
+          {storeAddress ? <Text style={styles.storeAddr}>📍 {storeAddress}</Text> : null}
+          {storePhone ? <Text style={styles.storePhone}>📞 Hotline: {storePhone}</Text> : null}
+        </View>
+      </View>
+
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Giao diện</Text>
+        <Text style={styles.sectionDesc}>Giữ cùng bảng màu Ngân Sơn ở chế độ sáng, tối hoặc theo hệ thống.</Text>
+        <View style={styles.themeRow}>
+          {([
+            ['light', 'Sáng'],
+            ['dark', 'Tối'],
+            ['system', 'Hệ thống'],
+          ] as Array<[ThemePreference, string]>).map(([value, label]) => (
+            <TouchableOpacity
+              key={value}
+              onPress={() => setPreference(value)}
+              style={[styles.themeOption, preference === value && styles.themeOptionActive]}
+            >
+              <Text style={[styles.themeOptionText, preference === value && styles.themeOptionTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
@@ -117,7 +155,7 @@ export const SettingsMobileScreen: React.FC = () => {
           value={serverUrl}
           onChangeText={setServerUrl}
           placeholder="http://10.0.2.2:3001/api"
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={colors.textSubtle}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
@@ -233,89 +271,121 @@ export const SettingsMobileScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     padding: 14,
   },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  backButtonText: { color: colors.text, fontSize: 26, lineHeight: 28 },
+  pageTitle: { fontSize: 18, fontWeight: '900', color: colors.text },
+  pageSubtitle: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
   storeCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     marginBottom: 14,
   },
   logoBadge: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#0B63E5',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoText: {
-    color: '#ffffff',
+    color: colors.inverse,
     fontSize: 18,
     fontWeight: '900',
   },
   storeName: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#0f172a',
+    color: colors.text,
   },
   storeAddr: {
     fontSize: 11,
-    color: '#64748b',
+    color: colors.textMuted,
     marginTop: 2,
   },
   storePhone: {
     fontSize: 11,
-    color: '#0B63E5',
+    color: colors.primary,
     fontWeight: '600',
     marginTop: 2,
   },
   sectionCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     marginBottom: 14,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#0f172a',
+    color: colors.text,
     marginBottom: 6,
   },
   sectionDesc: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
     marginBottom: 10,
     lineHeight: 16,
   },
   label: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#475569',
+    color: colors.textMuted,
     marginTop: 8,
     marginBottom: 3,
   },
   input: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 9,
     fontSize: 13,
-    color: '#0f172a',
+    color: colors.text,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.borderStrong,
   },
+  themeRow: { flexDirection: 'row', gap: 8 },
+  themeOption: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  themeOptionActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  themeOptionText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  themeOptionTextActive: { color: colors.primary },
   btnRow: {
     flexDirection: 'row',
     gap: 10,
@@ -323,27 +393,27 @@ const styles = StyleSheet.create({
   },
   testBtn: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: colors.borderStrong,
   },
   testBtnText: {
-    color: '#334155',
+    color: colors.text,
     fontSize: 12,
     fontWeight: '600',
   },
   saveBtn: {
-    backgroundColor: '#0B63E5',
+    backgroundColor: colors.primary,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
     alignItems: 'center',
   },
   saveBtnText: {
-    color: '#ffffff',
+    color: colors.inverse,
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -354,21 +424,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: colors.border,
   },
   statusLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: colors.textMuted,
   },
   statusValue: {
     fontSize: 12,
     fontWeight: 'bold',
   },
   statusSuccess: {
-    color: '#16a34a',
+    color: colors.success,
   },
   statusFailed: {
-    color: '#dc2626',
+    color: colors.danger,
   },
   footerInfo: {
     alignItems: 'center',
@@ -376,12 +446,12 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: colors.textSubtle,
     fontWeight: 'bold',
   },
   subVersionText: {
     fontSize: 10,
-    color: '#cbd5e1',
+    color: colors.textSubtle,
     marginTop: 2,
   },
 });

@@ -58,6 +58,7 @@ export const StoreSettingsProvider: React.FC<{ children: ReactNode }> = ({ child
       apiClient.updateStoreSettings(next).catch((err) => {
         console.warn('[Settings] Failed to sync to server:', err);
         savePendingChange('settings', next);
+        showToast('Đã lưu trên thiết bị; chưa đồng bộ được lên máy chủ và sẽ thử lại.', 'warning');
       });
       return next;
     });

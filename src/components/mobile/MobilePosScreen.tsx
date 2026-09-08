@@ -29,8 +29,9 @@ import { MobileCustomerPickerModal } from './MobileCustomerPickerModal';
 import { MobileCashbookModal } from './MobileCashbookModal';
 import { MobileStoreSettingsModal } from './MobileStoreSettingsModal';
 import { MobileCustomItemModal } from './MobileCustomItemModal';
-import { MobileBarcodeScannerModal } from './MobileBarcodeScannerModal';
 import { MobileOrdersManagementModal } from './MobileOrdersManagementModal';
+
+const MobileBarcodeScannerModal = React.lazy(() => import('./MobileBarcodeScannerModal').then(m => ({ default: m.MobileBarcodeScannerModal })));
 
 interface MobilePosScreenProps {
   onOpenVoiceAssistant?: () => void;
@@ -172,23 +173,29 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
   const cartSubtotal = useMemo(() => {
     return Math.max(0, rawSubtotal - discountAmount);
   }, [rawSubtotal, discountAmount]);
+  const hasBankTransferConfig = Boolean(storeSettings?.bankId?.trim() && storeSettings?.accountNumber?.trim());
+  const hasTransferPaymentConfig = Boolean(
+    (storeSettings?.useCustomQr && storeSettings?.customQrImage) || hasBankTransferConfig
+  );
 
   // Pre-generate offline QR for instant POS payment display
   useEffect(() => {
-    if (isPaymentModalOpen && paymentMethod === 'TRANSFER') {
+    if (isPaymentModalOpen && paymentMethod === 'TRANSFER' && hasBankTransferConfig) {
       const memo = storeSettings?.transferSyntaxPrefix
         ? storeSettings.transferSyntaxPrefix.replace('{order_code}', activeTab?.title || 'DH')
         : `NGANSON ${activeTab?.title || 'DH'}`;
       generateOfflineQrDataUrl(
-        storeSettings?.bankId || 'ICB',
-        storeSettings?.accountNumber || '106877069794',
+        storeSettings?.bankId || '',
+        storeSettings?.accountNumber || '',
         cartSubtotal,
         memo
       ).then(url => {
         setPosOfflineQrUrl(url);
       }).catch(console.error);
+    } else if (!hasBankTransferConfig) {
+      setPosOfflineQrUrl('');
     }
-  }, [isPaymentModalOpen, paymentMethod, cartSubtotal, activeTab?.title, storeSettings]);
+  }, [isPaymentModalOpen, paymentMethod, cartSubtotal, activeTab?.title, storeSettings, hasBankTransferConfig]);
 
   // Fast 1.5s fallback for POS QR
   useEffect(() => {
@@ -212,6 +219,10 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
     if (isCheckingOut) return;
     if (activeTab.items.length === 0) {
       showToast('Giỏ hàng đang trống!', 'warning');
+      return;
+    }
+    if (paymentMethod === 'TRANSFER' && !hasTransferPaymentConfig) {
+      showToast('Chưa cấu hình tài khoản nhận chuyển khoản. Vui lòng cập nhật trong Cài đặt.', 'warning');
       return;
     }
 
@@ -710,6 +721,15 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
 
             {paymentMethod === 'TRANSFER' && (
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col items-center gap-2 w-full">
+                {!hasTransferPaymentConfig ? (
+                  <div className="w-full rounded-xl border border-amber-200 bg-amber-50 p-4 text-left">
+                    <div className="text-sm font-bold text-amber-900">Chưa cấu hình VietQR</div>
+                    <div className="mt-1 text-xs text-amber-800">
+                      Hãy nhập ngân hàng và số tài khoản trong Cài đặt trước khi nhận chuyển khoản.
+                    </div>
+                  </div>
+                ) : (
+                <>
                 <div className="relative p-2 bg-white rounded-xl shadow-xs border border-slate-200 min-h-[190px] min-w-[190px] flex items-center justify-center">
                   {isPosQrLoading && (
                     <div className="absolute inset-0 bg-white/80 backdrop-blur-2xs rounded-xl flex items-center justify-center z-10">
@@ -725,23 +745,23 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                         ? posOfflineQrUrl
                         : cartSubtotal > 0
                         ? getVietQRUrl(
-                            storeSettings?.bankId || 'ICB',
-                            storeSettings?.accountNumber || '106877069794',
+                            storeSettings?.bankId || '',
+                            storeSettings?.accountNumber || '',
                             storeSettings?.qrTemplate || 'compact2',
                             cartSubtotal,
                             storeSettings?.transferSyntaxPrefix
                               ? storeSettings.transferSyntaxPrefix.replace('{order_code}', activeTab.title)
                               : `NGANSON ${activeTab.title}`,
-                            storeSettings?.accountHolder || 'PHAN ANH TAI',
+                            storeSettings?.accountHolder || '',
                             posQrTs
                           )
                         : (storeSettings?.savedQrCode || getVietQRUrl(
-                            storeSettings?.bankId || 'ICB',
-                            storeSettings?.accountNumber || '106877069794',
+                            storeSettings?.bankId || '',
+                            storeSettings?.accountNumber || '',
                             storeSettings?.qrTemplate || 'compact2',
                             0,
                             'NGANSON',
-                            storeSettings?.accountHolder || 'PHAN ANH TAI'
+                            storeSettings?.accountHolder || ''
                           ))
                     }
                     alt="VietQR"
@@ -754,9 +774,10 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                       setPosQrError(true);
                       if (!posOfflineQrUrl) {
                         try {
+                          if (!hasBankTransferConfig) return;
                           const offline = await generateOfflineQrDataUrl(
-                            storeSettings?.bankId || 'ICB',
-                            storeSettings?.accountNumber || '106877069794',
+                            storeSettings?.bankId || '',
+                            storeSettings?.accountNumber || '',
                             cartSubtotal,
                             `NGANSON ${activeTab.title}`
                           );
@@ -770,23 +791,30 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                   />
                 </div>
 
-                <div className="text-xs font-mono font-bold text-slate-800">
-                  {storeSettings?.bankName || (storeSettings?.bankId === 'ICB' ? 'VietinBank' : storeSettings?.bankId)} • {storeSettings?.accountNumber || '106877069794'}
-                </div>
-                <div className="text-[11px] font-bold text-[#0066FF] uppercase">
-                  {storeSettings?.accountHolder || 'PHAN ANH TAI'}
-                </div>
+                {hasBankTransferConfig && (
+                  <>
+                    <div className="text-xs font-mono font-bold text-slate-800">
+                      {storeSettings?.bankName || storeSettings?.bankId} • {storeSettings?.accountNumber}
+                    </div>
+                    {storeSettings?.accountHolder && (
+                      <div className="text-[11px] font-bold text-[#0066FF] uppercase">
+                        {storeSettings.accountHolder}
+                      </div>
+                    )}
+                  </>
+                )}
 
                 <button
                   type="button"
                   onClick={async () => {
+                    if (!hasBankTransferConfig) return;
                     setIsPosQrLoading(true);
                     setPosQrError(false);
                     setPosQrTs(Date.now());
                     try {
                       const offline = await generateOfflineQrDataUrl(
-                        storeSettings?.bankId || 'ICB',
-                        storeSettings?.accountNumber || '106877069794',
+                        storeSettings?.bankId || '',
+                        storeSettings?.accountNumber || '',
                         cartSubtotal,
                         `NGANSON ${activeTab.title}`
                       );
@@ -800,6 +828,8 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
                   <RefreshCw className={`w-3.5 h-3.5 ${isPosQrLoading ? 'animate-spin text-[#0066FF]' : 'text-slate-500'}`} />
                   <span>Làm mới mã QR</span>
                 </button>
+                </>
+                )}
               </div>
             )}
 
@@ -859,26 +889,30 @@ export const MobilePosScreen: React.FC<MobilePosScreenProps> = () => {
             sku: `CUS${Date.now().toString().slice(-4)}`,
             barcode: '',
             selling_price: customItem.price,
-            cost_price: Math.round(customItem.price * 0.7),
-            stock: 999,
+            cost_price: 0,
+            stock: customItem.quantity,
             min_stock: 0,
             unit: customItem.unit,
             category: 'Khác',
             status: 'ACTIVE',
           };
-          addToCart(tempProduct);
+          addToCart(tempProduct, customItem.quantity);
         }}
       />
 
       {/* Barcode Scanner Modal */}
-      <MobileBarcodeScannerModal
-        isOpen={isBarcodeModalOpen}
-        onClose={() => setIsBarcodeModalOpen(false)}
-        onProductScanned={(productId) => {
-          const p = products.find((prod) => prod.id === productId);
-          if (p) addToCart(p);
-        }}
-      />
+      {isBarcodeModalOpen && (
+        <React.Suspense fallback={null}>
+          <MobileBarcodeScannerModal
+            isOpen={isBarcodeModalOpen}
+            onClose={() => setIsBarcodeModalOpen(false)}
+            onProductScanned={(productId) => {
+              const p = products.find((prod) => prod.id === productId);
+              if (p) addToCart(p);
+            }}
+          />
+        </React.Suspense>
+      )}
 
       {/* Orders Management Modal */}
       <MobileOrdersManagementModal

@@ -9,6 +9,51 @@
   --slate-100: #F1F5F9;
   --slate-200: #E2E8F0;
   --slate-700: #334155;
+  --app-bg: #F4F7FB;
+  --surface: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --surface-muted: #F1F5F9;
+  --surface-subtle: #EAF2FF;
+  --text: #172033;
+  --text-muted: #56657A;
+  --text-subtle: #718096;
+  --border: #DCE3EC;
+  --border-strong: #CBD5E1;
+  --focus-ring: #4C8DFF;
+  --chart-1: #0B63E5;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #8B5CF6;
+  --chart-5: #0891B2;
+  --chart-6: #64748B;
+}
+
+:root[data-theme='dark'] {
+  --primary: #5B9CFF;
+  --primary-hover: #79ADFF;
+  --success: #34D399;
+  --danger: #FB7185;
+  --warning: #FBBF24;
+  --slate-100: #1D2A3E;
+  --slate-200: #26354B;
+  --slate-700: #C6D1E1;
+  --app-bg: #0B1220;
+  --surface: #111A2B;
+  --surface-raised: #172236;
+  --surface-muted: #1D2A3E;
+  --surface-subtle: #10294F;
+  --text: #E8EEF8;
+  --text-muted: #A7B4C7;
+  --text-subtle: #8796AB;
+  --border: #26354B;
+  --border-strong: #34465F;
+  --focus-ring: #79ADFF;
+  --chart-1: #5B9CFF;
+  --chart-2: #34D399;
+  --chart-3: #FBBF24;
+  --chart-4: #A78BFA;
+  --chart-5: #22D3EE;
+  --chart-6: #94A3B8;
 }
 
 *, *::before, *::after {
@@ -17,24 +62,90 @@
 
 body {
   font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #F3F4F6;
-  color: #1E293B;
+  background-color: var(--app-bg);
+  color: var(--text);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.app-theme-scope {
+  background-color: var(--app-bg);
+  color: var(--text);
+}
+
+.app-surface {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.app-surface-muted {
+  background-color: var(--surface-muted);
+  color: var(--text);
+}
+
+.app-text-muted {
+  color: var(--text-muted);
+}
+
+.app-border {
+  border-color: var(--border);
+}
+
+.app-theme-scope :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Transitional dark-mode bridge for legacy Tailwind neutrals. New/edited UI should use semantic tokens. */
+[data-theme='dark'] .app-theme-scope .bg-white {
+  background-color: var(--surface);
+}
+[data-theme='dark'] .app-theme-scope .bg-slate-50 {
+  background-color: var(--surface-raised);
+}
+[data-theme='dark'] .app-theme-scope .bg-slate-100 {
+  background-color: var(--surface-muted);
+}
+[data-theme='dark'] .app-theme-scope .text-slate-900,
+[data-theme='dark'] .app-theme-scope .text-slate-800,
+[data-theme='dark'] .app-theme-scope .text-slate-700 {
+  color: var(--text);
+}
+[data-theme='dark'] .app-theme-scope .text-slate-600,
+[data-theme='dark'] .app-theme-scope .text-slate-500,
+[data-theme='dark'] .app-theme-scope .text-slate-400 {
+  color: var(--text-muted);
+}
+[data-theme='dark'] .app-theme-scope .border-slate-100,
+[data-theme='dark'] .app-theme-scope .border-slate-200,
+[data-theme='dark'] .app-theme-scope .border-slate-300,
+[data-theme='dark'] .app-theme-scope .divide-slate-100 > :not(:last-child) {
+  border-color: var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* High Density Components & Utilities */
 .table-header {
-  background-color: #F8FAFC;
-  border-bottom: 2px solid #E2E8F0;
+  background-color: var(--surface-muted);
+  border-bottom: 2px solid var(--border);
   text-transform: uppercase;
   font-size: 11px;
   letter-spacing: 0.035em;
-  color: #334155;
+  color: var(--text-muted);
   font-weight: 700;
 }
 
 .stat-card {
-  background-color: #FFFFFF;
-  border: 1px solid #E2E8F0;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
   padding: 14px;
   border-radius: 8px;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
@@ -148,9 +259,9 @@ span[class*="rounded"][class*="text-[9px]"] {
 }
 
 .sidebar-item-active {
-  background-color: #EEF2FF;
-  color: #0B63E5;
-  border-right: 3px solid #0B63E5;
+  background-color: var(--surface-subtle);
+  color: var(--primary);
+  border-right: 3px solid var(--primary);
   font-weight: 600;
 }
 
@@ -171,11 +282,11 @@ span[class*="rounded"][class*="text-[9px]"] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--border-strong);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--text-subtle);
 }
 
 /* K80 Thermal Receipt Print Styles */
@@ -199,4 +310,3 @@ span[class*="rounded"][class*="text-[9px]"] {
     font-family: 'Courier New', Courier, monospace;
   }
 }
-

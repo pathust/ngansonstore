@@ -57,7 +57,7 @@ export const StoreSettingsScreen: React.FC = () => {
     downloadQr,
     copyQrLink,
   } = useVietQr({
-    bankId: formData.bankId || 'ICB',
+    bankId: formData.bankId || '',
     accountNumber: formData.accountNumber || '',
     accountHolder: formData.accountHolder || '',
     template: formData.qrTemplate || 'compact2',
@@ -194,7 +194,9 @@ export const StoreSettingsScreen: React.FC = () => {
               <h1 className="text-base font-bold text-slate-900 leading-tight">
                 Cài Đặt Cửa Hàng & Mã QR Thanh Toán
               </h1>
-              <span className="badge-blue text-[10px] font-bold">318 Vũ Quang</span>
+              <span className="badge-blue text-[10px] font-bold">
+                {currentBranch.address || currentBranch.name}
+              </span>
             </div>
             <p className="text-xs text-slate-500">
               Tùy chỉnh thông tin in hóa đơn, tài khoản ngân hàng, mã VietQR tự động và mẫu standee để bàn

@@ -13,6 +13,8 @@ interface QrStandeeModalProps {
 export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose, settings }) => {
   const [offlineQrUrl, setOfflineQrUrl] = useState<string>('');
   const [hasImageError, setHasImageError] = useState<boolean>(false);
+  const hasBankConfig = Boolean(settings.bankId?.trim() && settings.accountNumber?.trim());
+  const hasQrConfig = Boolean((settings.useCustomQr && settings.customQrImage) || hasBankConfig);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -23,18 +25,20 @@ export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose,
   }, [onClose]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && hasBankConfig) {
       setHasImageError(false);
       generateOfflineQrDataUrl(
-        settings.bankId || 'ICB',
-        settings.accountNumber || '106877069794',
+        settings.bankId,
+        settings.accountNumber,
         0,
         'THANH TOAN CUA HANG NGAN SON'
       )
         .then((url) => setOfflineQrUrl(url))
         .catch(console.error);
+    } else if (!hasBankConfig) {
+      setOfflineQrUrl('');
     }
-  }, [isOpen, settings]);
+  }, [hasBankConfig, isOpen, settings]);
 
   const standeeRef = useRef<HTMLDivElement>(null);
 
@@ -42,16 +46,19 @@ export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose,
 
   const qrUrl = settings.useCustomQr && settings.customQrImage
     ? settings.customQrImage
+    : !hasBankConfig
+    ? ''
     : settings.savedQrCode || getVietQRUrl(
-        settings.bankId || 'ICB',
-        settings.accountNumber || '106877069794',
+        settings.bankId,
+        settings.accountNumber,
         settings.qrTemplate || 'compact2',
         0,
         'THANH TOAN CUA HANG NGAN SON',
-        settings.accountHolder || 'PHAN ANH TAI'
+        settings.accountHolder || ''
       );
 
   const handlePrint = () => {
+    if (!hasQrConfig) return;
     window.print();
   };
 
@@ -85,7 +92,8 @@ export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose,
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+              disabled={!hasQrConfig}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>In Standee Ngay</span>
@@ -127,39 +135,54 @@ export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose,
 
             {/* Big High-Res QR Code Card */}
             <div className="my-2 bg-gradient-to-b from-slate-50 to-blue-50/50 p-4 rounded-2xl border border-blue-100 shadow-inner flex flex-col items-center">
-              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-md">
-                <img
-                  src={
-                    settings.useCustomQr && settings.customQrImage
-                      ? settings.customQrImage
-                      : hasImageError && offlineQrUrl
-                      ? offlineQrUrl
-                      : (offlineQrUrl || qrUrl)
-                  }
-                  alt="VietQR Standee"
-                  onError={() => setHasImageError(true)}
-                  className="w-56 h-56 object-contain mx-auto"
-                />
-              </div>
+              {hasQrConfig ? (
+                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-md">
+                  <img
+                    src={
+                      settings.useCustomQr && settings.customQrImage
+                        ? settings.customQrImage
+                        : hasImageError && offlineQrUrl
+                        ? offlineQrUrl
+                        : (offlineQrUrl || qrUrl)
+                    }
+                    alt="VietQR Standee"
+                    onError={() => setHasImageError(true)}
+                    className="w-56 h-56 object-contain mx-auto"
+                  />
+                </div>
+              ) : (
+                <div className="w-full rounded-xl border border-amber-200 bg-amber-50 p-5 text-left">
+                  <div className="font-bold text-amber-900">Chưa cấu hình VietQR</div>
+                  <div className="mt-1 text-xs text-amber-800">
+                    Hãy nhập ngân hàng và số tài khoản trong Cài đặt trước khi in standee thanh toán.
+                  </div>
+                </div>
+              )}
 
               {/* Account Details Box */}
               <div className="mt-3.5 w-full bg-white rounded-xl p-3 border border-slate-200 text-left space-y-1.5 shadow-2xs">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Ngân hàng:</span>
-                  <span className="font-bold text-blue-700">{settings.bankName || (settings.bankId === 'ICB' ? 'VietinBank' : settings.bankId)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Số tài khoản:</span>
-                  <span className="font-mono font-black text-slate-900 text-sm tracking-wider bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    {settings.accountNumber || '106877069794'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Chủ tài khoản:</span>
-                  <span className="font-bold text-slate-900 uppercase">
-                    {settings.accountHolder || 'PHAN ANH TAI'}
-                  </span>
-                </div>
+                {hasBankConfig ? (
+                  <>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Ngân hàng:</span>
+                      <span className="font-bold text-blue-700">{settings.bankName || settings.bankId}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Số tài khoản:</span>
+                      <span className="font-mono font-black text-slate-900 text-sm tracking-wider bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        {settings.accountNumber}
+                      </span>
+                    </div>
+                    {settings.accountHolder && (
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium">Chủ tài khoản:</span>
+                        <span className="font-bold text-slate-900 uppercase">{settings.accountHolder}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center text-xs text-slate-500">Thông tin tài khoản chưa được thiết lập.</div>
+                )}
               </div>
             </div>
 
@@ -181,7 +204,7 @@ export const QrStandeeModal: React.FC<QrStandeeModalProps> = ({ isOpen, onClose,
               <div className="flex items-center justify-center gap-3 text-[11px] text-slate-500 pt-1">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-red-500" />
-                  {settings.address || '318 Vũ Quang, TP. Hà Tĩnh'}
+                  {settings.address || 'Chưa cập nhật địa chỉ'}
                 </span>
               </div>
               {settings.phone && (

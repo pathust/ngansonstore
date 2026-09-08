@@ -4,10 +4,8 @@ import {
   Phone,
   MessageSquare,
   HelpCircle,
-  ExternalLink,
   Send,
   Headphones,
-  CheckCircle2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -22,11 +20,12 @@ export const MobileSupportModal: React.FC<MobileSupportModalProps> = ({
   onClose,
   initialTab = 'HOTLINE',
 }) => {
-  const { showToast } = useApp();
+  const { showToast, storeSettings, currentBranch } = useApp();
   const [activeTab, setActiveTab] = useState<'HOTLINE' | 'FEEDBACK'>(initialTab);
   const [feedbackCategory, setFeedbackCategory] = useState('FEATURE');
   const [feedbackContent, setFeedbackContent] = useState('');
-  const [isSent, setIsSent] = useState(false);
+  const supportPhone = currentBranch.phone || storeSettings.phone || '';
+  const supportPhoneHref = supportPhone.replace(/[^\d+]/g, '');
 
   if (!isOpen) return null;
 
@@ -36,13 +35,7 @@ export const MobileSupportModal: React.FC<MobileSupportModalProps> = ({
       showToast('Vui lòng nhập nội dung góp ý!', 'warning');
       return;
     }
-    setIsSent(true);
-    showToast('Đã gửi góp ý thành công! Chúng tôi sẽ phản hồi sớm nhất.', 'success');
-    setTimeout(() => {
-      setIsSent(false);
-      setFeedbackContent('');
-      onClose();
-    }, 1200);
+    showToast('Chưa cấu hình kênh nhận góp ý nên nội dung chưa được gửi.', 'info');
   };
 
   return (
@@ -59,7 +52,9 @@ export const MobileSupportModal: React.FC<MobileSupportModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-base text-slate-900">Trung tâm Hỗ trợ</h3>
-              <span className="text-xs text-slate-400 font-medium">Cửa hàng Ngân Sơn - 318 Vũ Quang</span>
+              <span className="text-xs text-slate-400 font-medium">
+                Cửa hàng Ngân Sơn - {currentBranch.address || currentBranch.name}
+              </span>
             </div>
           </div>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600">
@@ -96,81 +91,44 @@ export const MobileSupportModal: React.FC<MobileSupportModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4">
           {activeTab === 'HOTLINE' ? (
             <div className="flex flex-col gap-3">
-              {/* Call Hotline 1 */}
-              <a
-                href="tel:19006522"
-                className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 flex items-center justify-between active:scale-98 transition-transform"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#0066FF] text-white flex items-center justify-center shadow-sm">
-                    <Phone className="w-5 h-5" />
+              {supportPhone ? (
+                <a
+                  href={`tel:${supportPhoneHref}`}
+                  className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 flex items-center justify-between active:scale-98 transition-transform"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#0066FF] text-white flex items-center justify-center shadow-sm">
+                      <Phone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-500 font-medium block">Số liên hệ của chi nhánh</span>
+                      <span className="text-base font-black text-slate-900 tracking-tight">{supportPhone}</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-xs text-slate-500 font-medium block">Tổng đài CSKH KiotViet</span>
-                    <span className="text-base font-black text-slate-900 tracking-tight">1900 6522</span>
-                  </div>
+                  <span className="px-3 py-1.5 rounded-xl bg-[#0066FF] text-white text-xs font-bold shadow-2xs">
+                    Gọi ngay
+                  </span>
+                </a>
+              ) : (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                  Chưa cấu hình số điện thoại hỗ trợ cho chi nhánh này. Có thể bổ sung trong Cài đặt cửa hàng.
                 </div>
-                <span className="px-3 py-1.5 rounded-xl bg-[#0066FF] text-white text-xs font-bold shadow-2xs">
-                  Gọi ngay
-                </span>
-              </a>
-
-              {/* Call Hotline 2: Chi nhánh */}
-              <a
-                href="tel:0988318234"
-                className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between active:scale-98 transition-transform"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
-                    <Phone className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-500 font-medium block">Kỹ thuật viên Chi nhánh Vũ Quang</span>
-                    <span className="text-base font-black text-slate-900 tracking-tight">0988 318 234</span>
-                  </div>
-                </div>
-                <span className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-2xs">
-                  Gọi ngay
-                </span>
-              </a>
-
-              {/* Zalo OA */}
-              <a
-                href="https://zalo.me"
-                target="_blank"
-                rel="noreferrer"
-                className="p-3.5 rounded-2xl bg-blue-50/50 border border-blue-100 flex items-center justify-between text-xs text-slate-700 font-medium hover:bg-blue-50 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[#0068FF] text-white font-black text-xs flex items-center justify-center">
-                    Z
-                  </div>
-                  <span>Nhắn tin Zalo Hỗ trợ trực tuyến (24/7)</span>
-                </div>
-                <ExternalLink className="w-4 h-4 text-slate-400" />
-              </a>
+              )}
 
               {/* Help Center */}
               <div className="mt-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-xs text-slate-600 flex flex-col gap-1.5">
                 <div className="flex items-center gap-1.5 font-bold text-slate-800">
                   <HelpCircle className="w-4 h-4 text-[#0066FF]" />
-                  <span>Thời gian phục vụ</span>
+                  <span>Kênh hỗ trợ</span>
                 </div>
                 <p className="text-slate-500 leading-relaxed">
-                  Đội ngũ hỗ trợ kỹ thuật và vận hành sẵn sàng từ 07:00 đến 21:30 tất cả các ngày trong tuần (kể cả Thứ 7, Chủ Nhật và ngày lễ).
+                  Hiện ứng dụng chỉ sử dụng số liên hệ đã cấu hình của cửa hàng. Chưa có hotline, Zalo OA hoặc lịch trực hỗ trợ riêng được kết nối vào hệ thống.
                 </p>
               </div>
             </div>
           ) : (
             <form onSubmit={handleSubmitFeedback} className="flex flex-col gap-3">
-              {isSent ? (
-                <div className="py-12 flex flex-col items-center justify-center text-center">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-500 mb-2" />
-                  <span className="font-bold text-sm text-slate-900">Gửi góp ý thành công!</span>
-                  <span className="text-xs text-slate-500 mt-1">Cảm ơn bạn đã đóng góp để hoàn thiện phần mềm.</span>
-                </div>
-              ) : (
-                <>
+              <>
                   <div>
                     <label className="text-xs font-bold text-slate-700 block mb-1">Loại yêu cầu</label>
                     <div className="grid grid-cols-3 gap-2">
@@ -211,10 +169,12 @@ export const MobileSupportModal: React.FC<MobileSupportModalProps> = ({
                     className="mt-2 py-3 rounded-xl bg-[#0066FF] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md active:scale-98 transition-all"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Gửi tin nhắn ngay</span>
+                    <span>Gửi góp ý</span>
                   </button>
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                    Kênh nhận góp ý chưa được kết nối backend; nút gửi sẽ không báo thành công giả.
+                  </p>
                 </>
-              )}
             </form>
           )}
         </div>

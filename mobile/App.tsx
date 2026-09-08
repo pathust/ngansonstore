@@ -1,34 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView, StatusBar, StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
 import { OverviewMobileScreen } from './src/screens/OverviewMobileScreen';
 import { ProductsMobileScreen } from './src/screens/ProductsMobileScreen';
 import { PosMobileScreen } from './src/screens/PosMobileScreen';
 import { InvoiceHistoryScreen } from './src/screens/InvoiceHistoryScreen';
 import { MoreMenuMobileScreen } from './src/screens/MoreMenuMobileScreen';
+import { SettingsMobileScreen } from './src/screens/SettingsMobileScreen';
 import { VoiceAssistantModal } from './src/components/VoiceAssistantModal';
 import { mobileApi } from './src/services/api';
-import { Product, Customer, Supplier } from './src/types';
+import { Product, Customer, Supplier, StoreSettings } from './src/types';
+import { MobileThemeProvider, ThemeColors, useMobileTheme } from './src/theme/ThemeContext';
 
-type TabType = 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE';
+type TabType = 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE' | 'SETTINGS';
 
-export default function App() {
+const AppContent: React.FC = () => {
+  const { colors, resolvedTheme } = useMobileTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [currentTab, setCurrentTab] = useState<TabType>('OVERVIEW');
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [prods, custs, sups] = await Promise.all([
+        const results = await Promise.allSettled([
           mobileApi.getProducts(),
           mobileApi.getCustomers(),
           mobileApi.getSuppliers(),
+          mobileApi.getSettings(),
         ]);
-        setProducts(prods);
-        setCustomers(custs);
-        setSuppliers(sups);
+
+        const [productsResult, customersResult, suppliersResult, settingsResult] = results;
+        if (productsResult.status === 'fulfilled') setProducts(productsResult.value as Product[]);
+        if (customersResult.status === 'fulfilled') setCustomers(customersResult.value as Customer[]);
+        if (suppliersResult.status === 'fulfilled') setSuppliers(suppliersResult.value as Supplier[]);
+        if (settingsResult.status === 'fulfilled') setStoreSettings(settingsResult.value as StoreSettings);
+
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            const resource = ['products', 'customers', 'suppliers', 'settings'][index];
+            console.warn(`Failed to load initial ${resource}:`, result.reason);
+          }
+        });
       } catch (e) {
         console.warn('Failed to load initial data:', e);
       }
@@ -46,7 +62,10 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar
+        barStyle={resolvedTheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.surface}
+      />
       <View style={styles.contentContainer}>
         {/* Keep all screens mounted to preserve state */}
         <View style={[styles.screenContainer, currentTab === 'OVERVIEW' ? styles.visible : styles.hidden]}>
@@ -62,7 +81,14 @@ export default function App() {
           <InvoiceHistoryScreen />
         </View>
         <View style={[styles.screenContainer, currentTab === 'MORE' ? styles.visible : styles.hidden]}>
-          <MoreMenuMobileScreen onNavigateTab={(tab) => setCurrentTab(tab as TabType)} />
+          <MoreMenuMobileScreen
+            onNavigateTab={(tab) => setCurrentTab(tab as TabType)}
+            storeName={storeSettings?.name}
+            branchLabel={storeSettings?.address}
+          />
+        </View>
+        <View style={[styles.screenContainer, currentTab === 'SETTINGS' ? styles.visible : styles.hidden]}>
+          <SettingsMobileScreen onBack={() => setCurrentTab('MORE')} />
         </View>
       </View>
 
@@ -97,28 +123,37 @@ export default function App() {
           if (screen === 'pos') setCurrentTab('POS');
           else if (screen === 'products' || screen === 'inventory') setCurrentTab('PRODUCTS');
           else if (screen === 'invoices') setCurrentTab('INVOICES');
-          else if (screen === 'settings' || screen === 'more') setCurrentTab('MORE');
+          else if (screen === 'settings') setCurrentTab('SETTINGS');
+          else if (screen === 'more') setCurrentTab('MORE');
           else if (screen === 'overview') setCurrentTab('OVERVIEW');
           setIsVoiceOpen(false);
         }}
       />
     </SafeAreaView>
   );
+};
+
+export default function App() {
+  return (
+    <MobileThemeProvider>
+      <AppContent />
+    </MobileThemeProvider>
+  );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#ffffff', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  contentContainer: { flex: 1, backgroundColor: '#f8fafc' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.surface, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  contentContainer: { flex: 1, backgroundColor: colors.background },
   screenContainer: { ...StyleSheet.absoluteFillObject },
   visible: { display: 'flex' },
   hidden: { display: 'none' },
-  floatingMicBtn: { position: 'absolute', right: 18, bottom: 80, width: 52, height: 52, borderRadius: 26, backgroundColor: '#0B63E5', alignItems: 'center', justifyContent: 'center', shadowColor: '#0B63E5', shadowOpacity: 0.35, shadowRadius: 8, elevation: 8, zIndex: 30, borderWidth: 2, borderColor: '#ffffff' },
+  floatingMicBtn: { position: 'absolute', right: 18, bottom: 80, width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: colors.primary, shadowOpacity: 0.35, shadowRadius: 8, elevation: 8, zIndex: 30, borderWidth: 2, borderColor: colors.surface },
   floatingMicIcon: { fontSize: 22 },
-  bottomTabBar: { height: 64, paddingBottom: 4, backgroundColor: '#ffffff', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: 1, borderTopColor: '#e2e8f0', elevation: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
+  bottomTabBar: { height: 64, paddingBottom: 4, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: 1, borderTopColor: colors.border, elevation: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
-  tabItemActive: { borderTopWidth: 2, borderTopColor: '#0B63E5' },
+  tabItemActive: { borderTopWidth: 2, borderTopColor: colors.primary },
   tabIcon: { fontSize: 18, opacity: 0.6 },
   tabIconActive: { opacity: 1 },
-  tabLabel: { fontSize: 10, color: '#64748b', marginTop: 2, fontWeight: '500' },
-  tabLabelActive: { color: '#0B63E5', fontWeight: 'bold' },
+  tabLabel: { fontSize: 10, color: colors.textMuted, marginTop: 2, fontWeight: '500' },
+  tabLabelActive: { color: colors.primary, fontWeight: 'bold' },
 });

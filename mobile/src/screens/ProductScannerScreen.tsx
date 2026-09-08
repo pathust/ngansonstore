@@ -59,22 +59,6 @@ export const ProductScannerScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Quick Sample Barcodes */}
-        <View style={styles.sampleRow}>
-          <Text style={styles.sampleLabel}>Mẫu nhanh:</Text>
-          {['893600100101', '893600100102', '893600100103'].map((code) => (
-            <TouchableOpacity
-              key={code}
-              style={styles.sampleChip}
-              onPress={() => {
-                setBarcodeQuery(code);
-                handleSearchBarcode(code);
-              }}
-            >
-              <Text style={styles.sampleChipText}>{code.slice(-4)}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
       </View>
 
       {/* Found Product Result Card */}

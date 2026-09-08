@@ -16,6 +16,8 @@ import {
   ShoppingCart,
   Receipt,
   Wallet,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { MobileNotificationsModal } from './MobileNotificationsModal';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -24,12 +26,14 @@ import { MobileCashbookModal } from './MobileCashbookModal';
 import { MobileStaffModal } from './MobileStaffModal';
 import { MobileReturnsModal } from './MobileReturnsModal';
 import { MobileReportsModal } from './MobileReportsModal';
+import { useTheme } from '../../hooks/useTheme';
 
 interface MobileOverviewScreenProps {
   onNavigateTab: (tab: 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE') => void;
 }
 
 export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNavigateTab }) => {
+  const { resolvedTheme, toggleTheme } = useTheme();
   const { orders } = useOrdersData();
   const { unreadCount } = useNotifications();
   const [timeRange, setTimeRange] = useState<'today' | 'yesterday' | 'last_7_days' | 'this_month' | 'last_month' | 'all'>('this_month');
@@ -234,7 +238,7 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F5F6F8] pb-24 text-slate-800">
+    <div className="flex flex-col min-h-screen bg-[var(--app-bg)] pb-24 text-[var(--text)]">
       {/* Top Header */}
       <div className="bg-white px-4 pt-3 pb-3 flex items-center justify-between border-b border-slate-100 sticky top-0 z-20">
         <div className="flex items-center gap-2">
@@ -249,6 +253,14 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
 
         {/* Action icons */}
         <div className="flex items-center gap-4 text-slate-600">
+          <button
+            onClick={toggleTheme}
+            aria-label={resolvedTheme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            className="p-1 hover:text-[var(--primary)] active:scale-95 transition-all"
+            title={resolvedTheme === 'dark' ? 'Giao diện sáng' : 'Giao diện tối'}
+          >
+            {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
           <button
             onClick={() => {
               setSupportTab('HOTLINE');
@@ -321,7 +333,7 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
           </div>
 
           {/* Revenue & Profit Summary Card */}
-          <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 flex flex-col gap-3">
+          <div className="app-surface rounded-2xl p-4 border flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-4">
               {/* Orders & Revenue */}
               <div>
@@ -366,7 +378,7 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
           </div>
 
         {/* 5 Quick Action Shortcuts (Bán hàng, Hàng hóa, Hóa đơn, Sổ quỹ, Báo cáo) */}
-        <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-slate-100 grid grid-cols-5 gap-1 text-center">
+        <div className="app-surface rounded-2xl p-3.5 border grid grid-cols-5 gap-1 text-center">
           <button
             onClick={() => onNavigateTab('POS')}
             className="flex flex-col items-center gap-1.5 p-1 hover:bg-slate-50 rounded-xl transition-colors active:scale-95 cursor-pointer"
@@ -424,7 +436,7 @@ export const MobileOverviewScreen: React.FC<MobileOverviewScreenProps> = ({ onNa
         </div>
 
         {/* Revenue Bar Chart Section */}
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100 flex flex-col gap-3">
+        <div className="app-surface rounded-2xl p-4 border flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <button
               onClick={() => setIsReportsOpen(true)}

@@ -64,7 +64,7 @@ export const MobileStoreSettingsModal: React.FC<MobileStoreSettingsModalProps> =
     downloadQr,
     copyQrLink,
   } = useVietQr({
-    bankId: formData.bankId || 'ICB',
+    bankId: formData.bankId || '',
     accountNumber: formData.accountNumber || '',
     accountHolder: formData.accountHolder || '',
     template: formData.qrTemplate || 'compact2',

@@ -44,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     products,
     users,
     currentUser,
+    currentBranch,
     setIsUserSwitcherOpen,
     setIsUserProfileOpen,
     setIsChangePasswordOpen,
@@ -212,7 +213,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div className="flex items-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                <span className="text-[10px] text-slate-500 font-medium truncate" title="318 Vũ Quang">318 Vũ Quang</span>
+                <span
+                  className="text-[10px] text-slate-500 font-medium truncate"
+                  title={currentBranch.address || currentBranch.name}
+                >
+                  {currentBranch.address || currentBranch.name}
+                </span>
               </div>
             </div>
           </div>
@@ -426,4 +432,3 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
-

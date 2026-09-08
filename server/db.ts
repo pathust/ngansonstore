@@ -1317,7 +1317,11 @@ class DatabaseManager {
       category: entry.category || 'Thu tiền khác',
       note: entry.note || '',
       ref_code: entry.ref_code,
-      branch: entry.branch || 'Chi nhánh 318 Vũ Quang',
+      branch:
+        entry.branch ||
+        db.branches.find((branch) => branch.is_default)?.name ||
+        db.branches[0]?.name ||
+        'Chưa xác định',
       created_at: entry.created_at || new Date().toLocaleString('vi-VN'),
     };
     db.cashbook.unshift(fullEntry);

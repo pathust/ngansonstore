@@ -1,15 +1,23 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { ThemeColors, useMobileTheme } from '../theme/ThemeContext';
 
 interface MoreMenuMobileScreenProps {
   onNavigateTab?: (tab: string) => void;
+  storeName?: string;
+  branchLabel?: string;
 }
 
-export const MoreMenuMobileScreen: React.FC<MoreMenuMobileScreenProps> = ({ onNavigateTab }) => {
+export const MoreMenuMobileScreen: React.FC<MoreMenuMobileScreenProps> = ({ onNavigateTab, storeName, branchLabel }) => {
+  const { colors } = useMobileTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const handleFeatureNotice = (featureName: string, desc?: string) => {
     Alert.alert(
       featureName,
-      desc || 'Chức năng đã được đồng bộ với hệ thống quản lý Ngân Sơn.',
+      desc
+        ? `${desc}\n\nTính năng này hiện chưa khả dụng trên app mobile.`
+        : 'Tính năng này hiện chưa khả dụng trên app mobile.',
       [{ text: 'Đóng', style: 'cancel' }]
     );
   };
@@ -19,7 +27,7 @@ export const MoreMenuMobileScreen: React.FC<MoreMenuMobileScreenProps> = ({ onNa
       {/* Profile Card */}
       <TouchableOpacity 
         style={styles.profileCard}
-        onPress={() => handleFeatureNotice('Cửa hàng Ngân Sơn', 'Chi nhánh 318 Vũ Quang, TP. Hà Tĩnh. Trạng thái: Đang hoạt động.')}
+        onPress={() => onNavigateTab && onNavigateTab('SETTINGS')}
         activeOpacity={0.8}
       >
         <View style={styles.profileRow}>
@@ -27,15 +35,15 @@ export const MoreMenuMobileScreen: React.FC<MoreMenuMobileScreenProps> = ({ onNa
             <Text style={{ fontSize: 20 }}>👤</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.storeName}>Cửa hàng Ngân Sơn</Text>
-            <Text style={styles.branchName}>Chi nhánh 318 Vũ Quang</Text>
+            <Text style={styles.storeName}>{storeName || 'Cửa hàng Ngân Sơn'}</Text>
+            <Text style={styles.branchName}>{branchLabel ? `Chi nhánh ${branchLabel}` : 'Chưa cấu hình địa chỉ chi nhánh'}</Text>
           </View>
           <Text style={{ fontSize: 16 }}>✏️</Text>
         </View>
         <View style={styles.profileDivider} />
         <View style={styles.infoLinkRow}>
           <Text style={styles.infoLinkText}>Thông tin cửa hàng & Cài đặt VietQR</Text>
-          <Text style={{ fontSize: 14, color: '#9CA3AF' }}>›</Text>
+          <Text style={{ fontSize: 14, color: colors.textSubtle }}>›</Text>
         </View>
       </TouchableOpacity>
 
@@ -281,7 +289,7 @@ export const MoreMenuMobileScreen: React.FC<MoreMenuMobileScreenProps> = ({ onNa
         <View style={styles.gridRow}>
           <TouchableOpacity 
             style={styles.gridItem}
-            onPress={() => handleFeatureNotice('Ngân hàng & VietQR', 'Cấu hình tài khoản nhận tiền Techcombank, tạo mã QR động tự động.')}
+            onPress={() => onNavigateTab && onNavigateTab('SETTINGS')}
             activeOpacity={0.7}
           >
             <Text style={styles.itemEmoji}>🏦</Text>
@@ -292,7 +300,7 @@ export const MoreMenuMobileScreen: React.FC<MoreMenuMobileScreenProps> = ({ onNa
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.gridItem}
-            onPress={() => handleFeatureNotice('Cài đặt hệ thống', 'Máy in hóa đơn nhiệt LAN/Bluetooth K80/K58, âm thanh thông báo.')}
+            onPress={() => onNavigateTab && onNavigateTab('SETTINGS')}
             activeOpacity={0.7}
           >
             <Text style={styles.itemEmoji}>⚙️</Text>
@@ -307,43 +315,43 @@ export const MoreMenuMobileScreen: React.FC<MoreMenuMobileScreenProps> = ({ onNa
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F6F8' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 12, paddingBottom: 100 },
   profileCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  storeName: { fontSize: 15, fontWeight: '800', color: '#111827' },
-  branchName: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
-  profileDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
+  storeName: { fontSize: 15, fontWeight: '800', color: colors.text },
+  branchName: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  profileDivider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
   infoLinkRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  infoLinkText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  infoLinkText: { fontSize: 13, fontWeight: '600', color: colors.text },
   groupCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
-  groupTitle: { fontSize: 14, fontWeight: '800', color: '#111827', marginBottom: 12 },
+  groupTitle: { fontSize: 14, fontWeight: '800', color: colors.text, marginBottom: 12 },
   gridRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   gridItem: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   itemEmoji: { fontSize: 18 },
-  itemText: { fontSize: 12, fontWeight: '600', color: '#374151' },
-  itemSub: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
+  itemText: { fontSize: 12, fontWeight: '600', color: colors.text },
+  itemSub: { fontSize: 10, color: colors.textMuted, marginTop: 1 },
 });

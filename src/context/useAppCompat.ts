@@ -128,7 +128,7 @@ export interface AppContextType {
   ) => void;
   cancelOrder: (orderId: string, returnStock?: boolean, reason?: string) => void;
   restoreOrder: (orderId: string) => void;
-  deleteOrder: (orderId: string, returnStock?: boolean) => void;
+  deleteOrder: (orderId: string, returnStock?: boolean) => Promise<void>;
   openOrderReceipt: (order: Order) => void;
   lastCompletedOrder: Order | null;
   setLastCompletedOrder: (order: Order | null) => void;

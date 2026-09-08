@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Branch } from '../../types';
-import { LOCAL_STORAGE_PREFIX, safeStorageGet } from '../shared/storage';
+import { LOCAL_STORAGE_PREFIX, safeStorageGet, safeStorageSet } from '../shared/storage';
 
-const DEFAULT_BRANCH: Branch = { id: 'ngan-son-store', name: 'Cửa hàng Ngân Sơn', address: '318 Vũ Quang', phone: '0912.345.678', is_default: true };
+const DEFAULT_BRANCH: Branch = { id: 'ngan-son-store', name: 'Cửa hàng Ngân Sơn', address: '318 Vũ Quang', phone: '', is_default: true };
 
 const DEFAULT_VIEW = 'products';
 
@@ -85,6 +85,10 @@ export const UiShellProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (parsed && typeof parsed === 'object' && parsed.id) return parsed;
     return DEFAULT_BRANCH;
   });
+
+  useEffect(() => {
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'current_branch', currentBranch);
+  }, [currentBranch]);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
 

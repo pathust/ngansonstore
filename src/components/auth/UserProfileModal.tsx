@@ -27,7 +27,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onClose,
   onOpenChangePassword,
 }) => {
-  const { currentUser, updateUserProfile, logout, setIsChangePasswordOpen } = useApp();
+  const { currentUser, currentBranch, updateUserProfile, logout, setIsChangePasswordOpen } = useApp();
 
   const [name, setName] = useState(currentUser.name || '');
   const [phone, setPhone] = useState(currentUser.phone || '');
@@ -98,7 +98,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-base leading-tight">Hồ sơ cá nhân & Tài khoản</h3>
-              <p className="text-xs text-blue-100">Cửa hàng Ngân Sơn • 318 Vũ Quang</p>
+              <p className="text-xs text-blue-100">
+                Cửa hàng Ngân Sơn • {currentBranch.address || currentBranch.name}
+              </p>
             </div>
           </div>
           <button

@@ -7,10 +7,11 @@ import {
   Menu as MenuIcon,
 } from 'lucide-react';
 import { MobileOverviewScreen } from './MobileOverviewScreen';
-import { MobileProductsScreen } from './MobileProductsScreen';
-import { MobilePosScreen } from './MobilePosScreen';
-import { MobileInvoicesScreen } from './MobileInvoicesScreen';
-import { MobileMoreScreen } from './MobileMoreScreen';
+
+const MobileProductsScreen = React.lazy(() => import('./MobileProductsScreen').then(m => ({ default: m.MobileProductsScreen })));
+const MobilePosScreen = React.lazy(() => import('./MobilePosScreen').then(m => ({ default: m.MobilePosScreen })));
+const MobileInvoicesScreen = React.lazy(() => import('./MobileInvoicesScreen').then(m => ({ default: m.MobileInvoicesScreen })));
+const MobileMoreScreen = React.lazy(() => import('./MobileMoreScreen').then(m => ({ default: m.MobileMoreScreen })));
 
 export type MobileTab = 'OVERVIEW' | 'PRODUCTS' | 'POS' | 'INVOICES' | 'MORE';
 
@@ -39,18 +40,20 @@ export const MobileAppContainer: React.FC<MobileAppContainerProps> = ({
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F5F6F8] font-sans antialiased text-slate-800 select-none">
       {/* Active Screen View */}
       <div id="mobile-scroll-root" className="flex-1 overflow-y-auto scroll-hide relative">
-        {activeTab === 'OVERVIEW' && <MobileOverviewScreen onNavigateTab={(tab) => setActiveTab(tab)} />}
-        {activeTab === 'PRODUCTS' && <MobileProductsScreen />}
-        {activeTab === 'POS' && <MobilePosScreen />}
-        {activeTab === 'INVOICES' && <MobileInvoicesScreen onOpenPos={() => setActiveTab('POS')} />}
-        {activeTab === 'MORE' && (
-          <MobileMoreScreen
-            onNavigateTab={(tab) => setActiveTab(tab)}
-            onOpenDesktopMode={onOpenDesktopMode}
-            isManualOverride={isManualOverride}
-            onResetAutoView={onResetAutoView}
-          />
-        )}
+        <React.Suspense fallback={<div className="h-full flex items-center justify-center text-xs font-medium text-slate-500">Đang tải...</div>}>
+          {activeTab === 'OVERVIEW' && <MobileOverviewScreen onNavigateTab={(tab) => setActiveTab(tab)} />}
+          {activeTab === 'PRODUCTS' && <MobileProductsScreen />}
+          {activeTab === 'POS' && <MobilePosScreen />}
+          {activeTab === 'INVOICES' && <MobileInvoicesScreen onOpenPos={() => setActiveTab('POS')} />}
+          {activeTab === 'MORE' && (
+            <MobileMoreScreen
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onOpenDesktopMode={onOpenDesktopMode}
+              isManualOverride={isManualOverride}
+              onResetAutoView={onResetAutoView}
+            />
+          )}
+        </React.Suspense>
       </div>
 
       {/* 5-Tab Fixed Bottom Navigation Bar (Image 2, 4, 5, 7, 12, 17) */}
