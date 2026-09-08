@@ -4,8 +4,18 @@
 //   - ./date.ts      — định dạng/parse ngày giờ tiếng Việt
 //   - ./vietqrImageUrl.ts — sinh URL ảnh mã VietQR động (khác ./vietqr.ts vốn đã có sẵn — đó là bộ sinh EMVCo offline)
 //   - ./excel.ts     — xuất/nhập Excel (mẫu import, sao lưu, đọc file)
-// Code mới nên import thẳng từ file domain tương ứng thay vì từ đây.
+// Excel KHÔNG re-export ở barrel này để các màn hình chỉ cần format tiền/ngày không tải cả thư viện XLSX.
 export * from './currency';
 export * from './date';
 export * from './vietqrImageUrl';
-export * from './excel';
+
+// Helper text nhẹ, dùng cả ngoài luồng Excel (AI/voice matching).
+export const cleanTextForMatch = (str: any): string => {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]/g, '');
+};

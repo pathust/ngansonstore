@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CashbookEntry } from '../../types';
-import { formatCurrency, formatDateTime, parseDateToTimestamp, exportToExcel } from '../../utils/formatters';
+import { formatCurrency, formatDateTime, parseDateToTimestamp } from '../../utils/formatters';
+import { exportToExcel } from '../../utils/excelLazy';
 import { Pagination } from '../common/Pagination';
 import {
   ReceiptText,

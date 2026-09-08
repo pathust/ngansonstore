@@ -4,7 +4,8 @@ import { useInventoryAudit } from '../../context/slices/InventoryAuditContext';
 import { useCatalogOrchestrator } from '../../context/orchestrators/useCatalogOrchestrator';
 import { useToast } from '../../context/slices/ToastContext';
 import { InventoryAuditItem, InventoryAudit } from '../../types';
-import { formatCurrency, formatDate, parseDateToTimestamp, exportToExcel } from '../../utils/formatters';
+import { formatCurrency, formatDate, parseDateToTimestamp } from '../../utils/formatters';
+import { exportToExcel } from '../../utils/excelLazy';
 import { Pagination } from '../common/Pagination';
 import {
   Warehouse,

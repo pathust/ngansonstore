@@ -3,13 +3,11 @@ import { useApp } from '../../context/AppContext';
 import { Customer } from '../../types';
 import {
   formatCurrency,
-  exportToExcel,
-  downloadCustomerTemplate,
-  parseExcelFile,
   parseCleanNumber,
-  findHeaderValue,
   formatDateTime,
 } from '../../utils/formatters';
+import { exportToExcel, downloadCustomerTemplate, parseExcelFile } from '../../utils/excelLazy';
+import { findHeaderValue } from '../../utils/excelMatching';
 import { Pagination } from '../common/Pagination';
 import { useCustomerFilters } from './useCustomerFilters';
 import {

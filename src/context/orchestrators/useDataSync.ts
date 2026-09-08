@@ -297,16 +297,17 @@ export function useDataSync() {
           });
           updated++;
         } else {
+          if (item.selling_price === undefined || item.selling_price <= 0) return;
           const newId = 'prod-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
           const newProd: Product = {
             id: newId,
             sku: item.sku.trim(),
-            barcode: item.barcode || `893600${Math.floor(100000 + Math.random() * 900000)}`,
+            barcode: item.barcode?.trim() || '',
             name: item.name.trim(),
             category: item.category || 'cat-electronics',
             unit: item.unit || 'Cái',
             cost_price: item.cost_price !== undefined ? item.cost_price : 0,
-            selling_price: item.selling_price !== undefined ? item.selling_price : 10000,
+            selling_price: item.selling_price,
             stock: item.stock !== undefined ? item.stock : 0,
             min_stock: item.min_stock !== undefined ? item.min_stock : 5,
             status: item.status || 'ACTIVE',
@@ -339,18 +340,18 @@ export function useDataSync() {
     setLoadingMessage(`Đang chuẩn bị nhập ${newProducts.length} sản phẩm...`);
 
     const formattedProducts: Product[] = newProducts
-      .filter((item) => item.sku && item.name)
+      .filter((item) => item.sku && item.name && item.selling_price !== undefined && item.selling_price > 0)
       .map((item) => {
         const newId = item.id || 'prod-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
         return {
           id: newId,
           sku: item.sku!.trim(),
-          barcode: item.barcode || `893600${Math.floor(100000 + Math.random() * 900000)}`,
+          barcode: item.barcode?.trim() || '',
           name: item.name!.trim(),
           category: item.category || 'cat-electronics',
           unit: item.unit || 'Cái',
           cost_price: item.cost_price !== undefined ? item.cost_price : 0,
-          selling_price: item.selling_price !== undefined ? item.selling_price : 10000,
+          selling_price: item.selling_price!,
           stock: item.stock !== undefined ? item.stock : 0,
           min_stock: item.min_stock !== undefined ? item.min_stock : 5,
           status: item.status || 'ACTIVE',

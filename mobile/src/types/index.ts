@@ -14,6 +14,13 @@ export interface Product {
   location?: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  code: string;
+  icon?: string;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;

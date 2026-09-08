@@ -4,12 +4,10 @@ import { Supplier } from '../../types';
 import {
   formatCurrency,
   formatNumber,
-  exportToExcel,
-  downloadSupplierTemplate,
-  parseExcelFile,
   parseCleanNumber,
-  findHeaderValue,
 } from '../../utils/formatters';
+import { exportToExcel, downloadSupplierTemplate, parseExcelFile } from '../../utils/excelLazy';
+import { findHeaderValue } from '../../utils/excelMatching';
 import { Pagination } from '../common/Pagination';
 import { useSupplierFilters } from './useSupplierFilters';
 import {

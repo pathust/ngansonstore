@@ -7,13 +7,11 @@ import { Pagination } from '../common/Pagination';
 import { StockInVoucherModal } from './StockInVoucherModal';
 import {
   formatCurrency,
-  exportToExcel,
-  downloadProductTemplate,
-  parseExcelFile,
   parseCleanNumber,
   cleanTextForMatch,
-  findHeaderValue,
 } from '../../utils/formatters';
+import { exportToExcel, downloadProductTemplate, parseExcelFile } from '../../utils/excelLazy';
+import { findHeaderValue } from '../../utils/excelMatching';
 import {
   Package,
   Search,
@@ -167,7 +165,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
     setEditingProduct(null);
     setFormData({
       sku: `SP-${Date.now().toString().slice(-4)}`,
-      barcode: `893600${Math.floor(100000 + Math.random() * 900000)}`,
+      barcode: '',
       name: '',
       category: categories[1]?.id || 'cat-electronics',
       unit: 'Cái',
@@ -291,7 +289,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
         const name = String(rawName || '').trim();
 
         const rawBarcode = findHeaderValue(row, ['mabarcode', 'barcode', 'mavach', 'mavachbarcode', 'vach', 'ean', 'upc']);
-        const barcode = String(rawBarcode || '').trim() || `893600${Math.floor(100000 + Math.random() * 900000)}`;
+        const barcode = String(rawBarcode || '').trim();
 
         const rawSellingPrice = findHeaderValue(row, [
           'giabanle', 'giaban', 'dongiaban', 'giale', 'banggia', 'gianiemyet', 'gia', 'price', 'sellingprice', 'dongia'
@@ -330,19 +328,22 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
         const description = String(rawDesc || '');
 
         if (!name) {
-          errors.push(`Dòng ${rowNum}: Tự động tạo tên "Sản phẩm ${sku}" do ô tên bị trống`);
+          errors.push(`Dòng ${rowNum}: Thiếu tên hàng hóa — đã bỏ qua dòng này.`);
+          return;
         }
-
-        const finalSellingPrice = sellingPrice > 0 ? sellingPrice : (costPrice > 0 ? Math.round(costPrice * 1.25) : 10000);
+        if (sellingPrice <= 0) {
+          errors.push(`Dòng ${rowNum}: Giá bán phải lớn hơn 0 — đã bỏ qua dòng này.`);
+          return;
+        }
 
         parsedList.push({
           sku,
-          name: name || `Sản phẩm ${sku}`,
+          name,
           barcode,
           category,
           unit,
           cost_price: costPrice,
-          selling_price: finalSellingPrice,
+          selling_price: sellingPrice,
           stock,
           min_stock: minStock,
           status: 'ACTIVE',
@@ -354,7 +355,16 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
       setPreviewProducts(parsedList);
       setImportErrors(errors);
       setIsImportModalOpen(true);
-      showToast(`Đã đọc ${parsedList.length} mặt hàng từ file Excel!`, 'success');
+      if (parsedList.length > 0) {
+        showToast(
+          errors.length > 0
+            ? `Đã đọc ${parsedList.length} mặt hàng hợp lệ; bỏ qua ${errors.length} dòng cần sửa.`
+            : `Đã đọc ${parsedList.length} mặt hàng từ file Excel!`,
+          errors.length > 0 ? 'warning' : 'success'
+        );
+      } else {
+        showToast('Không có dòng hàng hóa hợp lệ để nhập. Vui lòng kiểm tra tên và giá bán.', 'error');
+      }
     } catch (err: unknown) {
   const message = err instanceof Error ? err.message : 'Unknown error';
       console.error(err);
@@ -1313,7 +1323,7 @@ export const ProductManagementScreen: React.FC<ProductManagementScreenProps> = (
                     {importErrors.slice(0, 5).map((err, i) => (
                       <li key={i}>{err}</li>
                     ))}
-                    {importErrors.length > 5 && <li>...và {importErrors.length - 5} dòng khác đã được tự động xử lý.</li>}
+                    {importErrors.length > 5 && <li>...và {importErrors.length - 5} dòng khác đã bị bỏ qua và cần chỉnh lại.</li>}
                   </ul>
                 </div>
               )}

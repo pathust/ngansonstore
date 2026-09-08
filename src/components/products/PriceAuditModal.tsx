@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Product } from '../../types';
 import { useCatalogOrchestrator } from '../../context/orchestrators/useCatalogOrchestrator';
 import { formatCurrency } from '../../utils/formatters';
-import { exportToExcel } from '../../utils/formatters';
+import { exportToExcel } from '../../utils/excelLazy';
 import { MobilePriceAuditModal } from '../mobile/MobilePriceAuditModal';
 import {
   AlertTriangle,

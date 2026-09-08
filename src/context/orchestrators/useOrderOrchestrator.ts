@@ -4,7 +4,6 @@ import { apiClient } from '../../services/apiClient';
 import { cacheManager } from '../../services/cacheManager';
 import { LOCAL_STORAGE_PREFIX, safeStorageSet } from '../shared/storage';
 import { savePendingChange } from '../shared/syncQueue';
-import confetti from 'canvas-confetti';
 import { useToast } from '../slices/ToastContext';
 import { useAuth } from '../slices/AuthContext';
 import { useUiShell } from '../slices/UiShellContext';
@@ -129,11 +128,9 @@ export function useOrderOrchestrator() {
     // 6. Reset giỏ hàng
     clearActiveCart();
 
-    try {
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
-    } catch (e) {
-      // Ignore if confetti fails
-    }
+    void import('canvas-confetti')
+      .then(({ default: confetti }) => confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } }))
+      .catch(() => undefined);
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('app:order-created', { detail: newOrder }));
@@ -310,10 +307,11 @@ export function useOrderOrchestrator() {
     showToast(`Đã khôi phục trạng thái hoàn thành cho hóa đơn ${order.code}!`, 'success');
   };
 
-  const deleteOrder = (orderId: string, returnStock: boolean = false) => {
+  const deleteOrder = async (orderId: string, returnStock: boolean = false): Promise<void> => {
     const order = orders.find((o) => o.id === orderId || o.code === orderId);
     const targetId = order?.id || orderId;
     const targetCode = order?.code || orderId;
+    const previousOrders = orders;
 
     if (order && returnStock && order.status === 'COMPLETED') {
       setProducts((prev) =>
@@ -333,10 +331,28 @@ export function useOrderOrchestrator() {
     safeStorageSet(LOCAL_STORAGE_PREFIX + 'orders', remaining, 100);
     cacheManager.set('orders', remaining);
 
-    // 3. Đồng bộ xóa lên backend & Supabase
-    apiClient.deleteOrder(targetId, returnStock).catch((err) => {
+    // 3. Đồng bộ xóa lên backend & Supabase. Nếu thất bại, rollback để UI không báo xóa giả.
+    try {
+      await apiClient.deleteOrder(targetId, returnStock);
+    } catch (err) {
       console.warn('[Order] Sync delete failed:', err);
-    });
+      setOrders(previousOrders);
+      safeStorageSet(LOCAL_STORAGE_PREFIX + 'orders', previousOrders, 100);
+      cacheManager.set('orders', previousOrders);
+
+      if (order && returnStock && order.status === 'COMPLETED') {
+        setProducts((prev) =>
+          prev.map((p) => {
+            const item = order.items.find((i) => i.product_id === p.id || (p.sku && i.sku === p.sku));
+            if (!item) return p;
+            return { ...p, stock: Math.max(0, p.stock - item.quantity) };
+          })
+        );
+      }
+
+      showToast(`Không thể xóa hóa đơn ${targetCode}. Dữ liệu đã được khôi phục.`, 'error');
+      return;
+    }
     showToast(`Đã xóa vĩnh viễn hóa đơn ${targetCode}!`, 'info');
   };
 

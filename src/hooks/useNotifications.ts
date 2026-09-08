@@ -75,7 +75,7 @@ function savePersistedNotifications(list: AppNotification[]) {
 }
 
 export function useNotifications() {
-  const { products, orders, customers } = useApp();
+  const { products, orders, customers, showToast } = useApp();
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     loadPersistedNotifications()
   );
@@ -100,6 +100,18 @@ export function useNotifications() {
   useEffect(() => {
     fetchBackend();
   }, [fetchBackend]);
+
+  const syncMutation = useCallback(async (url: string, method: 'PUT' | 'DELETE') => {
+    if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+    try {
+      const res = await fetch(url, { method });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      console.warn('[Notifications] Backend sync failed:', err);
+      showToast('Thay đổi thông báo chưa đồng bộ được với máy chủ.', 'warning');
+      fetchBackend();
+    }
+  }, [fetchBackend, showToast]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -306,10 +318,8 @@ export function useNotifications() {
       savePersistedNotifications(updated);
       return updated;
     });
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PUT' }).catch(() => {});
-    }
-  }, []);
+    void syncMutation(`/api/notifications/${encodeURIComponent(id)}/read`, 'PUT');
+  }, [syncMutation]);
 
   // Đọc tất cả thông báo
   const markAllAsRead = useCallback(() => {
@@ -318,10 +328,8 @@ export function useNotifications() {
       savePersistedNotifications(updated);
       return updated;
     });
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch('/api/notifications/read-all', { method: 'PUT' }).catch(() => {});
-    }
-  }, []);
+    void syncMutation('/api/notifications/read-all', 'PUT');
+  }, [syncMutation]);
 
   // Xóa / Bỏ qua thông báo
   const dismissNotification = useCallback((id: string) => {
@@ -330,19 +338,15 @@ export function useNotifications() {
       savePersistedNotifications(updated);
       return updated;
     });
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch(`/api/notifications/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-    }
-  }, []);
+    void syncMutation(`/api/notifications/${encodeURIComponent(id)}`, 'DELETE');
+  }, [syncMutation]);
 
   // Xóa tất cả thông báo
   const clearAllNotifications = useCallback(() => {
     setNotifications([]);
     savePersistedNotifications([]);
-    if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-      fetch('/api/notifications', { method: 'DELETE' }).catch(() => {});
-    }
-  }, []);
+    void syncMutation('/api/notifications', 'DELETE');
+  }, [syncMutation]);
 
   // Danh sách hiển thị (loại bỏ những mục đã dismiss, sắp xếp theo thời gian)
   const activeNotifications = useMemo(() => {

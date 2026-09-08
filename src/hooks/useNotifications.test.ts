@@ -6,12 +6,14 @@ import { Order, Product, Customer } from '../types';
 let mockProducts: Product[] = [];
 let mockOrders: Order[] = [];
 let mockCustomers: Customer[] = [];
+const mockShowToast = vi.fn();
 
 vi.mock('../context/AppContext', () => ({
   useApp: () => ({
     products: mockProducts,
     orders: mockOrders,
     customers: mockCustomers,
+    showToast: mockShowToast,
   }),
 }));
 
@@ -31,6 +33,7 @@ describe('useNotifications', () => {
     mockProducts = [];
     mockOrders = [];
     mockCustomers = [];
+    mockShowToast.mockClear();
   });
 
   it('sắp xếp thông báo theo trình tự thời gian chính xác (mới nhất trước)', () => {

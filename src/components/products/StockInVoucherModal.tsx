@@ -61,6 +61,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
     showToast,
     currentUser,
     currentBranch,
+    storeSettings,
     isPriceAuditConfirmed,
   } = useApp();
 
@@ -206,7 +207,12 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
 
     const qty = Math.max(1, Number(quickAddForm.quantity) || 1);
     const cost = Math.max(0, Number(quickAddForm.cost_price) || 0);
-    const selling = Number(quickAddForm.selling_price) > 0 ? Number(quickAddForm.selling_price) : Math.round(cost * 1.25);
+    const selling = Number(quickAddForm.selling_price);
+
+    if (!quickAddDuplicate && selling <= 0) {
+      showToast('Sản phẩm mới cần có giá bán lớn hơn 0. Vui lòng nhập giá bán trước khi thêm.', 'warning');
+      return;
+    }
 
     if (quickAddDuplicate) {
       // Product exists in system: Merge into draft items
@@ -255,7 +261,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
     } else {
       // Completely new product
       const newSku = quickAddForm.sku.trim() || `SP-${Date.now().toString().slice(-4)}`;
-      const newBarcode = quickAddForm.barcode.trim() || `893600${Math.floor(100000 + Math.random() * 900000)}`;
+      const newBarcode = quickAddForm.barcode.trim();
 
       setItems((prev) => [
         ...prev,
@@ -347,6 +353,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
       items: payloadItems,
     });
 
+    if (!saved) return;
     setSavedVoucher(saved);
     setIsPreviewPrintOpen(true);
   };
@@ -679,7 +686,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                   {/* Giá bán lẻ dự kiến */}
                   <div>
                     <label className="font-bold text-slate-700 block mb-1">
-                      Giá bán lẻ đề xuất (VNĐ):
+                      Giá bán lẻ (VNĐ):
                     </label>
                     <input
                       type="number"
@@ -693,7 +700,7 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
                           selling_price: Math.max(0, parseInt(e.target.value) || 0),
                         })
                       }
-                      placeholder="Mặc định = Giá nhập x 1.25"
+                      placeholder="Nhập giá bán thực tế"
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg text-slate-900 font-bold text-emerald-700 focus:border-emerald-600 outline-none"
                     />
                   </div>
@@ -1030,11 +1037,15 @@ export const StockInVoucherModal: React.FC<StockInVoucherModalProps> = ({
             <div className="p-6 overflow-y-auto space-y-4 text-xs font-mono text-slate-800 print:p-0">
               <div className="text-center space-y-1 border-b border-dashed border-slate-300 pb-3">
                 <div className="font-bold text-sm text-slate-900">
-                  CỬA HÀNG ĐIỆN NƯỚC & KIM KHÍ NGÂN SƠN
+                  {storeSettings.name || currentBranch?.name || 'NGÂN SƠN'}
                 </div>
-                <div className="text-[11px] text-slate-600">
-                  Địa chỉ: 318 Vũ Quang, TP. Hà Tĩnh | SĐT: 0912.345.678
-                </div>
+                {(storeSettings.address || currentBranch?.address || storeSettings.phone || currentBranch?.phone) && (
+                  <div className="text-[11px] text-slate-600">
+                    {[storeSettings.address || currentBranch?.address, storeSettings.phone || currentBranch?.phone]
+                      .filter(Boolean)
+                      .join(' | ')}
+                  </div>
+                )}
                 <div className="font-black text-base text-emerald-800 pt-2">PHIẾU NHẬP KHO HÀNG HÓA</div>
                 <div className="text-[10px] text-slate-500">Mã phiếu: {savedVoucher.code}</div>
               </div>

@@ -150,7 +150,55 @@ export function useCatalogOrchestrator() {
     payment_method?: 'CASH' | 'TRANSFER' | 'DEBT';
     note?: string;
     items: StockInVoucherItem[];
-  }): StockInVoucher => {
+  }): StockInVoucher | null => {
+    if (payload.items.length === 0) {
+      showToast('Phiếu nhập kho chưa có mặt hàng.', 'warning');
+      return null;
+    }
+
+    const invalidBaseItem = payload.items.find(
+      (item) =>
+        !item.name?.trim() ||
+        !Number.isFinite(item.quantity) ||
+        item.quantity <= 0 ||
+        !Number.isFinite(item.cost_price) ||
+        item.cost_price < 0
+    );
+    if (invalidBaseItem) {
+      showToast(`Mặt hàng "${invalidBaseItem.name || 'Chưa có tên'}" có số lượng hoặc giá nhập không hợp lệ.`, 'warning');
+      return null;
+    }
+
+    const initialIdMap = new Map(products.map((p) => [p.id, p]));
+    const initialSkuMap = new Map(
+      products.filter((p) => p.sku?.trim()).map((p) => [p.sku.trim().toLowerCase(), p])
+    );
+    const initialBarcodeMap = new Map(
+      products.filter((p) => p.barcode?.trim()).map((p) => [p.barcode.trim(), p])
+    );
+    const initialNameMap = new Map(
+      products.filter((p) => p.name?.trim()).map((p) => [p.name.trim().toLowerCase(), p])
+    );
+    const resolvesToExisting = (item: StockInVoucherItem) => {
+      const cleanSku = item.sku?.trim().toLowerCase();
+      const cleanBarcode = item.barcode?.trim();
+      const cleanName = item.name?.trim().toLowerCase();
+      return Boolean(
+        (item.product_id && initialIdMap.has(item.product_id)) ||
+        (cleanSku && initialSkuMap.has(cleanSku)) ||
+        (cleanBarcode && initialBarcodeMap.has(cleanBarcode)) ||
+        (cleanName && initialNameMap.has(cleanName))
+      );
+    };
+
+    const invalidNewItem = payload.items.find(
+      (item) => !resolvesToExisting(item) && (!item.selling_price || item.selling_price <= 0)
+    );
+    if (invalidNewItem) {
+      showToast(`Sản phẩm mới "${invalidNewItem.name}" chưa có giá bán hợp lệ. Vui lòng bổ sung trước khi lưu phiếu.`, 'warning');
+      return null;
+    }
+
     const voucherCode = `NK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
     const todayStr = new Date().toISOString().slice(0, 10);
     const paymentMethod = payload.payment_method || 'CASH';
@@ -159,106 +207,102 @@ export function useCatalogOrchestrator() {
     let totalAmt = 0;
     let newlyCreatedCount = 0;
     let mergedCount = 0;
-    const modifiedProducts: Product[] = [];
+    const modifiedProducts = new Map<string, Product>();
+    const idMap = new Map<string, Product>();
+    const skuMap = new Map<string, Product>();
+    const barcodeMap = new Map<string, Product>();
+    const nameMap = new Map<string, Product>();
 
-    setProducts((prev) => {
-      const idMap = new Map<string, Product>();
-      const skuMap = new Map<string, Product>();
-      const barcodeMap = new Map<string, Product>();
-      const nameMap = new Map<string, Product>();
-
-      prev.forEach((p) => {
-        idMap.set(p.id, p);
-        if (p.sku) skuMap.set(p.sku.trim().toLowerCase(), p);
-        if (p.barcode) barcodeMap.set(p.barcode.trim(), p);
-        if (p.name) nameMap.set(p.name.trim().toLowerCase(), p);
-      });
-
-      const updatedList = [...prev];
-
-      payload.items.forEach((item) => {
-        const qty = Math.max(1, item.quantity || 1);
-        const cost = Math.max(0, item.cost_price || 0);
-        totalQty += qty;
-        totalAmt += qty * cost;
-
-        const cleanSku = item.sku?.trim().toLowerCase();
-        const cleanBarcode = item.barcode?.trim();
-        const cleanName = item.name?.trim().toLowerCase();
-
-        let existing: Product | undefined = undefined;
-        if (item.product_id && idMap.has(item.product_id)) {
-          existing = idMap.get(item.product_id);
-        } else if (cleanSku && skuMap.has(cleanSku)) {
-          existing = skuMap.get(cleanSku);
-        } else if (cleanBarcode && cleanBarcode !== '' && barcodeMap.has(cleanBarcode)) {
-          existing = barcodeMap.get(cleanBarcode);
-        } else if (cleanName && nameMap.has(cleanName)) {
-          existing = nameMap.get(cleanName);
-        }
-
-        if (existing) {
-          mergedCount++;
-          const currentStock = Math.max(0, existing.stock);
-          const currentCost = existing.cost_price;
-          const newTotalStock = currentStock + qty;
-          const newWeightedCost = newTotalStock > 0
-            ? Math.round((currentStock * currentCost + qty * cost) / newTotalStock)
-            : cost;
-
-          const updatedProd: Product = {
-            ...existing,
-            stock: newTotalStock,
-            cost_price: newWeightedCost,
-            selling_price: item.selling_price && item.selling_price > 0 ? item.selling_price : existing.selling_price,
-            unit: item.unit || existing.unit,
-            last_received_date: todayStr,
-          };
-
-          const idx = updatedList.findIndex((p) => p.id === existing!.id);
-          if (idx >= 0) {
-            updatedList[idx] = updatedProd;
-          }
-          idMap.set(updatedProd.id, updatedProd);
-          if (updatedProd.sku) skuMap.set(updatedProd.sku.trim().toLowerCase(), updatedProd);
-          if (updatedProd.barcode) barcodeMap.set(updatedProd.barcode.trim(), updatedProd);
-          modifiedProducts.push(updatedProd);
-        } else {
-          newlyCreatedCount++;
-          const newId = 'prod-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
-          const newSku = item.sku?.trim() || `SP-${Date.now().toString().slice(-4)}${newlyCreatedCount}`;
-          const newBarcode = item.barcode?.trim() || `893600${Math.floor(100000 + Math.random() * 900000)}`;
-          const newSelling = item.selling_price && item.selling_price > 0 ? item.selling_price : Math.round(cost * 1.25 || 10000);
-
-          const newProd: Product = {
-            id: newId,
-            sku: newSku,
-            barcode: newBarcode,
-            name: item.name.trim(),
-            category: item.category || 'cat-electronics',
-            unit: item.unit || 'Cái',
-            cost_price: cost,
-            selling_price: newSelling,
-            stock: qty,
-            min_stock: item.min_stock || 5,
-            status: 'ACTIVE',
-            last_received_date: todayStr,
-          };
-
-          updatedList.unshift(newProd);
-          idMap.set(newProd.id, newProd);
-          skuMap.set(newProd.sku.trim().toLowerCase(), newProd);
-          barcodeMap.set(newProd.barcode.trim(), newProd);
-          nameMap.set(newProd.name.trim().toLowerCase(), newProd);
-          modifiedProducts.push(newProd);
-        }
-      });
-
-      return updatedList;
+    products.forEach((p) => {
+      idMap.set(p.id, p);
+      if (p.sku) skuMap.set(p.sku.trim().toLowerCase(), p);
+      if (p.barcode) barcodeMap.set(p.barcode.trim(), p);
+      if (p.name) nameMap.set(p.name.trim().toLowerCase(), p);
     });
 
-    if (modifiedProducts.length > 0) {
-      apiClient.batchUpsertProducts(modifiedProducts, 'OVERWRITE').catch((err) => {
+    const updatedList = [...products];
+
+    payload.items.forEach((item) => {
+      const qty = item.quantity;
+      const cost = item.cost_price;
+      totalQty += qty;
+      totalAmt += qty * cost;
+
+      const cleanSku = item.sku?.trim().toLowerCase();
+      const cleanBarcode = item.barcode?.trim();
+      const cleanName = item.name.trim().toLowerCase();
+
+      let existing: Product | undefined;
+      if (item.product_id && idMap.has(item.product_id)) {
+        existing = idMap.get(item.product_id);
+      } else if (cleanSku && skuMap.has(cleanSku)) {
+        existing = skuMap.get(cleanSku);
+      } else if (cleanBarcode && barcodeMap.has(cleanBarcode)) {
+        existing = barcodeMap.get(cleanBarcode);
+      } else if (cleanName && nameMap.has(cleanName)) {
+        existing = nameMap.get(cleanName);
+      }
+
+      if (existing) {
+        mergedCount++;
+        const currentStock = Math.max(0, existing.stock);
+        const currentCost = existing.cost_price;
+        const newTotalStock = currentStock + qty;
+        const newWeightedCost = newTotalStock > 0
+          ? Math.round((currentStock * currentCost + qty * cost) / newTotalStock)
+          : cost;
+
+        const updatedProd: Product = {
+          ...existing,
+          stock: newTotalStock,
+          cost_price: newWeightedCost,
+          selling_price: item.selling_price && item.selling_price > 0 ? item.selling_price : existing.selling_price,
+          unit: item.unit || existing.unit,
+          last_received_date: todayStr,
+        };
+
+        const idx = updatedList.findIndex((p) => p.id === existing!.id);
+        if (idx >= 0) updatedList[idx] = updatedProd;
+        idMap.set(updatedProd.id, updatedProd);
+        if (updatedProd.sku) skuMap.set(updatedProd.sku.trim().toLowerCase(), updatedProd);
+        if (updatedProd.barcode) barcodeMap.set(updatedProd.barcode.trim(), updatedProd);
+        nameMap.set(updatedProd.name.trim().toLowerCase(), updatedProd);
+        modifiedProducts.set(updatedProd.id, updatedProd);
+      } else {
+        newlyCreatedCount++;
+        const newId = 'prod-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+        const newSku = item.sku?.trim() || `SP-${Date.now().toString().slice(-4)}${newlyCreatedCount}`;
+        const newBarcode = item.barcode?.trim() || '';
+        const newSelling = item.selling_price!;
+
+        const newProd: Product = {
+          id: newId,
+          sku: newSku,
+          barcode: newBarcode,
+          name: item.name.trim(),
+          category: item.category || 'cat-electronics',
+          unit: item.unit || 'Cái',
+          cost_price: cost,
+          selling_price: newSelling,
+          stock: qty,
+          min_stock: item.min_stock || 5,
+          status: 'ACTIVE',
+          last_received_date: todayStr,
+        };
+
+        updatedList.unshift(newProd);
+        idMap.set(newProd.id, newProd);
+        skuMap.set(newProd.sku.trim().toLowerCase(), newProd);
+        if (newProd.barcode) barcodeMap.set(newProd.barcode.trim(), newProd);
+        nameMap.set(newProd.name.trim().toLowerCase(), newProd);
+        modifiedProducts.set(newProd.id, newProd);
+      }
+    });
+
+    setProducts(updatedList);
+
+    if (modifiedProducts.size > 0) {
+      apiClient.batchUpsertProducts([...modifiedProducts.values()], 'OVERWRITE').catch((err) => {
         console.warn('[Stock Voucher] Batch upsert products failed:', err);
       });
     }

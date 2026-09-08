@@ -6,13 +6,10 @@ import {
   formatNumber,
   formatDateTime,
   formatDate,
-  exportToExcel,
-  downloadInvoiceTemplate,
-  parseExcelFile,
-  findHeaderValue,
   parseCleanNumber,
 } from '../../utils/formatters';
-import { exportInvoiceToPdf } from '../../utils/pdfExport';
+import { exportToExcel, downloadInvoiceTemplate, parseExcelFile } from '../../utils/excelLazy';
+import { findHeaderValue } from '../../utils/excelMatching';
 import { InvoicePdfModal } from '../common/InvoicePdfModal';
 import { useInvoiceFilters } from './useInvoiceFilters';
 import { useUiShell } from '../../context/slices/UiShellContext';
@@ -496,7 +493,7 @@ export const InvoiceManagementScreen: React.FC = () => {
             payment_method: paymentMethod,
             created_at: createdAt,
             status: 'COMPLETED',
-            branch: currentBranch?.name || '318 Vũ Quang',
+            branch: currentBranch?.name || 'Chưa cập nhật chi nhánh',
             note,
             discount: discount,
             final_amount: finalAmount,
@@ -553,7 +550,7 @@ export const InvoiceManagementScreen: React.FC = () => {
         phone: '0911834949',
         cashier: currentUser.name,
         payment_method: 'CASH',
-        branch: currentBranch?.name || '318 Vũ Quang',
+        branch: currentBranch?.name || 'Chi nhánh mẫu',
         note: 'Khách mua tại quầy',
         discount: 10000,
         total: 120000,
@@ -580,7 +577,7 @@ export const InvoiceManagementScreen: React.FC = () => {
         phone: '0977889900',
         cashier: currentUser.name,
         payment_method: 'TRANSFER',
-        branch: currentBranch?.name || '318 Vũ Quang',
+        branch: currentBranch?.name || 'Chi nhánh mẫu',
         note: 'Chuyển khoản VietQR',
         discount: 0,
         total: 299000,
@@ -2149,7 +2146,7 @@ export const InvoiceManagementScreen: React.FC = () => {
           setSelectedPdfOrder(null);
         }}
         order={selectedPdfOrder}
-        branchName={currentBranch?.name || '318 Vũ Quang'}
+        branchName={currentBranch?.name || 'Chưa cập nhật chi nhánh'}
       />
     </div>
   );

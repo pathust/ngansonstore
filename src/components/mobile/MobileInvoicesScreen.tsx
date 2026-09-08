@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency, formatDateTime, parseDateToTimestamp, parseOrderDate } from '../../utils/formatters';
@@ -13,6 +13,8 @@ import {
   Printer,
   X,
   Check,
+  Trash2,
+  PackagePlus,
 } from 'lucide-react';
 
 interface MobileInvoicesScreenProps {
@@ -20,7 +22,7 @@ interface MobileInvoicesScreenProps {
 }
 
 export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOpenPos }) => {
-  const { orders, openOrderReceipt, showToast } = useApp();
+  const { orders, openOrderReceipt, showToast, deleteOrder } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -34,6 +36,24 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'CASH' | 'TRANSFER'>('ALL');
   const [summaryMetric, setSummaryMetric] = useState<'REVENUE' | 'PROFIT' | 'ITEMS'>('REVENUE');
+  const [swipedOrderId, setSwipedOrderId] = useState<string | null>(null);
+  const [pendingDeleteOrder, setPendingDeleteOrder] = useState<Order | null>(null);
+  const [returnStockOnDelete, setReturnStockOnDelete] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const didSwipeRef = useRef(false);
+
+  const requestDeleteOrder = (order: Order) => {
+    setPendingDeleteOrder(order);
+    setReturnStockOnDelete(false);
+    setSwipedOrderId(null);
+  };
+
+  const confirmDeleteOrder = () => {
+    if (!pendingDeleteOrder) return;
+    deleteOrder(pendingDeleteOrder.id, returnStockOnDelete);
+    if (selectedOrder?.id === pendingDeleteOrder.id) setSelectedOrder(null);
+    setPendingDeleteOrder(null);
+  };
 
   const timeLabels = useMemo(() => {
     const today = new Date();
@@ -324,11 +344,53 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
                       const otherItemsCount = (order.items?.length || 1) - 1;
 
                       return (
-                        <div
-                          key={order.id}
-                          onClick={() => setSelectedOrder(order)}
-                          className="bg-white rounded-2xl p-4 flex flex-col gap-1.5 border border-slate-100 shadow-2xs hover:shadow-xs active:bg-slate-50 cursor-pointer transition-all"
-                        >
+                        <div key={order.id} className="relative overflow-hidden rounded-2xl">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              requestDeleteOrder(order);
+                            }}
+                            className="absolute inset-y-0 right-0 w-22 bg-rose-600 text-white flex flex-col items-center justify-center gap-1 text-[11px] font-extrabold"
+                            aria-label={`Xóa hóa đơn ${order.code}`}
+                          >
+                            <Trash2 className="w-5 h-5" />
+                            Xóa
+                          </button>
+                          <div
+                            onTouchStart={(event) => {
+                              touchStartXRef.current = event.touches[0]?.clientX ?? null;
+                              didSwipeRef.current = false;
+                            }}
+                            onTouchEnd={(event) => {
+                              const startX = touchStartXRef.current;
+                              const endX = event.changedTouches[0]?.clientX;
+                              touchStartXRef.current = null;
+                              if (startX === null || endX === undefined) return;
+                              const deltaX = endX - startX;
+                              if (deltaX <= -45) {
+                                didSwipeRef.current = true;
+                                setSwipedOrderId(order.id);
+                              } else if (deltaX >= 45) {
+                                didSwipeRef.current = true;
+                                setSwipedOrderId(null);
+                              }
+                            }}
+                            onClick={() => {
+                              if (didSwipeRef.current) {
+                                didSwipeRef.current = false;
+                                return;
+                              }
+                              if (swipedOrderId === order.id) {
+                                setSwipedOrderId(null);
+                                return;
+                              }
+                              setSelectedOrder(order);
+                            }}
+                            className={`relative z-10 bg-white rounded-2xl p-4 flex flex-col gap-1.5 border border-slate-100 shadow-2xs hover:shadow-xs active:bg-slate-50 cursor-pointer transition-transform duration-200 ${
+                              swipedOrderId === order.id ? '-translate-x-22' : 'translate-x-0'
+                            }`}
+                          >
                           {/* Top line: Customer & Amount */}
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-base text-slate-900">
@@ -362,6 +424,7 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
                               +{otherItemsCount} mặt hàng khác
                             </span>
                           )}
+                          </div>
                         </div>
                       );
                     })}
@@ -435,15 +498,77 @@ export const MobileInvoicesScreen: React.FC<MobileInvoicesScreenProps> = ({ onOp
                 <span className="text-xl font-black text-[#0066FF]">{formatCurrency(selectedOrder.final_amount)}</span>
               </div>
 
+              <div className="grid grid-cols-[auto_1fr] gap-2">
+                <button
+                  type="button"
+                  onClick={() => requestDeleteOrder(selectedOrder)}
+                  className="px-4 py-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 font-bold text-sm flex items-center justify-center gap-2 active:scale-98"
+                  aria-label={`Xóa hóa đơn ${selectedOrder.code}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Xóa</span>
+                </button>
+                <button
+                  onClick={() => {
+                    openOrderReceipt(selectedOrder);
+                    setSelectedOrder(null);
+                  }}
+                  className="py-3 rounded-xl bg-[#0066FF] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md active:scale-98"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>In Hóa Đơn K80</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteOrder && (
+        <div className="fixed inset-0 bg-black/45 z-[60] flex items-end" onClick={() => setPendingDeleteOrder(null)}>
+          <div
+            className="bg-white rounded-t-3xl w-full p-5 space-y-4 animate-in slide-in-from-bottom duration-200"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto" />
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900">Xóa hóa đơn {pendingDeleteOrder.code}?</h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Hóa đơn sẽ bị xóa vĩnh viễn khỏi lịch sử. Chọn hoàn kho nếu đơn này đã trừ tồn kho thực tế.
+              </p>
+            </div>
+
+            {pendingDeleteOrder.status === 'COMPLETED' && (
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={returnStockOnDelete}
+                  onChange={(event) => setReturnStockOnDelete(event.target.checked)}
+                  className="w-4 h-4 accent-[#0066FF]"
+                />
+                <PackagePlus className="w-5 h-5 text-slate-500 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-slate-800">Hoàn lại hàng vào kho</div>
+                  <div className="text-[11px] text-slate-500">Cộng lại số lượng của các mặt hàng trong hóa đơn.</div>
+                </div>
+              </label>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => {
-                  openOrderReceipt(selectedOrder);
-                  setSelectedOrder(null);
-                }}
-                className="py-3 rounded-xl bg-[#0066FF] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md active:scale-98"
+                type="button"
+                onClick={() => setPendingDeleteOrder(null)}
+                className="py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-sm"
               >
-                <Printer className="w-4 h-4" />
-                <span>In Hóa Đơn K80</span>
+                Giữ lại
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteOrder}
+                className="py-3 rounded-xl bg-rose-600 text-white font-bold text-sm flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Xóa hóa đơn
               </button>
             </div>
           </div>

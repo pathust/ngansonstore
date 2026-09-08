@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Product, Order, Customer, Supplier, VoiceAssistantAction, StoreSettings } from '../types';
+import { Product, Order, Customer, Supplier, VoiceAssistantAction, StoreSettings, Category } from '../types';
 
 const STORAGE_SERVER_KEY = '@nganson_server_url';
 export const DEFAULT_SERVER_URL = 'http://10.0.2.2:3001/api';
@@ -112,6 +112,11 @@ export class MobileApiService {
     return true;
   }
 
+  async getCategories(): Promise<Category[]> {
+    const res = await this.request<{ success: boolean; data: Category[] }>('/categories');
+    return res.data || [];
+  }
+
   // Orders
   async getOrders(): Promise<Order[]> {
     const res = await this.request<{ success: boolean; data: Order[] }>('/orders');
@@ -126,8 +131,8 @@ export class MobileApiService {
     return res.data;
   }
 
-  async deleteOrder(id: string): Promise<boolean> {
-    await this.request(`/orders/${id}`, { method: 'DELETE' });
+  async deleteOrder(id: string, returnStock: boolean = false): Promise<boolean> {
+    await this.request(`/orders/${encodeURIComponent(id)}?returnStock=${returnStock}`, { method: 'DELETE' });
     return true;
   }
 
@@ -273,8 +278,9 @@ export const getVietQRUrl = (
   memo: string = '',
   accountHolder: string = ''
 ): string => {
-  const cleanBank = (bankId || 'MB').trim();
-  const cleanAcc = (accountNumber || '0912345678').trim();
+  const cleanBank = (bankId || '').trim();
+  const cleanAcc = (accountNumber || '').trim();
+  if (!cleanBank || !cleanAcc) return '';
   const cleanAmount = Math.max(0, Math.round(amount));
   const encodedMemo = encodeURIComponent(memo.trim());
   const encodedHolder = encodeURIComponent(accountHolder.trim());

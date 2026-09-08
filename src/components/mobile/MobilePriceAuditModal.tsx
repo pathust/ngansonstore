@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Product } from '../../types';
 import { useApp } from '../../context/AppContext';
-import { formatCurrency, formatNumber, exportToExcel } from '../../utils/formatters';
+import { formatCurrency, formatNumber } from '../../utils/formatters';
+import { exportToExcel } from '../../utils/excelLazy';
 import {
   detectPriceAnomaly,
   PriceAnomalyType,

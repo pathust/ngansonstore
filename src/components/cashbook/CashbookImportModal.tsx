@@ -2,11 +2,10 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CashbookEntry } from '../../types';
 import {
-  parseExcelFile,
   formatCurrency,
   formatDateTime,
-  downloadCashbookTemplate,
 } from '../../utils/formatters';
+import { parseExcelFile, downloadCashbookTemplate } from '../../utils/excelLazy';
 import {
   X,
   Upload,
@@ -155,7 +154,7 @@ export const CashbookImportModal: React.FC<CashbookImportModalProps> = ({ isOpen
           category,
           note,
           ref_code: refCode,
-          branch: currentBranch?.name || '318 Vũ Quang',
+          branch: currentBranch?.name || 'Chưa cập nhật chi nhánh',
           created_at: createdAt,
         });
       });
