@@ -305,8 +305,8 @@ export class SupabaseService {
   // ==================== CUSTOMERS ====================
   public async getCustomers(): Promise<Customer[]> {
     try {
-      const { data, error } = await supabase.from('customers').select('*').range(0, 1000);
-      if (error || !data) return [];
+      const data = await this.fetchAllRows<Customer>('customers');
+      if (!data) return [];
       return data.map((c: any) => ({
         ...c,
         customer_type: c.customer_type || c.type,
@@ -342,9 +342,7 @@ export class SupabaseService {
   // ==================== SUPPLIERS ====================
   public async getSuppliers(): Promise<Supplier[]> {
     try {
-      const { data, error } = await supabase.from('suppliers').select('*');
-      if (error || !data) return [];
-      return data as Supplier[];
+      return await this.fetchAllRows<Supplier>('suppliers');
     } catch {
       return [];
     }

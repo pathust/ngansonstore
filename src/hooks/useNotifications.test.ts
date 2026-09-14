@@ -8,11 +8,26 @@ let mockOrders: Order[] = [];
 let mockCustomers: Customer[] = [];
 const mockShowToast = vi.fn();
 
-vi.mock('../context/AppContext', () => ({
-  useApp: () => ({
+vi.mock('../context/slices/CatalogContext', () => ({
+  useCatalog: () => ({
     products: mockProducts,
+  }),
+}));
+
+vi.mock('../context/slices/OrdersDataContext', () => ({
+  useOrdersData: () => ({
     orders: mockOrders,
+  }),
+}));
+
+vi.mock('../context/slices/CustomersContext', () => ({
+  useCustomers: () => ({
     customers: mockCustomers,
+  }),
+}));
+
+vi.mock('../context/slices/ToastContext', () => ({
+  useToast: () => ({
     showToast: mockShowToast,
   }),
 }));
@@ -34,6 +49,13 @@ describe('useNotifications', () => {
     mockOrders = [];
     mockCustomers = [];
     mockShowToast.mockClear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, data: [] }),
+      })
+    );
   });
 
   it('sắp xếp thông báo theo trình tự thời gian chính xác (mới nhất trước)', () => {

@@ -139,30 +139,37 @@ class ApiClient {
 
   public async pushSync(payload: SyncPayload): Promise<{ success: boolean; serverTimestamp: number }> {
     try {
+      const chunkPromises = async <T>(items: T[], fn: (item: T) => Promise<any>, chunkSize = 25) => {
+        for (let i = 0; i < items.length; i += chunkSize) {
+          const chunk = items.slice(i, i + chunkSize);
+          await Promise.all(chunk.map(fn));
+        }
+      };
+
       const tasks: Promise<any>[] = [];
       if (payload.products?.length) {
         tasks.push(supabaseService.batchUpsertProducts(payload.products));
       }
       if (payload.orders?.length) {
-        tasks.push(...payload.orders.map((o) => supabaseService.upsertOrder(o)));
+        tasks.push(chunkPromises(payload.orders, (o) => supabaseService.upsertOrder(o)));
       }
       if (payload.customers?.length) {
-        tasks.push(...payload.customers.map((c) => supabaseService.upsertCustomer(c)));
+        tasks.push(chunkPromises(payload.customers, (c) => supabaseService.upsertCustomer(c)));
       }
       if (payload.suppliers?.length) {
-        tasks.push(...payload.suppliers.map((s) => supabaseService.upsertSupplier(s)));
+        tasks.push(chunkPromises(payload.suppliers, (s) => supabaseService.upsertSupplier(s)));
       }
       if (payload.cashbook?.length) {
-        tasks.push(...payload.cashbook.map((cb) => supabaseService.upsertCashbook(cb)));
+        tasks.push(chunkPromises(payload.cashbook, (cb) => supabaseService.upsertCashbook(cb)));
       }
       if (payload.inventory_audits?.length) {
-        tasks.push(...payload.inventory_audits.map((ia) => supabaseService.upsertInventoryAudit(ia)));
+        tasks.push(chunkPromises(payload.inventory_audits, (ia) => supabaseService.upsertInventoryAudit(ia)));
       }
       if (payload.branches?.length) {
-        tasks.push(...payload.branches.map((b) => supabaseService.upsertBranch(b)));
+        tasks.push(chunkPromises(payload.branches, (b) => supabaseService.upsertBranch(b)));
       }
       if (payload.users?.length) {
-        tasks.push(...payload.users.map((u) => supabaseService.upsertUser(u)));
+        tasks.push(chunkPromises(payload.users, (u) => supabaseService.upsertUser(u)));
       }
       if (payload.settings) {
         tasks.push(supabaseService.updateStoreSettings(payload.settings));

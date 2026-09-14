@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useApp } from '../context/AppContext';
+import { useCatalog } from '../context/slices/CatalogContext';
+import { useOrdersData } from '../context/slices/OrdersDataContext';
+import { useCustomers } from '../context/slices/CustomersContext';
+import { useToast } from '../context/slices/ToastContext';
 import { parseDateToTimestamp } from '../utils/formatters';
 import { supabase } from '../services/supabase';
 
@@ -75,7 +78,10 @@ function savePersistedNotifications(list: AppNotification[]) {
 }
 
 export function useNotifications() {
-  const { products, orders, customers, showToast } = useApp();
+  const { products } = useCatalog();
+  const { orders } = useOrdersData();
+  const { customers } = useCustomers();
+  const { showToast } = useToast();
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     loadPersistedNotifications()
   );
@@ -107,7 +113,9 @@ export function useNotifications() {
       const res = await fetch(url, { method });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
-      console.warn('[Notifications] Backend sync failed:', err);
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('[Notifications] Backend sync failed:', err);
+      }
       showToast('Thay đổi thông báo chưa đồng bộ được với máy chủ.', 'warning');
       fetchBackend();
     }

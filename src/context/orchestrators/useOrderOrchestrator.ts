@@ -80,7 +80,7 @@ export function useOrderOrchestrator() {
 
     // 2. Thêm vào Orders
     setOrders((prev) => [newOrder, ...prev]);
-    apiClient.createOrder(newOrder).catch((err) => {
+    apiClient.createOrder({ ...newOrder, skipCustomerStatsUpdate: true } as any).catch((err) => {
       savePendingChange('orders', newOrder);
       console.warn('[Order] Sync create failed:', err);
     });
@@ -449,7 +449,7 @@ export function useOrderOrchestrator() {
       window.dispatchEvent(new CustomEvent('app:order-created', { detail: newOrder }));
     }
 
-    apiClient.createOrder(newOrder).catch((err) => {
+    apiClient.createOrder({ ...newOrder, skipCustomerStatsUpdate: true } as any).catch((err) => {
       savePendingChange('orders', newOrder);
       console.warn('[SYNC] Async order creation to backend failed:', err.message);
     });
