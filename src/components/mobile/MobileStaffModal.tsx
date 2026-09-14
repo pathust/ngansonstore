@@ -14,7 +14,8 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { AppUser, UserRole } from '../../types';
 
 interface MobileStaffModalProps {
@@ -26,7 +27,8 @@ export const MobileStaffModal: React.FC<MobileStaffModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { users, currentUser, saveUser, toggleUserLock, resetUserPassword, deleteUser, showToast } = useApp();
+  const { users, currentUser, saveUser, toggleUserLock, resetUserPassword, deleteUser } = useAuth();
+  const { showToast } = useToast();
 
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -257,7 +259,7 @@ export const MobileStaffModal: React.FC<MobileStaffModalProps> = ({
               {users.map((u) => {
                 const badge = getRoleBadge(u.role);
                 const isLocked = u.status === 'LOCKED';
-                const isPrimary = u.id === 'user-admin-01' || u.role === 'ADMIN';
+                const isPrimary = u.role === 'ADMIN';
 
                 return (
                   <div

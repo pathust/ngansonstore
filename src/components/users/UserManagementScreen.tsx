@@ -180,7 +180,7 @@ export const UserManagementScreen: React.FC = () => {
 
   const openEditModal = (u: AppUser) => {
     setEditingUser(u);
-    const fallbackUsername = u.username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhatphan' : u.email ? u.email.split('@')[0] : '');
+    const fallbackUsername = u.username || (u.email ? u.email.split('@')[0] : '');
     setFormData({
       id: u.id,
       name: u.name,
@@ -237,7 +237,7 @@ export const UserManagementScreen: React.FC = () => {
     const payload: Partial<AppUser> & { name: string } = {
       ...formData,
       name: formData.name.trim(),
-      username: formData.username.trim() || formData.email.split('@')[0] || (editingUser?.id === 'user-admin-01' ? 'tai' : editingUser?.id === 'user-manager-01' ? 'son' : editingUser?.id === 'user-manager-02' ? 'ngan' : editingUser?.id === 'user-staff-01' ? 'nhatphan' : `user_${Date.now().toString().slice(-4)}`),
+      username: formData.username.trim() || formData.email.split('@')[0] || `user_${Date.now().toString().slice(-4)}`,
     };
     if (!editingUser && formData.password) {
       payload.password = formData.password;
@@ -389,7 +389,7 @@ export const UserManagementScreen: React.FC = () => {
           const badge = getRoleBadge(u.role);
           const isLocked = u.status === 'LOCKED';
           const isCurrentLoggedIn = currentUser.id === u.id;
-          const isPrimaryAdmin = u.id === 'user-admin-01' || (u.role === 'ADMIN' && u.name.toLowerCase().includes('tài'));
+          const isPrimaryAdmin = u.role === 'ADMIN';
 
           return (
             <div
@@ -424,7 +424,7 @@ export const UserManagementScreen: React.FC = () => {
                     </div>
                     <span className="text-xs text-slate-500 truncate">{u.roleTitle}</span>
                     <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-mono">
-                      <span>Tài khoản: <strong className="text-blue-700">{u.username || (u.id === 'user-admin-01' ? 'tai' : u.id === 'user-manager-01' ? 'son' : u.id === 'user-manager-02' ? 'ngan' : u.id === 'user-staff-01' ? 'nhatphan' : u.email ? u.email.split('@')[0] : 'chưa đặt')}</strong></span>
+                      <span>Tài khoản: <strong className="text-blue-700">{u.username || (u.email ? u.email.split('@')[0] : 'chưa đặt')}</strong></span>
                       {u.phone && <span>• {u.phone}</span>}
                     </div>
                   </div>

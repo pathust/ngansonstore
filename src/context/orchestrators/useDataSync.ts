@@ -84,8 +84,7 @@ export function useDataSync() {
             const merged = payload.users!.map((pu) => {
               const prevUser = prev.find((p) => p.id === pu.id);
               const username = pu.username || prevUser?.username || (pu.email ? pu.email.split('@')[0] : 'user');
-              const password = pu.password || prevUser?.password || generatePlaceholderPassword();
-              return { ...prevUser, ...pu, username, password };
+              return { ...prevUser, ...pu, username, password: '' };
             });
             if (isDataEqual(prev, merged)) return prev;
             safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', merged);

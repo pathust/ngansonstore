@@ -237,6 +237,7 @@ class DatabaseManager {
   }
 
   private async persistToDisk() {
+    if (process.env.NODE_ENV === 'test') return;
     if (!this.cache) return;
     const tmpFile = `${DB_FILE}.tmp.${Date.now()}`;
     try {
@@ -257,6 +258,7 @@ class DatabaseManager {
     if (this.cache) {
       this.cache.lastUpdated = Date.now();
     }
+    if (process.env.NODE_ENV === 'test') return;
     if (this.isSaving) {
       this.savePending = true;
       return;
@@ -270,6 +272,24 @@ class DatabaseManager {
         this.schedulePersist();
       }
     }, 50);
+  }
+
+  public resetForTesting(initialData?: Partial<DatabaseSchema>) {
+    this.cache = {
+      ...DEFAULT_DB,
+      lastUpdated: Date.now(),
+      ...initialData,
+      deletedIds: {
+        products: [],
+        orders: [],
+        suppliers: [],
+        customers: [],
+        inventory_audits: [],
+        cashbook: [],
+        notifications: [],
+        ...(initialData?.deletedIds || {}),
+      },
+    };
   }
 
   // ==================== SUPABASE CLOUD SYNC ====================
@@ -500,6 +520,7 @@ class DatabaseManager {
   }
 
   public async syncToSupabase(table: string, action: 'upsert' | 'delete', data: any) {
+    if (process.env.NODE_ENV === 'test') return;
     if (!isSupabaseConfigured()) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
@@ -566,6 +587,7 @@ class DatabaseManager {
   }
 
   public async syncBatchToSupabase(table: string, items: any[], batchSize = 100) {
+    if (process.env.NODE_ENV === 'test') return;
     if (!isSupabaseConfigured() || !items || items.length === 0) return;
     const supabase = getSupabaseClient();
     if (!supabase) return;
@@ -759,6 +781,10 @@ class DatabaseManager {
     return { total, items: result };
   }
 
+  public getOrder(id: string): Order | undefined {
+    return this.getDB().orders.find((o) => o.id === id || o.code === id);
+  }
+
   public async createOrder(order: Order): Promise<Order> {
     const db = this.getDB();
     db.orders.unshift(order);
@@ -777,9 +803,12 @@ class DatabaseManager {
         }
       }
       
-      if (order.customer_name) {
-        const cIndex = db.customers.findIndex((c) => c.name === order.customer_name);
-        if (cIndex >= 0) {
+      if (order.customer_name && order.customer_name !== 'Khách lẻ') {
+        const cTerm = order.customer_name.trim().toLowerCase();
+        const cIndex = db.customers.findIndex(
+          (c) => (c.name && c.name.trim().toLowerCase() === cTerm) || (order.phone && c.phone && c.phone.trim() === order.phone.trim())
+        );
+        if (cIndex >= 0 && !(order as any).skipCustomerStatsUpdate) {
           db.customers[cIndex].total_purchased = (db.customers[cIndex].total_purchased || 0) + (order.final_amount || 0);
           if ((order as any).payment_method === 'DEBT') {
             db.customers[cIndex].debt = (db.customers[cIndex].debt || 0) + (order.final_amount || 0);
@@ -920,8 +949,8 @@ class DatabaseManager {
           skipped++;
         }
       } else {
-        db.orders.unshift(item);
-        orderMap.set(key, 0);
+        db.orders.push(item);
+        orderMap.set(key, db.orders.length - 1);
         inserted++;
       }
     });
@@ -1047,9 +1076,10 @@ class DatabaseManager {
           skipped++;
         }
       } else {
-        db.suppliers.unshift(item);
-        if (codeKey) supMap.set(codeKey, 0);
-        if (phoneKey) supMap.set(phoneKey, 0);
+        db.suppliers.push(item);
+        const newIdx = db.suppliers.length - 1;
+        if (codeKey) supMap.set(codeKey, newIdx);
+        if (phoneKey) supMap.set(phoneKey, newIdx);
         inserted++;
       }
     });
@@ -1370,8 +1400,8 @@ class DatabaseManager {
           skipped++;
         }
       } else {
-        db.cashbook.unshift(item);
-        cbMap.set(key, 0);
+        db.cashbook.push(item);
+        cbMap.set(key, db.cashbook.length - 1);
         inserted++;
       }
     });
@@ -1464,7 +1494,18 @@ class DatabaseManager {
   }
 
   // ==================== USERS & AUTH ====================
+  public sanitizeUser(user: AppUser): AppUser {
+    return {
+      ...user,
+      password: '',
+    };
+  }
+
   public getUsers(): AppUser[] {
+    return this.getDB().users.map((u) => this.sanitizeUser(u));
+  }
+
+  public getRawUsers(): AppUser[] {
     return this.getDB().users;
   }
 
@@ -1493,7 +1534,7 @@ class DatabaseManager {
       userToSave = {
         ...existing,
         ...userData,
-        username: userData.username?.trim() || existing.username || userData.email?.split('@')[0] || existing.email?.split('@')[0] || (existing.id === 'user-admin-01' ? 'tai' : existing.id === 'user-manager-01' ? 'son' : existing.id === 'user-manager-02' ? 'ngan' : existing.id === 'user-staff-01' ? 'nhatphan' : 'user'),
+        username: userData.username?.trim() || existing.username || userData.email?.split('@')[0] || existing.email?.split('@')[0] || `user_${existing.id.slice(-4)}`,
         password: userData.password?.trim() ? userData.password : existing.password,
         updatedAt: Date.now(),
       };
@@ -1550,7 +1591,7 @@ class DatabaseManager {
       permissions: userToSave.permissions,
       status: userToSave.status,
     });
-    return userToSave;
+    return this.sanitizeUser(userToSave);
   }
 
   public updateUserPassword(userId: string, newPass: string): boolean {
@@ -1630,14 +1671,14 @@ class DatabaseManager {
       permissions: user.permissions,
       status: user.status,
     });
-    return user;
+    return this.sanitizeUser(user);
   }
 
   public deleteUser(userId: string): boolean {
     const db = this.getDB();
     const idx = db.users.findIndex((u) => u.id === userId);
     if (idx === -1) return false;
-    if (db.users[idx].role === 'ADMIN' || db.users[idx].id === 'user-admin-01') {
+    if (db.users[idx].role === 'ADMIN') {
       return false;
     }
     db.users.splice(idx, 1);
@@ -1663,7 +1704,7 @@ class DatabaseManager {
         customers: db.customers.filter(filterByTime),
         inventory_audits: db.inventory_audits.filter(filterByTime),
         cashbook: db.cashbook.filter(filterByTime),
-        users: db.users,
+        users: db.users.map((u) => this.sanitizeUser(u)),
         notifications: (db.notifications || []).filter((n) => !n.isDismissed),
         deletedIds: db.deletedIds,
       };
@@ -1679,7 +1720,7 @@ class DatabaseManager {
       customers: db.customers,
       inventory_audits: db.inventory_audits,
       cashbook: db.cashbook,
-      users: db.users,
+      users: db.users.map((u) => this.sanitizeUser(u)),
       notifications: (db.notifications || []).filter((n) => !n.isDismissed),
       deletedIds: db.deletedIds,
     };
@@ -1732,8 +1773,16 @@ class DatabaseManager {
     if (payload.users) {
       payload.users.forEach((u) => {
         const idx = db.users.findIndex((x) => x.id === u.id);
-        if (idx >= 0) db.users[idx] = { ...db.users[idx], ...u };
-        else db.users.push(u);
+        if (idx >= 0) {
+          const preservedPassword = db.users[idx].password;
+          db.users[idx] = {
+            ...db.users[idx],
+            ...u,
+            password: u.password?.trim() ? u.password : preservedPassword,
+          };
+        } else {
+          db.users.push(u);
+        }
       });
     }
     if (payload.notifications) {

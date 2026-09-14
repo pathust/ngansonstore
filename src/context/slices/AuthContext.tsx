@@ -63,6 +63,13 @@ interface AuthContextType {
   setIsChangePasswordOpen: (open: boolean) => void;
 }
 
+const sanitizeUsersForStorage = (list: AppUser[]): AppUser[] => {
+  return list.map((u) => ({
+    ...u,
+    password: '',
+  }));
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -73,7 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return sanitizeUsersForStorage(parsed);
       } catch (e) {}
     }
     return DEFAULT_APP_USERS;
@@ -401,7 +408,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
-    safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', users);
+    safeStorageSet(LOCAL_STORAGE_PREFIX + 'users', sanitizeUsersForStorage(users));
   }, [users]);
 
   const value = useMemo<AuthContextType>(
