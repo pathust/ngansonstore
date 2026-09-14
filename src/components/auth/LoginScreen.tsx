@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useStoreSettings } from '../../context/slices/StoreSettingsContext';
 import {
   Lock,
   User,
@@ -15,7 +16,8 @@ import {
 import logoImg from '../../assets/logo.png';
 
 export const LoginScreen: React.FC = () => {
-  const { login, storeSettings } = useApp();
+  const { login } = useAuth();
+  const { storeSettings } = useStoreSettings();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');

@@ -1,5 +1,7 @@
 import React, { useEffect,  useState  } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useUiShell } from '../../context/slices/UiShellContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { AppUser, UserRole } from '../../types';
 import {
   X,
@@ -38,7 +40,9 @@ export const UserSwitcherModal: React.FC<UserSwitcherModalProps> = ({ isOpen, on
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
-  const { users, currentUser, currentBranch, switchUser, showToast } = useApp();
+  const { users, currentUser, switchUser } = useAuth();
+  const { currentBranch } = useUiShell();
+  const { showToast } = useToast();
   const [selectedUserForDetail, setSelectedUserForDetail] = useState<AppUser>(currentUser);
   const [switchingUser, setSwitchingUser] = useState<AppUser | null>(null);
   const [switchPassword, setSwitchPassword] = useState('');

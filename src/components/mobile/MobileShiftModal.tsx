@@ -9,7 +9,10 @@ import {
   Banknote,
   Wallet,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useOrdersData } from '../../context/slices/OrdersDataContext';
+import { useCashbook } from '../../context/slices/CashbookContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { formatCurrency, formatDateTime, parseDateToTimestamp } from '../../utils/formatters';
 
 interface MobileShiftModalProps {
@@ -21,7 +24,10 @@ export const MobileShiftModal: React.FC<MobileShiftModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { orders, cashbookEntries, currentUser, showToast } = useApp();
+  const { orders } = useOrdersData();
+  const { cashbookEntries } = useCashbook();
+  const { currentUser } = useAuth();
+  const { showToast } = useToast();
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime();

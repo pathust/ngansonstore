@@ -1,10 +1,16 @@
 import React, { useRef, useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useOrdersData } from '../../context/slices/OrdersDataContext';
+import { useUiShell } from '../../context/slices/UiShellContext';
+import { useToast } from '../../context/slices/ToastContext';
+import { useStoreSettings } from '../../context/slices/StoreSettingsContext';
 import { formatCurrency, formatDateTime, getVietQRUrl } from '../../utils/formatters';
 import { Printer, X, Check, Download, FileText } from 'lucide-react';
 
 export const ThermalReceiptModal: React.FC = () => {
-  const { isReceiptModalOpen, setIsReceiptModalOpen, lastCompletedOrder, currentBranch, showToast, storeSettings } = useApp();
+  const { isReceiptModalOpen, setIsReceiptModalOpen, lastCompletedOrder } = useOrdersData();
+  const { currentBranch } = useUiShell();
+  const { showToast } = useToast();
+  const { storeSettings } = useStoreSettings();
   const receiptRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const hasBankTransferConfig = Boolean(storeSettings.bankId?.trim() && storeSettings.accountNumber?.trim());

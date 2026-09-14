@@ -7,7 +7,9 @@ import {
   Send,
   Headphones,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/slices/ToastContext';
+import { useStoreSettings } from '../../context/slices/StoreSettingsContext';
+import { useUiShell } from '../../context/slices/UiShellContext';
 
 interface MobileSupportModalProps {
   isOpen: boolean;
@@ -20,7 +22,9 @@ export const MobileSupportModal: React.FC<MobileSupportModalProps> = ({
   onClose,
   initialTab = 'HOTLINE',
 }) => {
-  const { showToast, storeSettings, currentBranch } = useApp();
+  const { showToast } = useToast();
+  const { storeSettings } = useStoreSettings();
+  const { currentBranch } = useUiShell();
   const [activeTab, setActiveTab] = useState<'HOTLINE' | 'FEEDBACK'>(initialTab);
   const [feedbackCategory, setFeedbackCategory] = useState('FEATURE');
   const [feedbackContent, setFeedbackContent] = useState('');

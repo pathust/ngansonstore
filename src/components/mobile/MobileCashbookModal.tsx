@@ -15,7 +15,8 @@ import {
   X,
 } from 'lucide-react';
 import { CashbookEntry } from '../../types';
-import { useApp } from '../../context/AppContext';
+import { useCashbook } from '../../context/slices/CashbookContext';
+import { useToast } from '../../context/slices/ToastContext';
 
 interface MobileCashbookModalProps {
   isOpen: boolean;
@@ -28,7 +29,8 @@ export const MobileCashbookModal: React.FC<MobileCashbookModalProps> = ({
   onClose,
   defaultAction = null,
 }) => {
-  const { cashbookEntries, addCashbookEntry, deleteCashbookEntry, showToast } = useApp();
+  const { cashbookEntries, addCashbookEntry, deleteCashbookEntry } = useCashbook();
+  const { showToast } = useToast();
 
   const [filterType, setFilterType] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
   const [isSubmitting, setIsSubmitting] = useState(false);

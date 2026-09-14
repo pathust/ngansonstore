@@ -18,7 +18,7 @@ import {
   X,
   ChevronLeft,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useUiShell } from '../../context/slices/UiShellContext';
 import { useNotifications, AppNotification, formatRelativeTime } from '../../hooks/useNotifications';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { formatDateTime } from '../../utils/formatters';
@@ -26,7 +26,7 @@ import { formatDateTime } from '../../utils/formatters';
 type FilterTab = 'ALL' | 'UNREAD' | 'STOCK' | 'ORDER' | 'CASHBOOK' | 'AUDIT';
 
 export const NotificationsScreen: React.FC = () => {
-  const { setCurrentView } = useApp();
+  const { setCurrentView } = useUiShell();
   const {
     notifications,
     unreadCount,

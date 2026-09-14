@@ -10,7 +10,8 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { Customer } from '../../types';
-import { useApp } from '../../context/AppContext';
+import { useCustomers } from '../../context/slices/CustomersContext';
+import { useToast } from '../../context/slices/ToastContext';
 
 interface MobileCustomerPickerModalProps {
   isOpen: boolean;
@@ -25,7 +26,8 @@ export const MobileCustomerPickerModal: React.FC<MobileCustomerPickerModalProps>
   selectedCustomerName,
   onSelectCustomer,
 }) => {
-  const { customers, addCustomer, showToast } = useApp();
+  const { customers, addCustomer } = useCustomers();
+  const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [newName, setNewName] = useState('');

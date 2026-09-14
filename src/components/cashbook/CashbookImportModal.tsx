@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useCashbook } from '../../context/slices/CashbookContext';
+import { useUiShell } from '../../context/slices/UiShellContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { CashbookEntry } from '../../types';
 import {
   formatCurrency,
@@ -23,7 +25,9 @@ interface CashbookImportModalProps {
 }
 
 export const CashbookImportModal: React.FC<CashbookImportModalProps> = ({ isOpen, onClose }) => {
-  const { importCashbook, currentBranch, showToast } = useApp();
+  const { importCashbook } = useCashbook();
+  const { currentBranch } = useUiShell();
+  const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [previewEntries, setPreviewEntries] = useState<CashbookEntry[]>([]);

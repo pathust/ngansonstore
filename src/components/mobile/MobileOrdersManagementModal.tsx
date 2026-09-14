@@ -9,20 +9,18 @@ import {
   ArrowRight,
   ShoppingBag,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 
 interface PreOrder {
   id: string;
   code: string;
-  customerName: string;
+  customer_name: string;
   phone: string;
-  itemsSummary: string;
-  totalAmount: number;
-  depositAmount: number;
-  deliveryDate: string;
-  status: 'PENDING' | 'SHIPPING' | 'COMPLETED' | 'CANCELLED';
-  createdAt: number;
+  items_count: number;
+  total: number;
+  created_at: string;
+  status: 'PENDING' | 'COMPLETED';
 }
 
 interface MobileOrdersManagementModalProps {
@@ -38,7 +36,7 @@ export const MobileOrdersManagementModal: React.FC<MobileOrdersManagementModalPr
   onOpenPos,
   onSelectOrderForPOS,
 }) => {
-  const { showToast } = useApp();
+  const { showToast } = useToast();
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'COMPLETED'>('ALL');
 
   const [orders, setOrders] = useState<PreOrder[]>(() => {

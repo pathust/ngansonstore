@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useApp } from '../../context/AppContext';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   ShoppingCart,
   Store,
@@ -26,27 +25,25 @@ import {
 import { useNotifications, formatRelativeTime, AppNotification } from '../../hooks/useNotifications';
 import { useTheme } from '../../hooks/useTheme';
 
+import { useUiShell } from '../../context/slices/UiShellContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useCatalog } from '../../context/slices/CatalogContext';
+import { useOrdersData } from '../../context/slices/OrdersDataContext';
+import { useCustomers } from '../../context/slices/CustomersContext';
+import { useDataSync } from '../../context/orchestrators/useDataSync';
+
 interface TopNavbarProps {
   onOpenMobileMode?: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
   const { resolvedTheme, toggleTheme } = useTheme();
-  const {
-    currentView,
-    setCurrentView,
-    orders,
-    products,
-    customers,
-    currentUser,
-    setIsUserSwitcherOpen,
-    setIsUserProfileOpen,
-    setIsChangePasswordOpen,
-    logout,
-    currentBranch,
-    syncState,
-    syncWithServer,
-  } = useApp();
+  const { currentView, setCurrentView, currentBranch } = useUiShell();
+  const { currentUser, setIsUserSwitcherOpen, setIsUserProfileOpen, setIsChangePasswordOpen, logout } = useAuth();
+  const { products } = useCatalog();
+  const { orders } = useOrdersData();
+  const { customers } = useCustomers();
+  const { syncState, syncWithServer } = useDataSync();
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -75,12 +72,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onOpenMobileMode }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredNotifications = notifications.filter((n) => {
-    if (notifFilter === 'UNREAD') return !n.isRead;
-    if (notifFilter === 'STOCK') return n.type === 'STOCK';
-    if (notifFilter === 'ORDER') return n.type === 'ORDER';
-    return true;
-  });
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((n) => {
+      if (notifFilter === 'UNREAD') return !n.isRead;
+      if (notifFilter === 'STOCK') return n.type === 'STOCK';
+      if (notifFilter === 'ORDER') return n.type === 'ORDER';
+      return true;
+    });
+  }, [notifications, notifFilter]);
 
   const navItems = [
     {

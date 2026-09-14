@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useCashbook } from '../../context/slices/CashbookContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { CashbookEntry } from '../../types';
 import { formatCurrency, formatDateTime, parseDateToTimestamp } from '../../utils/formatters';
 import { exportToExcel } from '../../utils/excelLazy';
@@ -28,7 +30,9 @@ export const CashbookScreen: React.FC<CashbookScreenProps> = ({
   setIsCashModalOpen: setExternalModalOpen,
   defaultType = 'IN',
 }) => {
-  const { cashbookEntries, addCashbookEntry, showToast, currentUser } = useApp();
+  const { cashbookEntries, addCashbookEntry } = useCashbook();
+  const { currentUser } = useAuth();
+  const { showToast } = useToast();
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [internalModalOpen, setInternalModalOpen] = useState(false);

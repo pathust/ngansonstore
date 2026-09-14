@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useUiShell } from '../../context/slices/UiShellContext';
 import {
   X,
   User,
@@ -27,7 +28,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onClose,
   onOpenChangePassword,
 }) => {
-  const { currentUser, currentBranch, updateUserProfile, logout, setIsChangePasswordOpen } = useApp();
+  const { currentUser, updateUserProfile, logout, setIsChangePasswordOpen } = useAuth();
+  const { currentBranch } = useUiShell();
 
   const [name, setName] = useState(currentUser.name || '');
   const [phone, setPhone] = useState(currentUser.phone || '');

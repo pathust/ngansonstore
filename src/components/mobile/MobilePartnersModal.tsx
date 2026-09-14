@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Calculator,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/slices/ToastContext';
+import { useUiShell } from '../../context/slices/UiShellContext';
 import { formatCurrency } from '../../utils/formatters';
 
 interface MobilePartnersModalProps {
@@ -25,7 +26,8 @@ export const MobilePartnersModal: React.FC<MobilePartnersModalProps> = ({
   onClose,
   initialTab = 'LOAN',
 }) => {
-  const { showToast, currentBranch } = useApp();
+  const { showToast } = useToast();
+  const { currentBranch } = useUiShell();
   const [activeTab, setActiveTab] = useState<'LOAN' | 'DELIVERY' | 'TAX'>(initialTab);
 
   // Loan calculator state

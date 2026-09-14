@@ -9,7 +9,8 @@ import {
   Volume2,
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { useApp } from '../../context/AppContext';
+import { useCatalog } from '../../context/slices/CatalogContext';
+import { useToast } from '../../context/slices/ToastContext';
 
 interface MobileBarcodeScannerModalProps {
   isOpen: boolean;
@@ -22,7 +23,8 @@ export const MobileBarcodeScannerModal: React.FC<MobileBarcodeScannerModalProps>
   onClose,
   onProductScanned,
 }) => {
-  const { products, showToast } = useApp();
+  const { products } = useCatalog();
+  const { showToast } = useToast();
   const [barcodeInput, setBarcodeInput] = useState('');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isStartingCamera, setIsStartingCamera] = useState<boolean>(true);

@@ -14,7 +14,8 @@ import {
   X,
 } from 'lucide-react';
 import { Supplier } from '../../types';
-import { useApp } from '../../context/AppContext';
+import { useSuppliers } from '../../context/slices/SuppliersContext';
+import { useToast } from '../../context/slices/ToastContext';
 
 interface MobileSupplierModalProps {
   isOpen: boolean;
@@ -25,7 +26,8 @@ export const MobileSupplierModal: React.FC<MobileSupplierModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { suppliers, addSupplier, updateSupplier, deleteSupplier, showToast } = useApp();
+  const { suppliers, addSupplier, updateSupplier, deleteSupplier } = useSuppliers();
+  const { showToast } = useToast();
 
   const [search, setSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

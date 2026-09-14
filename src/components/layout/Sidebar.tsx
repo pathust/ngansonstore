@@ -1,5 +1,4 @@
 import React from 'react';
-import { useApp } from '../../context/AppContext';
 import {
   ShoppingCart,
   Package,
@@ -21,6 +20,12 @@ import {
   ChevronUp,
 } from 'lucide-react';
 
+import { useUiShell } from '../../context/slices/UiShellContext';
+import { useAuth } from '../../context/slices/AuthContext';
+import { useCatalog } from '../../context/slices/CatalogContext';
+import { useOrdersData } from '../../context/slices/OrdersDataContext';
+import { useCustomers } from '../../context/slices/CustomersContext';
+
 interface SidebarProps {
   isMobileOpen?: boolean;
   setIsMobileOpen?: (open: boolean) => void;
@@ -36,20 +41,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isManualOverride,
   onResetAutoView,
 }) => {
-  const {
-    currentView,
-    setCurrentView,
-    orders,
-    customers,
-    products,
-    users,
-    currentUser,
-    currentBranch,
-    setIsUserSwitcherOpen,
-    setIsUserProfileOpen,
-    setIsChangePasswordOpen,
-    logout,
-  } = useApp();
+  const { currentView, setCurrentView, currentBranch } = useUiShell();
+  const { currentUser, users, setIsUserSwitcherOpen, setIsUserProfileOpen, setIsChangePasswordOpen, logout } = useAuth();
+  const { products } = useCatalog();
+  const { orders } = useOrdersData();
+  const { customers } = useCustomers();
 
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
 
@@ -57,8 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // vào 1 số "báo động" trước đây gây hiểu lầm vì phần lớn sản phẩm chưa từng đặt min_stock
   // (mặc định 0), nên hễ hết hàng (stock=0) là tự động bị tính vào "báo động" dù không phải
   // cảnh báo tồn kho tối thiểu thực sự.
-  const outOfStockCount = products.filter((p) => p.stock === 0).length;
-  const belowMinStockCount = products.filter((p) => p.stock > 0 && p.stock <= p.min_stock).length;
+  const outOfStockCount = React.useMemo(() => products.filter((p) => p.stock === 0).length, [products]);
+  const belowMinStockCount = React.useMemo(() => products.filter((p) => p.stock > 0 && p.stock <= p.min_stock).length, [products]);
 
   const navGroups = [
     {

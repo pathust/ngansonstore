@@ -1,6 +1,7 @@
 import React, { useEffect,  useState  } from 'react';
 import { Order } from '../../types';
-import { useApp } from '../../context/AppContext';
+import { useStoreSettings } from '../../context/slices/StoreSettingsContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { formatCurrency, formatDateTime, numberToVietnameseWords, getVietQRUrl } from '../../utils/formatters';
 import {
   Download,
@@ -22,7 +23,7 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
   order,
   isOpen,
   onClose,
-  branchName = '',
+  branchName = 'Cửa hàng chính',
 }) => {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -32,7 +33,8 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
-  const { storeSettings, showToast } = useApp();
+  const { storeSettings } = useStoreSettings();
+  const { showToast } = useToast();
   const [format, setFormat] = useState<'K80' | 'A4'>('K80');
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);

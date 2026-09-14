@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/slices/AuthContext';
 import { ShieldAlert, ArrowRight, Lock, KeyRound } from 'lucide-react';
 
 interface AccessDeniedViewProps {
@@ -13,7 +13,7 @@ export const AccessDeniedView: React.FC<AccessDeniedViewProps> = ({
   requiredRole = 'Quản lý cửa hàng hoặc Admin',
   onOpenSwitcher,
 }) => {
-  const { currentUser, setIsUserSwitcherOpen } = useApp();
+  const { currentUser, setIsUserSwitcherOpen } = useAuth();
 
   const handleSwitch = () => {
     if (onOpenSwitcher) {

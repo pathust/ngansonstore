@@ -5,7 +5,7 @@ import {
   Package,
   CheckCircle2,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/slices/ToastContext';
 
 interface MobileCustomItemModalProps {
   isOpen: boolean;
@@ -18,7 +18,7 @@ export const MobileCustomItemModal: React.FC<MobileCustomItemModalProps> = ({
   onClose,
   onItemAdded,
 }) => {
-  const { showToast } = useApp();
+  const { showToast } = useToast();
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [price, setPrice] = useState<number>(50000);

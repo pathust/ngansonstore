@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppProvider, useApp } from './context/AppContext';
+import { AppProvider } from './context/AppContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopNavbar } from './components/layout/TopNavbar';
 import { ToastContainer } from './components/common/ToastContainer';
@@ -28,9 +28,14 @@ const NotificationsScreen = React.lazy(() => import('./components/notifications/
 const MobileAppContainer = React.lazy(() => import('./components/mobile/MobileAppContainer').then(m => ({ default: m.MobileAppContainer })));
 const ThermalReceiptModal = React.lazy(() => import('./components/common/ThermalReceiptModal').then(m => ({ default: m.ThermalReceiptModal })));
 
+import { useUiShell } from './context/slices/UiShellContext';
+import { useAuth } from './context/slices/AuthContext';
+import { useOrdersData } from './context/slices/OrdersDataContext';
+import { useDataSync } from './context/orchestrators/useDataSync';
+
 const MainLayout: React.FC = () => {
+  const { currentView } = useUiShell();
   const {
-    currentView,
     currentUser,
     isAuthenticated,
     isUserSwitcherOpen,
@@ -39,12 +44,9 @@ const MainLayout: React.FC = () => {
     setIsUserProfileOpen,
     isChangePasswordOpen,
     setIsChangePasswordOpen,
-    syncState,
-    isLoading,
-    loadingMessage,
-    syncWithServer,
-    isReceiptModalOpen,
-  } = useApp();
+  } = useAuth();
+  const { isReceiptModalOpen } = useOrdersData();
+  const { syncState, isLoading, loadingMessage, syncWithServer } = useDataSync();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isCreateAuditOpen, setIsCreateAuditOpen] = useState(false);

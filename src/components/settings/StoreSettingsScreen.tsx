@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useStoreSettings } from '../../context/slices/StoreSettingsContext';
+import { useUiShell } from '../../context/slices/UiShellContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { StoreSettings } from '../../types';
 import { VIETNAMESE_BANKS } from '../../data/bankList';
 import { formatCurrency } from '../../utils/formatters';
@@ -28,7 +30,9 @@ import {
 } from 'lucide-react';
 
 export const StoreSettingsScreen: React.FC = () => {
-  const { storeSettings, updateStoreSettings, resetStoreSettings, showToast, currentBranch } = useApp();
+  const { storeSettings, updateStoreSettings, resetStoreSettings } = useStoreSettings();
+  const { currentBranch } = useUiShell();
+  const { showToast } = useToast();
 
   // Local form state & dirty tracking
   const [formData, setFormData] = useState<StoreSettings>(storeSettings);

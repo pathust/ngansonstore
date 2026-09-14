@@ -13,7 +13,8 @@ import {
   X,
 } from 'lucide-react';
 import { Customer } from '../../types';
-import { useApp } from '../../context/AppContext';
+import { useCustomers } from '../../context/slices/CustomersContext';
+import { useToast } from '../../context/slices/ToastContext';
 
 interface MobileCustomerModalProps {
   isOpen: boolean;
@@ -26,7 +27,8 @@ export const MobileCustomerModal: React.FC<MobileCustomerModalProps> = ({
   onClose,
   onSelectCustomer,
 }) => {
-  const { customers, addCustomer, updateCustomer, deleteCustomer, showToast } = useApp();
+  const { customers, addCustomer, updateCustomer, deleteCustomer } = useCustomers();
+  const { showToast } = useToast();
 
   const [search, setSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

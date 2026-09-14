@@ -15,7 +15,7 @@ import {
   Clock,
   ShieldCheck,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useOrdersData } from '../../context/slices/OrdersDataContext';
 import { parseDateToTimestamp } from '../../utils/formatters';
 
 interface MobileReportsModalProps {
@@ -29,7 +29,7 @@ export const MobileReportsModal: React.FC<MobileReportsModalProps> = ({
   onClose,
   reportType = 'SALES',
 }) => {
-  const { orders } = useApp();
+  const { orders } = useOrdersData();
   const [timeRange, setTimeRange] = useState<'TODAY' | 'YESTERDAY' | 'MONTH' | 'LAST_MONTH' | 'ALL'>('TODAY');
 
   if (!isOpen) return null;

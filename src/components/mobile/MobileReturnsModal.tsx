@@ -8,7 +8,9 @@ import {
   AlertTriangle,
   ArrowRight,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useOrdersData } from '../../context/slices/OrdersDataContext';
+import { useCashbook } from '../../context/slices/CashbookContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 
 interface ReturnVoucher {
@@ -31,7 +33,9 @@ export const MobileReturnsModal: React.FC<MobileReturnsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { orders, addCashbookEntry, showToast } = useApp();
+  const { orders } = useOrdersData();
+  const { addCashbookEntry } = useCashbook();
+  const { showToast } = useToast();
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedInvoiceCode, setSelectedInvoiceCode] = useState('');

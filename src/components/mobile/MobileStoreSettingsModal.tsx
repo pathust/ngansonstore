@@ -21,7 +21,8 @@ import {
   Search,
   Wifi,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useStoreSettings } from '../../context/slices/StoreSettingsContext';
+import { useToast } from '../../context/slices/ToastContext';
 import { VIETNAMESE_BANKS } from '../../data/bankList';
 import { StoreSettings } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
@@ -37,7 +38,8 @@ export const MobileStoreSettingsModal: React.FC<MobileStoreSettingsModalProps> =
   isOpen,
   onClose,
 }) => {
-  const { storeSettings, updateStoreSettings, showToast } = useApp();
+  const { storeSettings, updateStoreSettings } = useStoreSettings();
+  const { showToast } = useToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<StoreSettings>({ ...storeSettings });
