@@ -1,10 +1,13 @@
-import React, { createContext, useContext, useMemo, useState, ReactNode } from 'react';
-import { OrderTab, CartItem, Product } from '../../types';
+import React, { createContext, useContext, useMemo, useCallback, ReactNode } from 'react';
+import { Provider } from 'react-redux';
+import { OrderTab, Product } from '../../types';
 import { useToast } from './ToastContext';
+import { store, useAppDispatch, useAppSelector, selectOrderTabs, selectActiveTabId, selectActiveTab } from '../../store';
+import * as posCartActions from '../../store/slices/posCartSlice';
 
-// Giỏ hàng đa tab của POS — chỉ tồn tại trong phiên làm việc (không persist localStorage,
-// giữ nguyên hành vi gốc). completeCheckout (đọc activeTab rồi ghi Order/Product/Customer/Cashbook)
-// nằm ở orchestrator, không nằm ở slice này.
+// Giỏ hàng đa tab của POS — Được quản trị bởi Redux Toolkit (posCartSlice),
+// đồng thời cung cấp Adapter qua OrdersCartContext để giữ nguyên 100% tương thích ngược
+// với các consumer hiện tại (PosSalesScreen, MobilePosScreen, useOrderOrchestrator).
 interface OrdersCartContextType {
   orderTabs: OrderTab[];
   setOrderTabs: React.Dispatch<React.SetStateAction<OrderTab[]>>;
@@ -25,196 +28,121 @@ interface OrdersCartContextType {
 
 const OrdersCartContext = createContext<OrdersCartContextType | undefined>(undefined);
 
-export const OrdersCartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+const OrdersCartInnerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
+  const dispatch = useAppDispatch();
 
-  const [orderTabs, setOrderTabs] = useState<OrderTab[]>([
-    {
-      id: 'tab-1',
-      title: 'Đơn 1',
-      items: [],
-      customer_name: 'Khách lẻ',
-      customer_phone: '',
-      discount_amount: 0,
-      discount_type: 'AMOUNT',
-      note: '',
-      payment_method: 'CASH',
-      customer_paid: 0,
+  const orderTabs = useAppSelector(selectOrderTabs);
+  const activeTabId = useAppSelector(selectActiveTabId);
+  const activeTab = useAppSelector(selectActiveTab);
+
+  const setOrderTabs: React.Dispatch<React.SetStateAction<OrderTab[]>> = useCallback(
+    (action) => {
+      if (typeof action === 'function') {
+        dispatch(posCartActions.setOrderTabs(action(orderTabs)));
+      } else {
+        dispatch(posCartActions.setOrderTabs(action));
+      }
     },
-  ]);
-  const [activeTabId, setActiveTabId] = useState<string>('tab-1');
+    [dispatch, orderTabs]
+  );
 
-  const activeTab = orderTabs.find((t) => t.id === activeTabId) || orderTabs[0];
+  const setActiveTabId = useCallback(
+    (id: string) => {
+      dispatch(posCartActions.setActiveTabId(id));
+    },
+    [dispatch]
+  );
 
-  const createNewTab = () => {
+  const createNewTab = useCallback(() => {
     const newTabNum = orderTabs.length + 1;
     const newTabId = 'tab-' + Date.now();
-    const newTab: OrderTab = {
-      id: newTabId,
-      title: `Đơn ${newTabNum}`,
-      items: [],
-      customer_name: 'Khách lẻ',
-      customer_phone: '',
-      discount_amount: 0,
-      discount_type: 'AMOUNT',
-      note: '',
-      payment_method: 'CASH',
-      customer_paid: 0,
-    };
-    setOrderTabs((prev) => [...prev, newTab]);
-    setActiveTabId(newTabId);
-    showToast(`Đã mở thêm ${newTab.title}`, 'info');
-  };
+    dispatch(posCartActions.createNewTab(newTabId));
+    showToast(`Đã mở thêm Đơn ${newTabNum}`, 'info');
+  }, [dispatch, orderTabs.length, showToast]);
 
-  const clearActiveCart = () => {
-    setOrderTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== activeTabId) return tab;
-        return {
-          ...tab,
-          items: [],
-          customer_name: 'Khách lẻ',
-          customer_phone: '',
-          discount_amount: 0,
-          note: '',
-          customer_paid: 0,
-        };
-      })
-    );
-  };
+  const closeTab = useCallback(
+    (tabId: string) => {
+      dispatch(posCartActions.closeTab(tabId));
+    },
+    [dispatch]
+  );
 
-  const closeTab = (tabId: string) => {
-    if (orderTabs.length <= 1) {
-      clearActiveCart();
-      return;
-    }
-    const remaining = orderTabs.filter((t) => t.id !== tabId);
-    setOrderTabs(remaining);
-    if (activeTabId === tabId) {
-      setActiveTabId(remaining[0].id);
-    }
-  };
+  const clearActiveCart = useCallback(() => {
+    dispatch(posCartActions.clearActiveCart());
+  }, [dispatch]);
 
-  const addToCart = (product: Product, quantity: number = 1) => {
-    if (product.stock <= 0) {
-      showToast(`Sản phẩm "${product.name}" đã hết hàng trong kho!`, 'error');
-      return;
-    }
+  const addToCart = useCallback(
+    (product: Product, quantity: number = 1) => {
+      if (product.stock <= 0) {
+        showToast(`Sản phẩm "${product.name}" đã hết hàng trong kho!`, 'error');
+        return;
+      }
 
-    setOrderTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== activeTabId) return tab;
-
-        const existingItem = tab.items.find((item) => item.product_id === product.id);
-        if (existingItem) {
-          const newQty = existingItem.quantity + quantity;
-          if (newQty > product.stock) {
-            showToast(`Vượt quá tồn kho khả dụng (${product.stock} ${product.unit})!`, 'warning');
-            return tab;
-          }
-          return {
-            ...tab,
-            items: tab.items.map((i) => (i.product_id === product.id ? { ...i, quantity: newQty } : i)),
-          };
-        } else {
-          const newItem: CartItem = {
-            product_id: product.id,
-            sku: product.sku,
-            barcode: product.barcode,
-            name: product.name,
-            quantity: quantity,
-            price: product.selling_price,
-            cost_price: product.cost_price,
-            unit: product.unit,
-            discount_percent: 0,
-            max_stock: product.stock,
-            image: product.image,
-          };
-          return { ...tab, items: [...tab.items, newItem] };
+      const existingItem = activeTab.items.find((item) => item.product_id === product.id);
+      if (existingItem) {
+        const newQty = existingItem.quantity + quantity;
+        if (newQty > product.stock) {
+          showToast(`Vượt quá tồn kho khả dụng (${product.stock} ${product.unit})!`, 'warning');
+          return;
         }
-      })
-    );
-  };
+      }
 
-  const updateCartItemQuantity = (productId: string, delta: number) => {
-    setOrderTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== activeTabId) return tab;
-        const item = tab.items.find((i) => i.product_id === productId);
-        if (!item) return tab;
-        const newQty = item.quantity + delta;
-        if (newQty <= 0) {
-          return { ...tab, items: tab.items.filter((i) => i.product_id !== productId) };
-        }
-        if (newQty > item.max_stock) {
-          showToast(`Tối đa ${item.max_stock} ${item.unit} trong kho!`, 'warning');
-          return tab;
-        }
-        return {
-          ...tab,
-          items: tab.items.map((i) => (i.product_id === productId ? { ...i, quantity: newQty } : i)),
-        };
-      })
-    );
-  };
+      dispatch(posCartActions.addToCart({ product, quantity }));
+    },
+    [activeTab.items, dispatch, showToast]
+  );
 
-  const removeFromCart = (productId: string) => {
-    setOrderTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== activeTabId) return tab;
-        return { ...tab, items: tab.items.filter((i) => i.product_id !== productId) };
-      })
-    );
-  };
+  const updateCartItemQuantity = useCallback(
+    (productId: string, delta: number) => {
+      const item = activeTab.items.find((i) => i.product_id === productId);
+      if (!item) return;
 
-  const setCartItemQuantity = (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-    setOrderTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== activeTabId) return tab;
-        const item = tab.items.find((i) => i.product_id === productId);
-        if (!item) return tab;
-        const validQty = Math.min(quantity, item.max_stock);
-        return {
-          ...tab,
-          items: tab.items.map((i) => (i.product_id === productId ? { ...i, quantity: validQty } : i)),
-        };
-      })
-    );
-  };
+      const newQty = item.quantity + delta;
+      if (newQty > item.max_stock) {
+        showToast(`Tối đa ${item.max_stock} ${item.unit} trong kho!`, 'warning');
+        return;
+      }
 
-  const setCartItemPrice = (productId: string, newPrice: number) => {
-    setOrderTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== activeTabId) return tab;
-        return {
-          ...tab,
-          items: tab.items.map((i) => (i.product_id === productId ? { ...i, price: Math.max(0, newPrice) } : i)),
-        };
-      })
-    );
-  };
+      dispatch(posCartActions.updateCartItemQuantity({ productId, delta }));
+    },
+    [activeTab.items, dispatch, showToast]
+  );
 
-  const setCartItemDiscount = (productId: string, discountPercent: number) => {
-    setOrderTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== activeTabId) return tab;
-        return {
-          ...tab,
-          items: tab.items.map((i) =>
-            i.product_id === productId ? { ...i, discount_percent: Math.min(100, Math.max(0, discountPercent)) } : i
-          ),
-        };
-      })
-    );
-  };
+  const setCartItemQuantity = useCallback(
+    (productId: string, quantity: number) => {
+      dispatch(posCartActions.setCartItemQuantity({ productId, quantity }));
+    },
+    [dispatch]
+  );
 
-  const updateActiveTabInfo = (updates: Partial<OrderTab>) => {
-    setOrderTabs((prev) => prev.map((tab) => (tab.id === activeTabId ? { ...tab, ...updates } : tab)));
-  };
+  const setCartItemPrice = useCallback(
+    (productId: string, newPrice: number) => {
+      dispatch(posCartActions.setCartItemPrice({ productId, newPrice }));
+    },
+    [dispatch]
+  );
+
+  const setCartItemDiscount = useCallback(
+    (productId: string, discountPercent: number) => {
+      dispatch(posCartActions.setCartItemDiscount({ productId, discountPercent }));
+    },
+    [dispatch]
+  );
+
+  const removeFromCart = useCallback(
+    (productId: string) => {
+      dispatch(posCartActions.removeFromCart(productId));
+    },
+    [dispatch]
+  );
+
+  const updateActiveTabInfo = useCallback(
+    (updates: Partial<OrderTab>) => {
+      dispatch(posCartActions.updateActiveTabInfo(updates));
+    },
+    [dispatch]
+  );
 
   const value = useMemo<OrdersCartContextType>(
     () => ({
@@ -234,11 +162,34 @@ export const OrdersCartProvider: React.FC<{ children: ReactNode }> = ({ children
       clearActiveCart,
       updateActiveTabInfo,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [orderTabs, activeTabId, showToast]
+    [
+      orderTabs,
+      setOrderTabs,
+      activeTabId,
+      setActiveTabId,
+      activeTab,
+      createNewTab,
+      closeTab,
+      addToCart,
+      updateCartItemQuantity,
+      setCartItemQuantity,
+      setCartItemPrice,
+      setCartItemDiscount,
+      removeFromCart,
+      clearActiveCart,
+      updateActiveTabInfo,
+    ]
   );
 
   return <OrdersCartContext.Provider value={value}>{children}</OrdersCartContext.Provider>;
+};
+
+export const OrdersCartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  return (
+    <Provider store={store}>
+      <OrdersCartInnerProvider>{children}</OrdersCartInnerProvider>
+    </Provider>
+  );
 };
 
 export const useOrdersCart = (): OrdersCartContextType => {
